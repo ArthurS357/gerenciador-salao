@@ -30,32 +30,38 @@ type DadosEditarFuncionario = {
     podeVerHistorico?: boolean;
 };
 
-// ── 1. SETUP: Cria o primeiro Admin (disparo único) ───────────────────────────
-
+// 1. SETUP: Função de disparo único para criar o primeiro dono do sistema
 export async function gerarAdminInicial() {
     try {
-        const adminExistente = await prisma.funcionario.findFirst({
-            where: { role: 'ADMIN' },
-        });
+        const adminExistente = await prisma.funcionario.findFirst({ where: { role: 'ADMIN' } });
+        if (adminExistente) return { sucesso: false, erro: 'Administrador já configurado no banco.' };
 
-        if (adminExistente) {
-            return { sucesso: false, erro: 'Administrador já configurado no banco.' };
+        // Puxa as credenciais diretamente do seu arquivo .env
+        const emailAdmin = process.env.ADMIN_EMAIL;
+        const senhaAdmin = process.env.ADMIN_PASSWORD;
+
+        // Trava de segurança caso as variáveis não existam
+        if (!emailAdmin || !senhaAdmin) {
+            return {
+                sucesso: false,
+                erro: 'Variáveis ADMIN_EMAIL e ADMIN_PASSWORD não encontradas no arquivo .env.'
+            };
         }
 
-        const senhaHash = await hash('Admin@2026', 10);
+        const senhaHash = await hash(senhaAdmin, 10);
 
         await prisma.funcionario.create({
             data: {
-                nome: 'Gestão LmLuMattielo',
-                email: 'admin@lmlumattielo.com.br',
+                nome: 'Administrador Master',
+                email: emailAdmin,
                 senhaHash,
                 role: 'ADMIN',
-            },
+            }
         });
 
         return {
             sucesso: true,
-            mensagem: 'Admin gerado. Faça login com admin@lmlumattielo.com.br e senha Admin@2026',
+            mensagem: `Admin gerado. Faça login com ${emailAdmin}`
         };
     } catch (error) {
         console.error('Erro ao gerar admin:', error);
