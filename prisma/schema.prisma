@@ -3,9 +3,9 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite" // O Prisma 7 agora gerencia a URL pelo prisma.config.ts
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
 }
-
 model Cliente {
   id             String        @id @default(uuid())
   telefone       String        @unique // Evita duplicidade no login
@@ -16,15 +16,25 @@ model Cliente {
 }
 
 model Funcionario {
-  id                String        @id @default(uuid())
-  nome              String
-  email             String        @unique
-  senhaHash         String
-  role              Role          @default(PROFISSIONAL)
-  comissao          Float         @default(40.0) // Ex: 40% sobre a base real
-  podeAgendar       Boolean       @default(false)
-  podeVerHistorico  Boolean       @default(false)
-  agendamentos      Agendamento[]
+  id               String       @id @default(cuid())
+  nome             String
+  email            String       @unique
+  senhaHash        String
+  role             String       @default("PROFISSIONAL")
+
+  // ✅ Campos que estavam faltando
+  cpf              String?      @unique
+  telefone         String?
+  especialidade    String?
+  descricao        String?
+  comissao         Float        @default(40.0)
+  podeAgendar      Boolean      @default(false)
+  podeVerHistorico Boolean      @default(false)
+  ativo            Boolean      @default(true)
+
+  agendamentos     Agendamento[]
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
 }
 
 enum Role {

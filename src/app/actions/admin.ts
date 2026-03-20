@@ -1,9 +1,116 @@
 'use server'
 
 import { prisma } from '@/lib/prisma';
+import { hash } from 'bcrypt';
 import { randomUUID } from 'crypto';
 
-// Passo 2: Ação para Atualizar Permissões da Equipe
+// ── Tipagens explícitas (elimina os `any` perigosos) ──────────────────────────
+
+type DadosCriarFuncionario = {
+    nome: string;
+    email: string;
+    cpf?: string;
+    telefone?: string;
+    especialidade?: string;
+    descricao?: string;
+    comissao?: number;
+    podeAgendar?: boolean;
+    podeVerHistorico?: boolean;
+};
+
+type DadosEditarFuncionario = {
+    nome?: string;
+    email?: string;
+    cpf?: string;
+    telefone?: string;
+    especialidade?: string;
+    descricao?: string;
+    comissao?: number;
+    podeAgendar?: boolean;
+    podeVerHistorico?: boolean;
+};
+
+// ── 1. SETUP: Cria o primeiro Admin (disparo único) ───────────────────────────
+
+export async function gerarAdminInicial() {
+    try {
+        const adminExistente = await prisma.funcionario.findFirst({
+            where: { role: 'ADMIN' },
+        });
+
+        if (adminExistente) {
+            return { sucesso: false, erro: 'Administrador já configurado no banco.' };
+        }
+
+        const senhaHash = await hash('Admin@2026', 10);
+
+        await prisma.funcionario.create({
+            data: {
+                nome: 'Gestão LmLuMattielo',
+                email: 'admin@lmlumattielo.com.br',
+                senhaHash,
+                role: 'ADMIN',
+            },
+        });
+
+        return {
+            sucesso: true,
+            mensagem: 'Admin gerado. Faça login com admin@lmlumattielo.com.br e senha Admin@2026',
+        };
+    } catch (error) {
+        console.error('Erro ao gerar admin:', error);
+        return { sucesso: false, erro: 'Falha técnica ao criar a conta master.' };
+    }
+}
+
+// ── 2. CRIAÇÃO: Admin cria novo profissional com senha temporária ─────────────
+
+export async function criarFuncionario(dados: DadosCriarFuncionario) {
+    try {
+        const senhaHash = await hash('Mudar@123', 10);
+
+        const novoFuncionario = await prisma.funcionario.create({
+            data: {
+                nome: dados.nome,
+                email: dados.email,
+                senhaHash,
+                role: 'PROFISSIONAL',
+                cpf: dados.cpf,
+                telefone: dados.telefone,
+                especialidade: dados.especialidade,
+                descricao: dados.descricao,
+                comissao: Number(dados.comissao) || 40.0,
+                podeAgendar: dados.podeAgendar ?? false,
+                podeVerHistorico: dados.podeVerHistorico ?? false,
+            },
+        });
+
+        return { sucesso: true, funcionario: novoFuncionario };
+    } catch (error) {
+        console.error('Erro ao criar funcionário:', error);
+        return { sucesso: false, erro: 'Falha ao criar. Verifique se o e-mail ou CPF já estão em uso.' };
+    }
+}
+
+// ── 3. EDIÇÃO: Admin atualiza dados do perfil ─────────────────────────────────
+// Tipagem explícita impede sobrescrever senhaHash, id ou role acidentalmente
+
+export async function editarFuncionarioCompleto(id: string, dados: DadosEditarFuncionario) {
+    try {
+        const atualizado = await prisma.funcionario.update({
+            where: { id },
+            data: dados,
+        });
+
+        return { sucesso: true, funcionario: atualizado };
+    } catch (error) {
+        console.error('Erro ao editar funcionário:', error);
+        return { sucesso: false, erro: 'Falha ao atualizar os dados do profissional no banco.' };
+    }
+}
+
+// ── 4. PERMISSÕES: Atualiza comissão e acessos do profissional ────────────────
+
 export async function atualizarPermissoesFuncionario(
     funcionarioId: string,
     dados: { comissao?: number; podeAgendar?: boolean; podeVerHistorico?: boolean }
@@ -21,15 +128,30 @@ export async function atualizarPermissoesFuncionario(
     }
 }
 
-// Passo 3: Ação de Anonimização (Direito ao Esquecimento - LGPD)
+// ── 5. EXCLUSÃO LÓGICA: Inativa sem quebrar histórico financeiro ──────────────
+
+export async function inativarFuncionario(id: string) {
+    try {
+        await prisma.funcionario.update({
+            where: { id },
+            data: { ativo: false },
+        });
+
+        return { sucesso: true, mensagem: 'Funcionário desligado. Acesso revogado com sucesso.' };
+    } catch (error) {
+        console.error('Erro ao inativar funcionário:', error);
+        return { sucesso: false, erro: 'Falha ao inativar funcionário.' };
+    }
+} // ✅ CORREÇÃO 1: chave de fechamento que estava faltando
+
+// ── 6. LGPD: Anonimização irreversível (Direito ao Esquecimento) ──────────────
+
 export async function anonimizarClienteLGPD(clienteId: string) {
     try {
-        // Geramos hashes irreversíveis para destruir a ligação com a pessoa natural
         const hashNome = `Anonimizado_${randomUUID().substring(0, 8)}`;
-        // Usamos um prefixo '0000' para garantir que não pareça um número real
         const hashTelefone = `0000_${randomUUID().substring(0, 8)}`;
 
-        const clienteAnonimizado = await prisma.cliente.update({
+        await prisma.cliente.update({
             where: { id: clienteId },
             data: {
                 nome: hashNome,
@@ -40,7 +162,7 @@ export async function anonimizarClienteLGPD(clienteId: string) {
 
         return {
             sucesso: true,
-            mensagem: 'Cliente anonimizado com sucesso. Histórico financeiro preservado para a Curva ABC.'
+            mensagem: 'Cliente anonimizado com sucesso. Histórico financeiro preservado para a Curva ABC.',
         };
     } catch (error) {
         console.error('Erro na anonimização LGPD:', error);

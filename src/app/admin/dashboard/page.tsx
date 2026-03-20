@@ -1,122 +1,148 @@
-import { PrismaClient } from '@prisma/client';
+'use client'
 
-const prisma = new PrismaClient();
+import { useState, useEffect } from 'react';
+import {
+    gerarAdminInicial,
+    criarFuncionario,
+    inativarFuncionario
+} from '@/app/actions/admin';
 
-export default async function TorreControleDashboard() {
-    // Passo 2: Busca de dados simultânea no banco (PostgreSQL/SQLite)
-    const [funcionarios, clientes, agendamentosConcluidos] = await Promise.all([
-        prisma.funcionario.findMany({
-            orderBy: { nome: 'asc' },
-        }),
-        prisma.cliente.findMany({
-            orderBy: { criadoEm: 'desc' },
-            take: 50, // Limite para paginação inicial
-        }),
-        prisma.agendamento.findMany({
-            where: { concluido: true },
-        })
-    ]);
+export default function TorreControleDashboard() {
+    const [mensagem, setMensagem] = useState({ texto: '', tipo: '' });
+    const [isModalOpen, setIsModalOpen] = useState(false);
 
-    // Passo 2 (Continuação): Agregação Financeira Simples
-    // Calcula o total bruto e o total de taxas deduzidas de todas as comandas concluídas
-    const faturamentoBruto = agendamentosConcluidos.reduce((acc, curr) => acc + curr.valorBruto, 0);
-    const deducoesTotais = agendamentosConcluidos.reduce((acc, curr) => acc + curr.taxas, 0);
-    const baseLiquida = faturamentoBruto - deducoesTotais;
-    // (Nota: Para um cálculo exato de comissão retida, cruzaríamos com a comissão de cada funcionário, mas aqui fazemos uma estimativa simplificada para o dashboard)
-    const lucroRetidoEstimado = baseLiquida * 0.6; // Supondo que 40% fica com os profissionais em média
+    // Estado do formulário de novo funcionário
+    const [formData, setFormData] = useState({
+        nome: '', email: '', cpf: '', telefone: '', especialidade: '', comissao: 40
+    });
 
-    // Passo 3 e 4: Estrutura Visual do Dashboard
+    // Função para injetar o 1º Admin no banco zerado
+    const handleGerarAdmin = async () => {
+        const res = await gerarAdminInicial();
+        setMensagem({
+            texto: res.mensagem || res.erro || '',
+            tipo: res.sucesso ? 'sucesso' : 'erro'
+        });
+    };
+
+    // Função para salvar novo profissional
+    const handleCadastrarEquipe = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setMensagem({ texto: 'Cadastrando...', tipo: 'info' });
+
+        const res = await criarFuncionario(formData);
+
+        if (res.sucesso) {
+            setMensagem({ texto: 'Profissional cadastrado! Senha temporária: Mudar@123', tipo: 'sucesso' });
+            setIsModalOpen(false);
+            // Em um app real, aqui você recarregaria a lista de funcionários do banco
+        } else {
+            setMensagem({ texto: res.erro || 'Erro ao cadastrar.', tipo: 'erro' });
+        }
+    };
+
     return (
         <div className="min-h-screen bg-[#fdfbf7] p-8 font-sans">
             <header className="mb-8 border-b-2 border-[#5C4033] pb-4 flex justify-between items-center">
-                <h1 className="text-3xl font-bold text-[#5C4033]">Torre de Controle LmLuMattielo</h1>
-                <button className="bg-[#8B5A2B] text-white px-4 py-2 rounded hover:bg-[#704620]">
-                    + Novo Cadastro
-                </button>
+                <div>
+                    <h1 className="text-3xl font-bold text-[#5C4033]">Torre de Controle</h1>
+                    <p className="text-gray-500 mt-1">Gestão de Equipe e Financeiro</p>
+                </div>
+
+                <div className="flex gap-4">
+                    {/* Botão Invisível/Debug para gerar o primeiro acesso (Remover em produção) */}
+                    <button
+                        onClick={handleGerarAdmin}
+                        className="bg-gray-200 text-gray-600 px-4 py-2 rounded text-xs hover:bg-gray-300"
+                    >
+                        ⚙️ Gerar Admin Master
+                    </button>
+
+                    <button
+                        onClick={() => setIsModalOpen(true)}
+                        className="bg-[#8B5A2B] text-white px-4 py-2 rounded font-bold hover:bg-[#704620]"
+                    >
+                        + Novo Profissional
+                    </button>
+                </div>
             </header>
 
-            {/* Resumo Financeiro */}
-            <section className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
-                <div className="bg-white p-6 rounded-lg shadow border border-[#e5d9c5]">
-                    <h3 className="text-gray-500 text-sm font-semibold mb-1">Faturamento Bruto</h3>
-                    <p className="text-2xl font-bold text-gray-800">R$ {faturamentoBruto.toFixed(2)}</p>
+            {mensagem.texto && (
+                <div className={`mb-6 p-4 rounded font-bold text-center ${mensagem.tipo === 'erro' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
+                    {mensagem.texto}
                 </div>
-                <div className="bg-white p-6 rounded-lg shadow border border-[#e5d9c5]">
-                    <h3 className="text-gray-500 text-sm font-semibold mb-1">Deduções (Taxas/Insumos)</h3>
-                    <p className="text-2xl font-bold text-red-600">- R$ {deducoesTotais.toFixed(2)}</p>
-                </div>
-                <div className="bg-[#5C4033] p-6 rounded-lg shadow text-white">
-                    <h3 className="text-gray-300 text-sm font-semibold mb-1">Lucro Líquido Retido</h3>
-                    <p className="text-2xl font-bold">R$ {lucroRetidoEstimado.toFixed(2)}</p>
-                </div>
+            )}
+
+            {/* Tabela de Exemplo (Em breve conectada ao banco) */}
+            <section className="bg-white rounded-lg shadow overflow-hidden border border-[#e5d9c5]">
+                <table className="w-full text-left border-collapse">
+                    <thead className="bg-[#5C4033] text-white">
+                        <tr>
+                            <th className="p-4 text-sm font-semibold">Nome</th>
+                            <th className="p-4 text-sm font-semibold">Especialidade</th>
+                            <th className="p-4 text-sm font-semibold">Comissão</th>
+                            <th className="p-4 text-sm font-semibold text-right">Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {/* Lista vazia simulada */}
+                        <tr className="border-b border-gray-100">
+                            <td colSpan={4} className="p-8 text-center text-gray-500">
+                                Nenhum profissional cadastrado. Adicione um novo para compor a equipe.
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
             </section>
 
-            {/* Gestão de Equipe */}
-            <section className="mb-10">
-                <h2 className="text-2xl font-bold text-[#5C4033] mb-4">Gestão de Equipe</h2>
-                <div className="bg-white rounded-lg shadow overflow-hidden border border-[#e5d9c5]">
-                    <table className="w-full text-left border-collapse">
-                        <thead className="bg-[#5C4033] text-white">
-                            <tr>
-                                <th className="p-4 text-sm font-semibold">Nome</th>
-                                <th className="p-4 text-sm font-semibold">Comissão</th>
-                                <th className="p-4 text-sm font-semibold">Agendar Clientes</th>
-                                <th className="p-4 text-sm font-semibold">Ver Histórico</th>
-                                <th className="p-4 text-sm font-semibold text-right">Ações</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {funcionarios.map((func) => (
-                                <tr key={func.id} className="border-b border-gray-100 hover:bg-gray-50">
-                                    <td className="p-4 text-gray-800 font-medium">{func.nome}</td>
-                                    <td className="p-4 text-gray-600">{func.comissao}%</td>
-                                    <td className="p-4 text-gray-600">{func.podeAgendar ? 'Sim' : 'Não'}</td>
-                                    <td className="p-4 text-gray-600">{func.podeVerHistorico ? 'Sim' : 'Não'}</td>
-                                    <td className="p-4 text-right">
-                                        <button className="text-[#8B5A2B] hover:underline text-sm font-semibold">Editar Permissões</button>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-            </section>
+            {/* Modal de Cadastro de Funcionário */}
+            {isModalOpen && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                    <div className="bg-white p-8 rounded-lg shadow-xl w-full max-w-lg border-t-4 border-[#5C4033]">
+                        <h2 className="text-2xl font-bold text-[#5C4033] mb-6">Cadastrar Profissional</h2>
 
-            {/* Base de Clientes */}
-            <section>
-                <h2 className="text-2xl font-bold text-[#5C4033] mb-4">Base de Clientes (LGPD)</h2>
-                <div className="bg-white rounded-lg shadow overflow-hidden border border-[#e5d9c5]">
-                    <table className="w-full text-left border-collapse">
-                        <thead className="bg-[#e5d9c5] text-[#5C4033]">
-                            <tr>
-                                <th className="p-4 text-sm font-semibold">Telefone (Login)</th>
-                                <th className="p-4 text-sm font-semibold">Nome</th>
-                                <th className="p-4 text-sm font-semibold">Status LGPD</th>
-                                <th className="p-4 text-sm font-semibold text-right">Ações</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {clientes.map((cliente) => (
-                                <tr key={cliente.id} className="border-b border-gray-100 hover:bg-gray-50">
-                                    <td className="p-4 text-gray-800 font-mono text-sm">{cliente.telefone}</td>
-                                    <td className="p-4 text-gray-800">{cliente.nome}</td>
-                                    <td className="p-4">
-                                        <span className={`px-2 py-1 rounded text-xs font-bold ${cliente.anonimizado ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
-                                            {cliente.anonimizado ? 'Anonimizado' : 'Ativo'}
-                                        </span>
-                                    </td>
-                                    <td className="p-4 text-right space-x-3">
-                                        <button className="text-[#8B5A2B] hover:underline text-sm font-semibold">Histórico</button>
-                                        {!cliente.anonimizado && (
-                                            <button className="text-red-600 hover:underline text-sm font-semibold">Excluir/Anonimizar</button>
-                                        )}
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                        <form onSubmit={handleCadastrarEquipe} className="space-y-4">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-semibold text-gray-700 mb-1">Nome Completo</label>
+                                    <input required type="text" className="w-full border rounded px-3 py-2"
+                                        onChange={e => setFormData({ ...formData, nome: e.target.value })} />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-semibold text-gray-700 mb-1">E-mail Corporativo</label>
+                                    <input required type="email" className="w-full border rounded px-3 py-2"
+                                        onChange={e => setFormData({ ...formData, email: e.target.value })} />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-semibold text-gray-700 mb-1">CPF</label>
+                                    <input required type="text" className="w-full border rounded px-3 py-2"
+                                        onChange={e => setFormData({ ...formData, cpf: e.target.value })} />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-semibold text-gray-700 mb-1">Especialidade</label>
+                                    <input type="text" placeholder="Ex: Colorimetria" className="w-full border rounded px-3 py-2"
+                                        onChange={e => setFormData({ ...formData, especialidade: e.target.value })} />
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-semibold text-gray-700 mb-1">Comissão Padrão (%)</label>
+                                <input required type="number" min="0" max="100" className="w-full border rounded px-3 py-2"
+                                    value={formData.comissao} onChange={e => setFormData({ ...formData, comissao: Number(e.target.value) })} />
+                            </div>
+
+                            <div className="flex justify-end gap-3 mt-6">
+                                <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-gray-600 font-bold hover:bg-gray-100 rounded">
+                                    Cancelar
+                                </button>
+                                <button type="submit" className="px-4 py-2 bg-[#5C4033] text-white font-bold rounded hover:bg-[#3e2b22]">
+                                    Salvar Cadastro
+                                </button>
+                            </div>
+                        </form>
+                    </div>
                 </div>
-            </section>
+            )}
         </div>
     );
 }
