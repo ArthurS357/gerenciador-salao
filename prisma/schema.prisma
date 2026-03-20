@@ -1,0 +1,46 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite" // Troque para "postgresql" em produção na Vercel
+  url      = env("DATABASE_URL")
+}
+
+model Cliente {
+  id             String     @id @default(uuid())
+  telefone       String     @unique // Evita duplicidade no login
+  nome           String
+  anonimizado    Boolean    @default(false) // Flag para a LGPD
+  criadoEm       DateTime   @default(now())
+  agendamentos   Agendamento[]
+}
+
+model Funcionario {
+  id                String    @id @default(uuid())
+  nome              String
+  email             String    @unique
+  senhaHash         String
+  role              Role      @default(PROFISSIONAL)
+  comissao          Float     @default(40.0) // Ex: 40% sobre a base real
+  podeAgendar       Boolean   @default(false)
+  podeVerHistorico  Boolean   @default(false)
+  agendamentos      Agendamento[]
+}
+
+enum Role {
+  ADMIN
+  PROFISSIONAL
+}
+
+model Agendamento {
+  id            String      @id @default(uuid())
+  clienteId     String
+  cliente       Cliente     @relation(fields: [clienteId], references: [id])
+  funcionarioId String
+  funcionario   Funcionario @relation(fields: [funcionarioId], references: [id])
+  valorBruto    Float
+  taxas         Float       // Deduções (cartão, insumos) para cálculo real
+  dataHora      DateTime
+  concluido     Boolean     @default(false)
+}
