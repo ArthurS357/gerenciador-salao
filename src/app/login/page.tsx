@@ -1,101 +1,402 @@
 'use client'
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { loginCliente } from '@/app/actions/auth';
 
 export default function LoginPage() {
-    // Passo 2: Gerenciamento de estado dos inputs e roteamento
     const [nome, setNome] = useState('');
     const [telefone, setTelefone] = useState('');
     const [erro, setErro] = useState('');
     const [loading, setLoading] = useState(false);
+    const [mounted, setMounted] = useState(false);
     const router = useRouter();
 
-    // Passo 3: Função que processa o login e conversa com o banco
+    useEffect(() => setMounted(true), []);
+
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
         setErro('');
 
         try {
-            // Chama a Server Action criada anteriormente
             const res = await loginCliente(telefone, nome);
 
             if (res.success) {
-                // Redireciona para a página principal ou agenda após o sucesso
                 router.push('/');
             } else {
-                // Exibe o erro (ex: conta excluída/anonimizada via LGPD)
                 setErro(res.error || 'Ocorreu um erro ao tentar entrar.');
             }
-        } catch (err) {
+        } catch {
             setErro('Falha de comunicação com o servidor.');
         } finally {
             setLoading(false);
         }
     };
 
-    // Passo 4: Renderização da Interface Visual
     return (
-        <div className="min-h-screen flex items-center justify-center bg-[#fdfbf7] p-4 font-sans">
-            <div className="bg-white p-8 rounded-lg shadow-lg border border-[#e5d9c5] w-full max-w-md">
+        <>
+            <style>{`
+                @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=DM+Sans:wght@300;400;500&display=swap');
 
-                {/* Cabeçalho */}
-                <div className="text-center mb-8">
-                    <h1 className="text-3xl font-bold text-[#5C4033] mb-2">LmLuMattielo</h1>
-                    <p className="text-gray-500 text-sm">Acesse sua conta para realizar agendamentos</p>
+                * { box-sizing: border-box; margin: 0; padding: 0; }
+
+                .page {
+                    min-height: 100svh;
+                    display: grid;
+                    grid-template-columns: 1fr 1fr;
+                    font-family: 'DM Sans', sans-serif;
+                    background: #0e0a08;
+                }
+
+                @media (max-width: 768px) {
+                    .page { grid-template-columns: 1fr; }
+                    .panel-esquerdo { display: none; }
+                }
+
+                /* Painel esquerdo — atmosfera visual */
+                .panel-esquerdo {
+                    position: relative;
+                    overflow: hidden;
+                    background: #1a0f0a;
+                }
+
+                .panel-esquerdo::before {
+                    content: '';
+                    position: absolute;
+                    inset: 0;
+                    background:
+                        radial-gradient(ellipse 80% 60% at 30% 40%, rgba(139, 90, 43, 0.35) 0%, transparent 70%),
+                        radial-gradient(ellipse 50% 80% at 70% 70%, rgba(92, 64, 51, 0.2) 0%, transparent 60%);
+                }
+
+                .panel-esquerdo::after {
+                    content: '';
+                    position: absolute;
+                    inset: 0;
+                    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='400' height='400' filter='url(%23n)' opacity='0.05'/%3E%3C/svg%3E");
+                    opacity: 0.4;
+                }
+
+                .panel-esquerdo-conteudo {
+                    position: relative;
+                    z-index: 1;
+                    height: 100%;
+                    display: flex;
+                    flex-direction: column;
+                    justify-content: space-between;
+                    padding: 3rem;
+                }
+
+                .decorativo-linha {
+                    width: 40px;
+                    height: 1px;
+                    background: rgba(197, 168, 124, 0.5);
+                    display: block;
+                    margin-bottom: 1.5rem;
+                }
+
+                .citacao {
+                    font-family: 'Cormorant Garamond', serif;
+                    font-size: 2rem;
+                    font-weight: 300;
+                    font-style: italic;
+                    color: rgba(255, 255, 255, 0.75);
+                    line-height: 1.4;
+                    max-width: 320px;
+                }
+
+                .citacao em {
+                    color: #c5a87c;
+                    font-style: normal;
+                }
+
+                .rodape-esquerdo {
+                    display: flex;
+                    align-items: center;
+                    gap: 0.75rem;
+                    color: rgba(255,255,255,0.3);
+                    font-size: 0.75rem;
+                    font-weight: 300;
+                    letter-spacing: 0.1em;
+                    text-transform: uppercase;
+                }
+
+                .dot {
+                    width: 4px;
+                    height: 4px;
+                    border-radius: 50%;
+                    background: rgba(197, 168, 124, 0.4);
+                }
+
+                /* Painel direito — formulário */
+                .panel-direito {
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    padding: 2rem;
+                    background: #f7f3ee;
+                    opacity: 0;
+                    transform: translateY(12px);
+                    transition: opacity 0.6s ease, transform 0.6s ease;
+                }
+
+                .panel-direito.visivel {
+                    opacity: 1;
+                    transform: translateY(0);
+                }
+
+                .card {
+                    width: 100%;
+                    max-width: 400px;
+                }
+
+                .logo-area {
+                    margin-bottom: 2.5rem;
+                }
+
+                .logo {
+                    font-family: 'Cormorant Garamond', serif;
+                    font-size: 2rem;
+                    font-weight: 600;
+                    color: #3a2318;
+                    letter-spacing: 0.02em;
+                    line-height: 1;
+                }
+
+                .logo span {
+                    display: block;
+                    font-size: 0.7rem;
+                    font-family: 'DM Sans', sans-serif;
+                    font-weight: 300;
+                    letter-spacing: 0.25em;
+                    text-transform: uppercase;
+                    color: #8B5A2B;
+                    margin-top: 0.35rem;
+                }
+
+                .titulo-form {
+                    font-family: 'Cormorant Garamond', serif;
+                    font-size: 1.5rem;
+                    font-weight: 400;
+                    color: #3a2318;
+                    margin-bottom: 0.35rem;
+                }
+
+                .subtitulo-form {
+                    font-size: 0.82rem;
+                    color: #9c8070;
+                    font-weight: 300;
+                    margin-bottom: 2rem;
+                }
+
+                .divisor {
+                    height: 1px;
+                    background: linear-gradient(to right, #d4b896, transparent);
+                    margin-bottom: 2rem;
+                }
+
+                .campo {
+                    margin-bottom: 1.25rem;
+                }
+
+                label {
+                    display: block;
+                    font-size: 0.72rem;
+                    font-weight: 500;
+                    letter-spacing: 0.12em;
+                    text-transform: uppercase;
+                    color: #6b4c3b;
+                    margin-bottom: 0.5rem;
+                }
+
+                input {
+                    width: 100%;
+                    padding: 0.8rem 1rem;
+                    border: 1.5px solid #e0d0c0;
+                    border-radius: 4px;
+                    background: white;
+                    color: #3a2318;
+                    font-family: 'DM Sans', sans-serif;
+                    font-size: 0.9rem;
+                    font-weight: 300;
+                    outline: none;
+                    transition: border-color 0.2s, box-shadow 0.2s;
+                }
+
+                input::placeholder { color: #c0a898; }
+
+                input:focus {
+                    border-color: #8B5A2B;
+                    box-shadow: 0 0 0 3px rgba(139, 90, 43, 0.08);
+                }
+
+                .erro-msg {
+                    display: flex;
+                    align-items: center;
+                    gap: 0.5rem;
+                    padding: 0.75rem 1rem;
+                    background: #fff1f0;
+                    border: 1px solid #f5c5c0;
+                    border-radius: 4px;
+                    color: #b04040;
+                    font-size: 0.8rem;
+                    margin-bottom: 1.25rem;
+                }
+
+                .erro-msg::before {
+                    content: '!';
+                    display: inline-flex;
+                    align-items: center;
+                    justify-content: center;
+                    width: 16px;
+                    height: 16px;
+                    min-width: 16px;
+                    border-radius: 50%;
+                    background: #f5c5c0;
+                    color: #b04040;
+                    font-size: 0.65rem;
+                    font-weight: 700;
+                }
+
+                .btn-entrar {
+                    width: 100%;
+                    padding: 0.9rem;
+                    background: #3a2318;
+                    color: #f0e6d8;
+                    border: none;
+                    border-radius: 4px;
+                    font-family: 'DM Sans', sans-serif;
+                    font-size: 0.8rem;
+                    font-weight: 500;
+                    letter-spacing: 0.2em;
+                    text-transform: uppercase;
+                    cursor: pointer;
+                    margin-top: 0.5rem;
+                    transition: background 0.2s, transform 0.1s;
+                    position: relative;
+                    overflow: hidden;
+                }
+
+                .btn-entrar:hover:not(:disabled) { background: #5C4033; }
+                .btn-entrar:active:not(:disabled) { transform: scale(0.99); }
+                .btn-entrar:disabled { opacity: 0.6; cursor: not-allowed; }
+
+                .loader {
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 0.4rem;
+                }
+
+                .loader-dot {
+                    width: 4px;
+                    height: 4px;
+                    border-radius: 50%;
+                    background: currentColor;
+                    animation: bounce 1.2s ease-in-out infinite;
+                }
+                .loader-dot:nth-child(2) { animation-delay: 0.15s; }
+                .loader-dot:nth-child(3) { animation-delay: 0.3s; }
+
+                @keyframes bounce {
+                    0%, 80%, 100% { transform: translateY(0); opacity: 0.4; }
+                    40% { transform: translateY(-4px); opacity: 1; }
+                }
+
+                .nota-privacidade {
+                    margin-top: 1.5rem;
+                    font-size: 0.72rem;
+                    color: #b0998a;
+                    text-align: center;
+                    line-height: 1.5;
+                    font-weight: 300;
+                }
+            `}</style>
+
+            <div className="page">
+
+                {/* Painel esquerdo — decorativo */}
+                <div className="panel-esquerdo">
+                    <div className="panel-esquerdo-conteudo">
+                        <div>
+                            <span className="decorativo-linha" />
+                            <p className="citacao">
+                                Beleza que <em>transforma</em>,<br />
+                                cuidado que <em>permanece</em>.
+                            </p>
+                        </div>
+                        <div className="rodape-esquerdo">
+                            <span>LmLu Mattielo</span>
+                            <span className="dot" />
+                            <span>Studio de Beleza</span>
+                        </div>
+                    </div>
                 </div>
 
-                {/* Exibição de Erros */}
-                {erro && (
-                    <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 text-sm rounded text-center font-medium">
-                        {erro}
+                {/* Painel direito — formulário */}
+                <div className={`panel-direito ${mounted ? 'visivel' : ''}`}>
+                    <div className="card">
+
+                        <div className="logo-area">
+                            <div className="logo">
+                                LmLu Mattielo
+                                <span>Studio de Beleza</span>
+                            </div>
+                        </div>
+
+                        <h2 className="titulo-form">Bem-vinda de volta</h2>
+                        <p className="subtitulo-form">Acesse sua conta para realizar agendamentos</p>
+
+                        <div className="divisor" />
+
+                        {erro && <div className="erro-msg">{erro}</div>}
+
+                        <form onSubmit={handleLogin}>
+                            <div className="campo">
+                                <label htmlFor="nome">Nome completo</label>
+                                <input
+                                    id="nome"
+                                    type="text"
+                                    required
+                                    value={nome}
+                                    onChange={(e) => setNome(e.target.value)}
+                                    placeholder="Ex: Maria Clara"
+                                    autoComplete="name"
+                                />
+                            </div>
+
+                            <div className="campo">
+                                <label htmlFor="telefone">WhatsApp</label>
+                                <input
+                                    id="telefone"
+                                    type="tel"
+                                    required
+                                    value={telefone}
+                                    onChange={(e) => setTelefone(e.target.value)}
+                                    placeholder="(11) 90000-0000"
+                                    autoComplete="tel"
+                                />
+                            </div>
+
+                            <button type="submit" disabled={loading} className="btn-entrar">
+                                {loading ? (
+                                    <span className="loader">
+                                        <span className="loader-dot" />
+                                        <span className="loader-dot" />
+                                        <span className="loader-dot" />
+                                    </span>
+                                ) : 'Entrar'}
+                            </button>
+                        </form>
+
+                        <p className="nota-privacidade">
+                            Seus dados são protegidos pela LGPD e utilizados<br />
+                            exclusivamente para seus agendamentos.
+                        </p>
+
                     </div>
-                )}
-
-                {/* Formulário */}
-                <form onSubmit={handleLogin} className="space-y-5">
-                    <div>
-                        <label htmlFor="nome" className="block text-sm font-semibold text-[#5C4033] mb-1">
-                            Seu Nome Completo
-                        </label>
-                        <input
-                            id="nome"
-                            type="text"
-                            required
-                            value={nome}
-                            onChange={(e) => setNome(e.target.value)}
-                            className="w-full border border-gray-300 rounded px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#8B5A2B] focus:border-transparent text-gray-800"
-                            placeholder="Ex: Maria Clara"
-                        />
-                    </div>
-
-                    <div>
-                        <label htmlFor="telefone" className="block text-sm font-semibold text-[#5C4033] mb-1">
-                            Número de Telefone (WhatsApp)
-                        </label>
-                        <input
-                            id="telefone"
-                            type="tel"
-                            required
-                            value={telefone}
-                            onChange={(e) => setTelefone(e.target.value)}
-                            className="w-full border border-gray-300 rounded px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#8B5A2B] focus:border-transparent text-gray-800"
-                            placeholder="(11) 90000-0000"
-                        />
-                    </div>
-
-                    <button
-                        type="submit"
-                        disabled={loading}
-                        className="w-full bg-[#5C4033] text-white font-bold py-3 rounded mt-4 hover:bg-[#3e2b22] transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
-                    >
-                        {loading ? 'Acessando...' : 'Entrar'}
-                    </button>
-                </form>
-
+                </div>
             </div>
-        </div>
+        </>
     );
 }
