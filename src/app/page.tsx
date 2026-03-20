@@ -1,8 +1,11 @@
 'use client'
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { buscarProfissionais } from '@/app/actions/profissionais';
 import { criarAgendamentoComBuffer } from '@/app/actions/agendamento';
+import { verificarSessaoCliente } from '@/app/actions/auth'; // ✅ NOVO
 
 const CATALOGO_SERVICOS = [
   { id: '1', nome: 'Colorimetria Completa', tempoMinutos: 210, preco: 450.00, descricao: 'Transformação total com técnicas exclusivas' },
@@ -17,27 +20,48 @@ export default function LandingPage() {
   const [dataHora, setDataHora] = useState('');
   const [mensagem, setMensagem] = useState({ texto: '', tipo: '' });
   const [mounted, setMounted] = useState(false);
+  const [clienteLogado, setClienteLogado] = useState(false); // ✅ NOVO
+  const router = useRouter(); // ✅ NOVO
 
   useEffect(() => {
     setMounted(true);
+
     async function carregar() {
-      const res = await buscarProfissionais();
-      if (res.sucesso) setProfissionais(res.profissionais);
+      const [resProfissionais, resSessao] = await Promise.all([
+        buscarProfissionais(),
+        verificarSessaoCliente(), // ✅ NOVO: verifica sessão em paralelo
+      ]);
+
+      if (resProfissionais.sucesso) setProfissionais(resProfissionais.profissionais);
+      setClienteLogado(resSessao.logado); // ✅ NOVO
     }
+
     carregar();
   }, []);
 
   const handleAgendar = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // ✅ NOVO: trava o formulário se não estiver logado, redireciona para login
+    if (!clienteLogado) {
+      router.push('/login');
+      return;
+    }
+
     setMensagem({ texto: 'Processando reserva...', tipo: 'info' });
 
     const servicoSelecionado = CATALOGO_SERVICOS.find(s => s.id === servicoId);
     if (!servicoSelecionado) return;
 
-    const clienteIdTemporario = "cliente-logado-id";
+    // ✅ NOVO: busca o ID real da sessão em vez do ID temporário
+    const sessao = await verificarSessaoCliente();
+    if (!sessao.logado || !sessao.id) {
+      router.push('/login');
+      return;
+    }
 
     const res = await criarAgendamentoComBuffer(
-      clienteIdTemporario,
+      sessao.id, // ✅ ID real do cliente autenticado
       profissionalId,
       new Date(dataHora),
       servicoSelecionado.tempoMinutos,
@@ -79,7 +103,6 @@ export default function LandingPage() {
           color: var(--marrom-profundo);
         }
 
-        /* ── NAV ── */
         .nav {
           position: fixed;
           top: 0; left: 0; right: 0;
@@ -150,6 +173,8 @@ export default function LandingPage() {
           color: var(--marrom-medio);
           cursor: pointer;
           transition: all 0.2s;
+          text-decoration: none;
+          display: inline-block;
         }
 
         .nav-btn:hover {
@@ -157,7 +182,6 @@ export default function LandingPage() {
           color: white;
         }
 
-        /* ── HERO ── */
         .hero {
           min-height: 100svh;
           display: grid;
@@ -317,10 +341,7 @@ export default function LandingPage() {
           .hero-numero { bottom: 1.5rem; left: 1.5rem; gap: 2rem; }
         }
 
-        .stat {
-          display: flex;
-          flex-direction: column;
-        }
+        .stat { display: flex; flex-direction: column; }
 
         .stat-num {
           font-family: 'Cormorant Garamond', serif;
@@ -339,7 +360,6 @@ export default function LandingPage() {
           margin-top: 0.35rem;
         }
 
-        /* ── SERVIÇOS ── */
         .secao-servicos {
           padding: 7rem 4rem;
           max-width: 1200px;
@@ -448,7 +468,6 @@ export default function LandingPage() {
           text-transform: uppercase;
         }
 
-        /* ── AGENDAMENTO ── */
         .secao-agendamento {
           background: var(--marrom-profundo);
           padding: 7rem 4rem;
@@ -481,6 +500,52 @@ export default function LandingPage() {
           color: rgba(255,255,255,0.4);
           font-weight: 300;
           letter-spacing: 0.05em;
+        }
+
+        /* ✅ NOVO: aviso de login necessário */
+        .aviso-login {
+          padding: 1.25rem 1.5rem;
+          background: rgba(197, 168, 124, 0.07);
+          border: 1px solid rgba(197, 168, 124, 0.2);
+          border-radius: 3px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 1rem;
+          flex-wrap: wrap;
+          margin-bottom: 1.75rem;
+        }
+
+        .aviso-login p {
+          font-size: 0.8rem;
+          color: rgba(255,255,255,0.45);
+          font-weight: 300;
+        }
+
+        .aviso-login p strong {
+          color: var(--caramelo);
+          font-weight: 500;
+        }
+
+        .aviso-login-link {
+          padding: 0.5rem 1.25rem;
+          background: transparent;
+          border: 1px solid rgba(197, 168, 124, 0.35);
+          border-radius: 2px;
+          font-family: 'DM Sans', sans-serif;
+          font-size: 0.7rem;
+          font-weight: 500;
+          letter-spacing: 0.15em;
+          text-transform: uppercase;
+          color: var(--caramelo);
+          text-decoration: none;
+          white-space: nowrap;
+          transition: all 0.2s;
+        }
+
+        .aviso-login-link:hover {
+          background: rgba(197, 168, 124, 0.1);
+          border-color: rgba(197, 168, 124, 0.6);
         }
 
         .form-card {
@@ -531,6 +596,13 @@ export default function LandingPage() {
           transition: border-color 0.2s, background 0.2s;
           -webkit-appearance: none;
           appearance: none;
+        }
+
+        /* ✅ Inputs desabilitados quando não logado */
+        .campo-form select:disabled,
+        .campo-form input:disabled {
+          opacity: 0.35;
+          cursor: not-allowed;
         }
 
         .campo-form select {
@@ -630,7 +702,6 @@ export default function LandingPage() {
         .btn-confirmar:active:not(:disabled) { transform: scale(0.99); }
         .btn-confirmar:disabled { opacity: 0.4; cursor: not-allowed; }
 
-        /* ── RODAPÉ ── */
         footer {
           background: #1a0f0a;
           padding: 2.5rem 4rem;
@@ -672,7 +743,10 @@ export default function LandingPage() {
           <a href="#agendamento">Agendar</a>
           <a href="#contato">Contato</a>
         </div>
-        <button className="nav-btn">Acesso Profissional</button>
+        {/* ✅ NOVO: Link real em vez de <button> estático */}
+        <Link href="/login-profissional" className="nav-btn">
+          Acesso Profissional
+        </Link>
       </nav>
 
       {/* ── HERO ── */}
@@ -728,9 +802,7 @@ export default function LandingPage() {
         <div className="grade-servicos">
           {CATALOGO_SERVICOS.map((s, i) => (
             <div key={s.id} className="card-servico">
-              <div className="servico-icone">
-                {['✦', '◈', '◉'][i]}
-              </div>
+              <div className="servico-icone">{['✦', '◈', '◉'][i]}</div>
               <div className="servico-nome">{s.nome}</div>
               <div className="servico-desc">{s.descricao}</div>
               <div className="servico-rodape">
@@ -752,12 +824,25 @@ export default function LandingPage() {
           </div>
 
           <div className="form-card">
+
+            {/* ✅ NOVO: aviso contextual quando não logado */}
+            {mounted && !clienteLogado && (
+              <div className="aviso-login">
+                <p>
+                  Para finalizar seu agendamento,{' '}
+                  <strong>faça login com seu WhatsApp</strong>.
+                </p>
+                <Link href="/login" className="aviso-login-link">
+                  Entrar
+                </Link>
+              </div>
+            )}
+
             {mensagem.texto && (
-              <div className={`mensagem-feedback ${
-                mensagem.tipo === 'erro' ? 'feedback-erro' :
-                mensagem.tipo === 'sucesso' ? 'feedback-sucesso' :
-                'feedback-info'
-              }`}>
+              <div className={`mensagem-feedback ${mensagem.tipo === 'erro' ? 'feedback-erro' :
+                  mensagem.tipo === 'sucesso' ? 'feedback-sucesso' :
+                    'feedback-info'
+                }`}>
                 {mensagem.tipo === 'sucesso' && '✓ '}
                 {mensagem.tipo === 'erro' && '✕ '}
                 {mensagem.texto}
@@ -768,7 +853,13 @@ export default function LandingPage() {
               <div className="form-grid">
                 <div className="campo-form">
                   <label>Serviço</label>
-                  <select required value={servicoId} onChange={e => setServicoId(e.target.value)}>
+                  {/* ✅ Desabilita campos se não logado */}
+                  <select
+                    required
+                    value={servicoId}
+                    onChange={e => setServicoId(e.target.value)}
+                    disabled={!clienteLogado}
+                  >
                     <option value="">Selecionar serviço...</option>
                     {CATALOGO_SERVICOS.map(s => (
                       <option key={s.id} value={s.id}>{s.nome}</option>
@@ -778,7 +869,12 @@ export default function LandingPage() {
 
                 <div className="campo-form">
                   <label>Profissional</label>
-                  <select required value={profissionalId} onChange={e => setProfissionalId(e.target.value)}>
+                  <select
+                    required
+                    value={profissionalId}
+                    onChange={e => setProfissionalId(e.target.value)}
+                    disabled={!clienteLogado}
+                  >
                     <option value="">Qualquer profissional</option>
                     {profissionais.map(p => (
                       <option key={p.id} value={p.id}>{p.nome}</option>
@@ -794,10 +890,10 @@ export default function LandingPage() {
                   required
                   value={dataHora}
                   onChange={e => setDataHora(e.target.value)}
+                  disabled={!clienteLogado}
                 />
               </div>
 
-              {/* Preview do serviço selecionado */}
               {servicoAtual && (
                 <div className="preview-servico">
                   <span>{servicoAtual.nome} · {servicoAtual.tempoMinutos} min</span>
@@ -805,8 +901,12 @@ export default function LandingPage() {
                 </div>
               )}
 
-              <button type="submit" className="btn-confirmar">
-                Confirmar Reserva
+              <button
+                type="submit"
+                className="btn-confirmar"
+                disabled={!clienteLogado}
+              >
+                {clienteLogado ? 'Confirmar Reserva' : 'Faça login para agendar'}
               </button>
             </form>
           </div>

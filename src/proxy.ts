@@ -10,7 +10,7 @@ const JWT_SECRET = new TextEncoder().encode(
 const REDIRECT_PROFISSIONAL = '/login-profissional';
 const REDIRECT_CLIENTE = '/login';
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
     const { pathname } = request.nextUrl;
 
     // ── 1. Área Corporativa (/admin e /profissional) ──────────────────────────
