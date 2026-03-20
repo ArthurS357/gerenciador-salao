@@ -2,6 +2,18 @@
 
 import { prisma } from '@/lib/prisma';
 
+export async function listarServicosPublicos() {
+  try {
+    const servicos = await prisma.servico.findMany({
+      where: { ativo: true },
+      orderBy: { nome: 'asc' }
+    });
+    return { sucesso: true, servicos };
+  } catch (error) {
+    return { sucesso: false, servicos: [] };
+  }
+}
+
 export async function listarServicosAdmin() {
     try {
         const servicos = await prisma.servico.findMany({

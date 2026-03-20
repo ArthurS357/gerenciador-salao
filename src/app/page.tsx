@@ -4,78 +4,80 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { buscarProfissionais } from '@/app/actions/profissionais';
-import { criarAgendamentoComBuffer } from '@/app/actions/agendamento';
-import { verificarSessaoCliente } from '@/app/actions/auth'; // ✅ NOVO
-
-const CATALOGO_SERVICOS = [
-  { id: '1', nome: 'Colorimetria Completa', tempoMinutos: 210, preco: 450.00, descricao: 'Transformação total com técnicas exclusivas' },
-  { id: '2', nome: 'Corte e Selagem', tempoMinutos: 100, preco: 180.00, descricao: 'Precisão e brilho em cada fio' },
-  { id: '3', nome: 'Design de Sobrancelhas', tempoMinutos: 30, preco: 60.00, descricao: 'Harmonização que emoldura o olhar' },
-];
+import { criarAgendamentoMultiplo } from '@/app/actions/agendamento';
+import { verificarSessaoCliente } from '@/app/actions/auth';
+import { listarServicosPublicos } from '@/app/actions/servico';
 
 export default function LandingPage() {
-  const [profissionais, setProfissionais] = useState<{ id: string, nome: string }[]>([]);
-  const [servicoId, setServicoId] = useState('');
+  const router = useRouter();
+  const [profissionais, setProfissionais] = useState<{ id: string; nome: string }[]>([]);
+  const [catalogoServicos, setCatalogoServicos] = useState<any[]>([]);
+  const [sessao, setSessao] = useState({ logado: false, id: '' });
+  const [mounted, setMounted] = useState(false);
+
+  // Multi-seleção de serviços
+  const [servicosSelecionados, setServicosSelecionados] = useState<string[]>([]);
   const [profissionalId, setProfissionalId] = useState('');
   const [dataHora, setDataHora] = useState('');
   const [mensagem, setMensagem] = useState({ texto: '', tipo: '' });
-  const [mounted, setMounted] = useState(false);
-  const [clienteLogado, setClienteLogado] = useState(false); // ✅ NOVO
-  const router = useRouter(); // ✅ NOVO
 
   useEffect(() => {
     setMounted(true);
-
-    async function carregar() {
-      const [resProfissionais, resSessao] = await Promise.all([
+    async function carregarDadosIniciais() {
+      const [resProfissionais, resSessao, resServicos] = await Promise.all([
         buscarProfissionais(),
-        verificarSessaoCliente(), // ✅ NOVO: verifica sessão em paralelo
+        verificarSessaoCliente(),
+        listarServicosPublicos(),
       ]);
-
       if (resProfissionais.sucesso) setProfissionais(resProfissionais.profissionais);
-      setClienteLogado(resSessao.logado); // ✅ NOVO
+      if (resServicos.sucesso) setCatalogoServicos(resServicos.servicos);
+      setSessao({ logado: resSessao.logado, id: resSessao.id ?? '' });
     }
-
-    carregar();
+    carregarDadosIniciais();
   }, []);
+
+  const toggleServico = (id: string) => {
+    setServicosSelecionados(prev =>
+      prev.includes(id) ? prev.filter(sId => sId !== id) : [...prev, id]
+    );
+  };
 
   const handleAgendar = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // ✅ NOVO: trava o formulário se não estiver logado, redireciona para login
-    if (!clienteLogado) {
-      router.push('/login');
+    if (!sessao.logado) {
+      setMensagem({ texto: 'Para agendar, faça login com a sua conta. A redirecionar...', tipo: 'erro' });
+      setTimeout(() => router.push('/login'), 2500);
       return;
     }
 
-    setMensagem({ texto: 'Processando reserva...', tipo: 'info' });
-
-    const servicoSelecionado = CATALOGO_SERVICOS.find(s => s.id === servicoId);
-    if (!servicoSelecionado) return;
-
-    // ✅ NOVO: busca o ID real da sessão em vez do ID temporário
-    const sessao = await verificarSessaoCliente();
-    if (!sessao.logado || !sessao.id) {
-      router.push('/login');
+    if (servicosSelecionados.length === 0) {
+      setMensagem({ texto: 'Por favor, selecione pelo menos um serviço do nosso portefólio.', tipo: 'erro' });
       return;
     }
 
-    const res = await criarAgendamentoComBuffer(
-      sessao.id, // ✅ ID real do cliente autenticado
+    setMensagem({ texto: 'A processar reserva...', tipo: 'info' });
+
+    const res = await criarAgendamentoMultiplo(
+      sessao.id,
       profissionalId,
       new Date(dataHora),
-      servicoSelecionado.tempoMinutos,
-      servicoSelecionado.preco
+      servicosSelecionados
     );
 
     if (res.sucesso) {
-      setMensagem({ texto: 'Agendamento confirmado com sucesso!', tipo: 'sucesso' });
+      setMensagem({ texto: 'Agendamento confirmado com sucesso! A redirecionar...', tipo: 'sucesso' });
+      setTimeout(() => router.push('/cliente/dashboard'), 2500);
     } else {
       setMensagem({ texto: res.erro || 'Erro ao agendar.', tipo: 'erro' });
     }
   };
 
-  const servicoAtual = CATALOGO_SERVICOS.find(s => s.id === servicoId);
+  const totalSelecionado = catalogoServicos
+    .filter(s => servicosSelecionados.includes(s.id))
+    .reduce((acc, s) => acc + (s.preco || 0), 0);
+
+  const ICONES = ['✦', '◈', '◉', '◆', '◇', '⬡'];
 
   return (
     <>
@@ -103,6 +105,7 @@ export default function LandingPage() {
           color: var(--marrom-profundo);
         }
 
+        /* ── NAV ── */
         .nav {
           position: fixed;
           top: 0; left: 0; right: 0;
@@ -182,6 +185,19 @@ export default function LandingPage() {
           color: white;
         }
 
+        .nav-cliente-link {
+          font-size: 0.72rem;
+          font-weight: 500;
+          letter-spacing: 0.1em;
+          color: var(--marrom-claro);
+          text-decoration: none;
+          transition: color 0.2s;
+          margin-right: 0.5rem;
+        }
+
+        .nav-cliente-link:hover { color: var(--marrom-profundo); }
+
+        /* ── HERO ── */
         .hero {
           min-height: 100svh;
           display: grid;
@@ -206,10 +222,7 @@ export default function LandingPage() {
           transition: opacity 0.8s ease, transform 0.8s ease;
         }
 
-        .hero-conteudo.visivel {
-          opacity: 1;
-          transform: translateX(0);
-        }
+        .hero-conteudo.visivel { opacity: 1; transform: translateX(0); }
 
         @media (max-width: 768px) {
           .hero-conteudo { padding: 3rem 1.5rem; }
@@ -244,10 +257,7 @@ export default function LandingPage() {
           margin-bottom: 1.5rem;
         }
 
-        .hero-titulo em {
-          font-style: italic;
-          color: var(--caramelo);
-        }
+        .hero-titulo em { font-style: italic; color: var(--caramelo); }
 
         .hero-desc {
           font-size: 0.95rem;
@@ -258,11 +268,7 @@ export default function LandingPage() {
           margin-bottom: 3rem;
         }
 
-        .hero-acoes {
-          display: flex;
-          gap: 1rem;
-          flex-wrap: wrap;
-        }
+        .hero-acoes { display: flex; gap: 1rem; flex-wrap: wrap; }
 
         .btn-primario {
           padding: 0.9rem 2rem;
@@ -298,15 +304,9 @@ export default function LandingPage() {
           transition: all 0.2s;
         }
 
-        .btn-secundario:hover {
-          border-color: rgba(255,255,255,0.6);
-          color: white;
-        }
+        .btn-secundario:hover { border-color: rgba(255,255,255,0.6); color: white; }
 
-        .hero-visual {
-          position: relative;
-          overflow: hidden;
-        }
+        .hero-visual { position: relative; overflow: hidden; }
 
         .hero-visual::before {
           content: '';
@@ -360,6 +360,7 @@ export default function LandingPage() {
           margin-top: 0.35rem;
         }
 
+        /* ── SERVIÇOS (Portefólio clicável) ── */
         .secao-servicos {
           padding: 7rem 4rem;
           max-width: 1200px;
@@ -398,12 +399,21 @@ export default function LandingPage() {
 
         .secao-titulo em { font-style: italic; color: var(--marrom-claro); }
 
+        .instrucao-selecao {
+          font-size: 0.78rem;
+          color: var(--texto-suave);
+          font-weight: 300;
+          letter-spacing: 0.03em;
+          text-align: right;
+        }
+
+        /* Grid de serviços clicáveis */
         .grade-servicos {
           display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-          gap: 1.5px;
+          grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+          gap: 1px;
           background: var(--bege-borda);
-          border: 1.5px solid var(--bege-borda);
+          border: 1px solid var(--bege-borda);
           border-radius: 4px;
           overflow: hidden;
         }
@@ -411,11 +421,25 @@ export default function LandingPage() {
         .card-servico {
           background: white;
           padding: 2.5rem;
-          transition: background 0.2s;
-          cursor: default;
+          cursor: pointer;
+          transition: background 0.2s, box-shadow 0.2s;
+          position: relative;
+          outline: none;
         }
 
         .card-servico:hover { background: #faf6f1; }
+
+        .card-servico.selecionado {
+          background: #fdf8f3;
+          box-shadow: inset 0 0 0 2px var(--caramelo);
+        }
+
+        .card-servico-topo {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+          margin-bottom: 1.5rem;
+        }
 
         .servico-icone {
           width: 36px;
@@ -425,9 +449,41 @@ export default function LandingPage() {
           display: flex;
           align-items: center;
           justify-content: center;
-          margin-bottom: 1.5rem;
           font-size: 1rem;
+          flex-shrink: 0;
+          transition: background 0.2s;
         }
+
+        .card-servico.selecionado .servico-icone {
+          background: var(--caramelo);
+          color: white;
+        }
+
+        /* Checkbox visual premium */
+        .checkbox-premium {
+          width: 22px;
+          height: 22px;
+          border-radius: 50%;
+          border: 1.5px solid var(--bege-borda);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: all 0.2s;
+          flex-shrink: 0;
+        }
+
+        .card-servico.selecionado .checkbox-premium {
+          background: var(--marrom-claro);
+          border-color: var(--marrom-claro);
+        }
+
+        .checkbox-tick {
+          display: none;
+          width: 10px;
+          height: 10px;
+        }
+
+        .card-servico.selecionado .checkbox-tick { display: block; }
 
         .servico-nome {
           font-family: 'Cormorant Garamond', serif;
@@ -443,6 +499,7 @@ export default function LandingPage() {
           font-weight: 300;
           line-height: 1.6;
           margin-bottom: 1.5rem;
+          min-height: 40px;
         }
 
         .servico-rodape {
@@ -468,6 +525,71 @@ export default function LandingPage() {
           text-transform: uppercase;
         }
 
+        /* Barra de resumo flutuante */
+        .barra-resumo {
+          position: sticky;
+          bottom: 1.5rem;
+          margin: 2rem auto 0;
+          max-width: 680px;
+          padding: 1.1rem 1.75rem;
+          background: var(--marrom-profundo);
+          border-radius: 4px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 1rem;
+          box-shadow: 0 8px 32px rgba(42,24,16,0.3);
+          animation: slideUp 0.35s ease;
+          flex-wrap: wrap;
+        }
+
+        @keyframes slideUp {
+          from { opacity: 0; transform: translateY(12px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+
+        .barra-resumo-info {
+          display: flex;
+          flex-direction: column;
+          gap: 0.2rem;
+        }
+
+        .barra-resumo-count {
+          font-size: 0.7rem;
+          font-weight: 500;
+          letter-spacing: 0.15em;
+          text-transform: uppercase;
+          color: var(--caramelo);
+        }
+
+        .barra-resumo-total {
+          font-family: 'Cormorant Garamond', serif;
+          font-size: 1.5rem;
+          font-weight: 300;
+          color: white;
+        }
+
+        .barra-resumo-btn {
+          padding: 0.7rem 1.75rem;
+          background: var(--caramelo);
+          color: var(--marrom-profundo);
+          border: none;
+          border-radius: 2px;
+          font-family: 'DM Sans', sans-serif;
+          font-size: 0.75rem;
+          font-weight: 600;
+          letter-spacing: 0.15em;
+          text-transform: uppercase;
+          cursor: pointer;
+          text-decoration: none;
+          display: inline-block;
+          transition: background 0.2s;
+          white-space: nowrap;
+        }
+
+        .barra-resumo-btn:hover { background: #d4b896; }
+
+        /* ── AGENDAMENTO ── */
         .secao-agendamento {
           background: var(--marrom-profundo);
           padding: 7rem 4rem;
@@ -477,15 +599,9 @@ export default function LandingPage() {
           .secao-agendamento { padding: 4rem 1.5rem; }
         }
 
-        .agendamento-inner {
-          max-width: 820px;
-          margin: 0 auto;
-        }
+        .agendamento-inner { max-width: 820px; margin: 0 auto; }
 
-        .agendamento-header {
-          text-align: center;
-          margin-bottom: 3.5rem;
-        }
+        .agendamento-header { text-align: center; margin-bottom: 3.5rem; }
 
         .agendamento-titulo {
           font-family: 'Cormorant Garamond', serif;
@@ -502,7 +618,7 @@ export default function LandingPage() {
           letter-spacing: 0.05em;
         }
 
-        /* ✅ NOVO: aviso de login necessário */
+        /* Aviso de login */
         .aviso-login {
           padding: 1.25rem 1.5rem;
           background: rgba(197, 168, 124, 0.07);
@@ -522,10 +638,7 @@ export default function LandingPage() {
           font-weight: 300;
         }
 
-        .aviso-login p strong {
-          color: var(--caramelo);
-          font-weight: 500;
-        }
+        .aviso-login p strong { color: var(--caramelo); font-weight: 500; }
 
         .aviso-login-link {
           padding: 0.5rem 1.25rem;
@@ -546,6 +659,32 @@ export default function LandingPage() {
         .aviso-login-link:hover {
           background: rgba(197, 168, 124, 0.1);
           border-color: rgba(197, 168, 124, 0.6);
+        }
+
+        /* Resumo dos serviços selecionados no form */
+        .form-servicos-badge {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 0.5rem;
+          margin-bottom: 1.5rem;
+          min-height: 2rem;
+        }
+
+        .badge-servico {
+          padding: 0.3rem 0.75rem;
+          background: rgba(197, 168, 124, 0.12);
+          border: 1px solid rgba(197, 168, 124, 0.25);
+          border-radius: 2px;
+          font-size: 0.7rem;
+          font-weight: 500;
+          color: var(--caramelo);
+          letter-spacing: 0.05em;
+          animation: fadeIn 0.25s ease;
+        }
+
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(3px); }
+          to { opacity: 1; transform: translateY(0); }
         }
 
         .form-card {
@@ -598,7 +737,6 @@ export default function LandingPage() {
           appearance: none;
         }
 
-        /* ✅ Inputs desabilitados quando não logado */
         .campo-form select:disabled,
         .campo-form input:disabled {
           opacity: 0.35;
@@ -612,10 +750,7 @@ export default function LandingPage() {
           padding-right: 2.5rem;
         }
 
-        .campo-form select option {
-          background: #2a1810;
-          color: white;
-        }
+        .campo-form select option { background: #2a1810; color: white; }
 
         .campo-form select:focus,
         .campo-form input:focus {
@@ -628,30 +763,7 @@ export default function LandingPage() {
           cursor: pointer;
         }
 
-        .preview-servico {
-          margin: 1.25rem 0;
-          padding: 1rem 1.25rem;
-          background: rgba(197, 168, 124, 0.08);
-          border: 1px solid rgba(197, 168, 124, 0.2);
-          border-radius: 3px;
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          font-size: 0.8rem;
-          color: rgba(255,255,255,0.5);
-          animation: fadeIn 0.3s ease;
-        }
-
-        .preview-servico strong {
-          color: var(--caramelo);
-          font-weight: 500;
-        }
-
-        @keyframes fadeIn {
-          from { opacity: 0; transform: translateY(4px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-
+        /* Feedback */
         .mensagem-feedback {
           padding: 0.9rem 1.25rem;
           border-radius: 3px;
@@ -681,6 +793,31 @@ export default function LandingPage() {
           color: var(--caramelo);
         }
 
+        /* Linha divisória do total */
+        .form-total-linha {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 1rem 0;
+          margin: 0.5rem 0 0.25rem;
+          border-top: 1px solid rgba(197, 168, 124, 0.15);
+        }
+
+        .form-total-label {
+          font-size: 0.7rem;
+          font-weight: 500;
+          letter-spacing: 0.18em;
+          text-transform: uppercase;
+          color: rgba(197, 168, 124, 0.6);
+        }
+
+        .form-total-valor {
+          font-family: 'Cormorant Garamond', serif;
+          font-size: 1.75rem;
+          font-weight: 300;
+          color: var(--caramelo);
+        }
+
         .btn-confirmar {
           width: 100%;
           padding: 1rem;
@@ -694,7 +831,7 @@ export default function LandingPage() {
           letter-spacing: 0.2em;
           text-transform: uppercase;
           cursor: pointer;
-          margin-top: 1.5rem;
+          margin-top: 1.25rem;
           transition: background 0.2s, transform 0.1s;
         }
 
@@ -702,6 +839,7 @@ export default function LandingPage() {
         .btn-confirmar:active:not(:disabled) { transform: scale(0.99); }
         .btn-confirmar:disabled { opacity: 0.4; cursor: not-allowed; }
 
+        /* ── FOOTER ── */
         footer {
           background: #1a0f0a;
           padding: 2.5rem 4rem;
@@ -743,10 +881,20 @@ export default function LandingPage() {
           <a href="#agendamento">Agendar</a>
           <a href="#contato">Contato</a>
         </div>
-        {/* ✅ NOVO: Link real em vez de <button> estático */}
-        <Link href="/login-profissional" className="nav-btn">
-          Acesso Profissional
-        </Link>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          {sessao.logado ? (
+            <Link href="/cliente/dashboard" className="nav-cliente-link">
+              O Meu Painel
+            </Link>
+          ) : (
+            <Link href="/login" className="nav-cliente-link">
+              Entrar
+            </Link>
+          )}
+          <Link href="/login-profissional" className="nav-btn">
+            Acesso Profissional
+          </Link>
+        </div>
       </nav>
 
       {/* ── HERO ── */}
@@ -764,7 +912,7 @@ export default function LandingPage() {
           </p>
           <div className="hero-acoes">
             <a href="#servicos" className="btn-primario">Ver Serviços</a>
-            <button className="btn-secundario">Agendar por Telefone</button>
+            <a href="#agendamento" className="btn-secundario">Agendar Agora</a>
           </div>
         </div>
 
@@ -797,40 +945,83 @@ export default function LandingPage() {
               para <em>realçar</em> você
             </h2>
           </div>
+          <p className="instrucao-selecao">
+            Clique nos serviços para selecionar
+          </p>
         </div>
 
         <div className="grade-servicos">
-          {CATALOGO_SERVICOS.map((s, i) => (
-            <div key={s.id} className="card-servico">
-              <div className="servico-icone">{['✦', '◈', '◉'][i]}</div>
-              <div className="servico-nome">{s.nome}</div>
-              <div className="servico-desc">{s.descricao}</div>
-              <div className="servico-rodape">
-                <span className="servico-preco">R$ {s.preco.toFixed(2)}</span>
-                <span className="servico-tempo">{s.tempoMinutos} min</span>
+          {catalogoServicos.map((s, i) => {
+            const isSelected = servicosSelecionados.includes(s.id);
+            return (
+              <div
+                key={s.id}
+                className={`card-servico${isSelected ? ' selecionado' : ''}`}
+                onClick={() => toggleServico(s.id)}
+                role="checkbox"
+                aria-checked={isSelected}
+                tabIndex={0}
+                onKeyDown={e => e.key === ' ' && toggleServico(s.id)}
+              >
+                <div className="card-servico-topo">
+                  <div className="servico-icone">{ICONES[i % ICONES.length]}</div>
+                  <div className="checkbox-premium" aria-hidden="true">
+                    <svg className="checkbox-tick" viewBox="0 0 10 8" fill="none">
+                      <path d="M1 4l3 3 5-6" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </div>
+                </div>
+                <div className="servico-nome">{s.nome}</div>
+                <div className="servico-desc">{s.descricao}</div>
+                <div className="servico-rodape">
+                  <span className="servico-preco">
+                    {s.preco ? `R$ ${s.preco.toFixed(2)}` : 'Sob Consulta'}
+                  </span>
+                  {s.tempoMinutos && (
+                    <span className="servico-tempo">{s.tempoMinutos} min</span>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
+
+        {/* Barra flutuante de resumo */}
+        {servicosSelecionados.length > 0 && (
+          <div className="barra-resumo">
+            <div className="barra-resumo-info">
+              <span className="barra-resumo-count">
+                {servicosSelecionados.length} serviço{servicosSelecionados.length > 1 ? 's' : ''} selecionado{servicosSelecionados.length > 1 ? 's' : ''}
+              </span>
+              <span className="barra-resumo-total">
+                R$ {totalSelecionado.toFixed(2)}
+              </span>
+            </div>
+            <a href="#agendamento" className="barra-resumo-btn">
+              Concluir Reserva →
+            </a>
+          </div>
+        )}
       </section>
 
       {/* ── AGENDAMENTO ── */}
       <section id="agendamento" className="secao-agendamento">
         <div className="agendamento-inner">
           <div className="agendamento-header">
-            <p className="secao-tag" style={{ color: 'rgba(197,168,124,0.6)' }}>Reserve seu horário</p>
+            <p className="secao-tag" style={{ color: 'rgba(197,168,124,0.6)' }}>Reserve o seu horário</p>
             <h2 className="agendamento-titulo">Agendamento Online</h2>
-            <p className="agendamento-subtitulo">Escolha o serviço, profissional e horário ideal para você</p>
+            <p className="agendamento-subtitulo">
+              Escolha o profissional e horário ideal para si
+            </p>
           </div>
 
           <div className="form-card">
-
-            {/* ✅ NOVO: aviso contextual quando não logado */}
-            {mounted && !clienteLogado && (
+            {/* Aviso de login quando não autenticado */}
+            {mounted && !sessao.logado && (
               <div className="aviso-login">
                 <p>
-                  Para finalizar seu agendamento,{' '}
-                  <strong>faça login com seu WhatsApp</strong>.
+                  Para finalizar o seu agendamento,{' '}
+                  <strong>faça login com a sua conta</strong>.
                 </p>
                 <Link href="/login" className="aviso-login-link">
                   Entrar
@@ -838,6 +1029,7 @@ export default function LandingPage() {
               </div>
             )}
 
+            {/* Feedback */}
             {mensagem.texto && (
               <div className={`mensagem-feedback ${mensagem.tipo === 'erro' ? 'feedback-erro' :
                   mensagem.tipo === 'sucesso' ? 'feedback-sucesso' :
@@ -849,31 +1041,28 @@ export default function LandingPage() {
               </div>
             )}
 
+            {/* Badges dos serviços selecionados */}
+            {servicosSelecionados.length > 0 && (
+              <div className="form-servicos-badge">
+                {catalogoServicos
+                  .filter(s => servicosSelecionados.includes(s.id))
+                  .map(s => (
+                    <span key={s.id} className="badge-servico">{s.nome}</span>
+                  ))
+                }
+              </div>
+            )}
+
             <form onSubmit={handleAgendar}>
               <div className="form-grid">
                 <div className="campo-form">
-                  <label>Serviço</label>
-                  {/* ✅ Desabilita campos se não logado */}
+                  <label htmlFor="profissional">Profissional</label>
                   <select
-                    required
-                    value={servicoId}
-                    onChange={e => setServicoId(e.target.value)}
-                    disabled={!clienteLogado}
-                  >
-                    <option value="">Selecionar serviço...</option>
-                    {CATALOGO_SERVICOS.map(s => (
-                      <option key={s.id} value={s.id}>{s.nome}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="campo-form">
-                  <label>Profissional</label>
-                  <select
+                    id="profissional"
                     required
                     value={profissionalId}
                     onChange={e => setProfissionalId(e.target.value)}
-                    disabled={!clienteLogado}
+                    disabled={!sessao.logado}
                   >
                     <option value="">Qualquer profissional</option>
                     {profissionais.map(p => (
@@ -881,32 +1070,42 @@ export default function LandingPage() {
                     ))}
                   </select>
                 </div>
+
+                <div className="campo-form">
+                  <label htmlFor="dataHora">Data e Horário</label>
+                  <input
+                    id="dataHora"
+                    type="datetime-local"
+                    required
+                    value={dataHora}
+                    onChange={e => setDataHora(e.target.value)}
+                    disabled={!sessao.logado}
+                  />
+                </div>
               </div>
 
-              <div className="campo-form">
-                <label>Data e Horário</label>
-                <input
-                  type="datetime-local"
-                  required
-                  value={dataHora}
-                  onChange={e => setDataHora(e.target.value)}
-                  disabled={!clienteLogado}
-                />
-              </div>
-
-              {servicoAtual && (
-                <div className="preview-servico">
-                  <span>{servicoAtual.nome} · {servicoAtual.tempoMinutos} min</span>
-                  <strong>R$ {servicoAtual.preco.toFixed(2)}</strong>
+              {/* Total */}
+              {servicosSelecionados.length > 0 && totalSelecionado > 0 && (
+                <div className="form-total-linha">
+                  <span className="form-total-label">
+                    Total · {servicosSelecionados.length} serviço{servicosSelecionados.length > 1 ? 's' : ''}
+                  </span>
+                  <span className="form-total-valor">
+                    R$ {totalSelecionado.toFixed(2)}
+                  </span>
                 </div>
               )}
 
               <button
                 type="submit"
                 className="btn-confirmar"
-                disabled={!clienteLogado}
+                disabled={!sessao.logado}
               >
-                {clienteLogado ? 'Confirmar Reserva' : 'Faça login para agendar'}
+                {sessao.logado
+                  ? servicosSelecionados.length > 0
+                    ? `Confirmar ${servicosSelecionados.length} Serviço${servicosSelecionados.length > 1 ? 's' : ''}`
+                    : 'Selecione os serviços acima'
+                  : 'Faça login para agendar'}
               </button>
             </form>
           </div>
@@ -916,7 +1115,9 @@ export default function LandingPage() {
       {/* ── FOOTER ── */}
       <footer id="contato">
         <span className="footer-logo">LmLu Mattielo</span>
-        <span className="footer-copy">© {new Date().getFullYear()} · Studio de Beleza · Todos os direitos reservados</span>
+        <span className="footer-copy">
+          © {new Date().getFullYear()} · Studio de Beleza · Todos os direitos reservados
+        </span>
       </footer>
     </>
   );
