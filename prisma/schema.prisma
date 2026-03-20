@@ -3,28 +3,27 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite" // Troque para "postgresql" em produção na Vercel
-  url      = env("DATABASE_URL")
+  provider = "sqlite" // O Prisma 7 agora gerencia a URL pelo prisma.config.ts
 }
 
 model Cliente {
-  id             String     @id @default(uuid())
-  telefone       String     @unique // Evita duplicidade no login
+  id             String        @id @default(uuid())
+  telefone       String        @unique // Evita duplicidade no login
   nome           String
-  anonimizado    Boolean    @default(false) // Flag para a LGPD
-  criadoEm       DateTime   @default(now())
+  anonimizado    Boolean       @default(false) // Flag para a LGPD
+  criadoEm       DateTime      @default(now())
   agendamentos   Agendamento[]
 }
 
 model Funcionario {
-  id                String    @id @default(uuid())
+  id                String        @id @default(uuid())
   nome              String
-  email             String    @unique
+  email             String        @unique
   senhaHash         String
-  role              Role      @default(PROFISSIONAL)
-  comissao          Float     @default(40.0) // Ex: 40% sobre a base real
-  podeAgendar       Boolean   @default(false)
-  podeVerHistorico  Boolean   @default(false)
+  role              Role          @default(PROFISSIONAL)
+  comissao          Float         @default(40.0) // Ex: 40% sobre a base real
+  podeAgendar       Boolean       @default(false)
+  podeVerHistorico  Boolean       @default(false)
   agendamentos      Agendamento[]
 }
 
@@ -41,6 +40,7 @@ model Agendamento {
   funcionario   Funcionario @relation(fields: [funcionarioId], references: [id])
   valorBruto    Float
   taxas         Float       // Deduções (cartão, insumos) para cálculo real
-  dataHora      DateTime
+  dataHoraInicio DateTime   // Alterado para suportar o Buffer Invisível
+  dataHoraFim    DateTime   // Alterado para suportar o Buffer Invisível
   concluido     Boolean     @default(false)
 }

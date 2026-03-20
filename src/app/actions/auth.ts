@@ -2,7 +2,7 @@
 
 import { SignJWT } from 'jose';
 import { cookies } from 'next/headers';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
 
 const prisma = new PrismaClient();
 const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || 'chave_secreta_desenvolvimento');
@@ -29,10 +29,11 @@ export async function loginCliente(telefone: string, nome: string) {
             .sign(JWT_SECRET);
 
         // 4. Salva o token nos cookies do navegador
-        cookies().set('cliente_session', token, {
+        const cookieStore = await cookies(); // 👈 await aqui
+        cookieStore.set('cliente_session', token, {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
-            maxAge: 60 * 60 * 24 * 7, // 7 dias em segundos
+            maxAge: 60 * 60 * 24 * 7,
             path: '/',
         });
 
