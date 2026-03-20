@@ -1,8 +1,7 @@
 'use server'
 
+// Apenas importamos a instância pronta. Não instanciamos o PrismaClient de novo.
 import { prisma } from '@/lib/prisma';
-
-const prisma = new PrismaClient();
 
 // Passo 1 e 2: Definir a função com os parâmetros essenciais
 export async function criarAgendamentoComBuffer(

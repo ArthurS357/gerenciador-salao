@@ -3,8 +3,6 @@
 import { prisma } from '@/lib/prisma';
 import { randomUUID } from 'crypto';
 
-const prisma = new PrismaClient();
-
 // Passo 2: Ação para Atualizar Permissões da Equipe
 export async function atualizarPermissoesFuncionario(
     funcionarioId: string,

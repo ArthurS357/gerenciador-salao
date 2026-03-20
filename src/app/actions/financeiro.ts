@@ -1,8 +1,9 @@
 'use server'
 
-import { prisma } from '@/lib/prisma';
+import { prisma } from '@/lib/prisma'; // ✅ só isso, sem redeclarar abaixo
 
-const prisma = new PrismaClient();
+// ❌ remova esta linha:
+// const prisma = new PrismaClient();
 
 export async function calcularFechamentoComanda(
     agendamentoId: string,

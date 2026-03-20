@@ -4,7 +4,6 @@ import { SignJWT } from 'jose';
 import { cookies } from 'next/headers';
 import { prisma } from '@/lib/prisma';
 
-const prisma = new PrismaClient();
 const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || 'chave_secreta_desenvolvimento');
 
 export async function loginCliente(telefone: string, nome: string) {
