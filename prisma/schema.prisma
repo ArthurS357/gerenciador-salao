@@ -6,51 +6,112 @@ datasource db {
   provider = "sqlite"
   url      = env("DATABASE_URL")
 }
+
+// ==========================================
+// 1. USUÁRIOS E EQUIPE
+// ==========================================
+
 model Cliente {
-  id             String        @id @default(uuid())
-  telefone       String        @unique // Evita duplicidade no login
-  nome           String
-  anonimizado    Boolean       @default(false) // Flag para a LGPD
-  criadoEm       DateTime      @default(now())
-  agendamentos   Agendamento[]
+  id           String        @id @default(uuid())
+  nome         String
+  telefone     String
+  senhaHash    String?
+  anonimizado  Boolean       @default(false)
+  
+  agendamentos Agendamento[]
 }
 
 model Funcionario {
-  id               String       @id @default(cuid())
-  nome             String
-  email            String       @unique
-  senhaHash        String
-  role             String       @default("PROFISSIONAL")
-
-  // ✅ Campos que estavam faltando
-  cpf              String?      @unique
-  telefone         String?
-  especialidade    String?
-  descricao        String?
-  comissao         Float        @default(40.0)
-  podeAgendar      Boolean      @default(false)
-  podeVerHistorico Boolean      @default(false)
-  ativo            Boolean      @default(true)
+  id                String        @id @default(uuid())
+  nome              String
+  email             String        @unique
+  senhaHash         String
+  role              String        @default("PROFISSIONAL")
+  comissao          Float         @default(40.0)
+  podeVerComissao   Boolean       @default(true) // Admin define se o profissional vê a %
+  podeAgendar       Boolean       @default(false)
+  podeVerHistorico  Boolean       @default(false)
+  cpf               String?       @unique
+  telefone          String?
+  descricao         String?
+  especialidade     String?
+  fotoUrl           String?
+  ativo             Boolean       @default(true)
 
   agendamentos     Agendamento[]
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt
 }
 
-enum Role {
-  ADMIN
-  PROFISSIONAL
+// ==========================================
+// 2. CATÁLOGO, PORTFÓLIO E ESTOQUE
+// ==========================================
+
+model Servico {
+  id               String   @id @default(uuid())
+  nome             String
+  descricao        String?
+  preco            Float?   // Opcional: Se nulo, fica "Sob Consulta" ou invisível
+  tempoMinutos     Int?     // Opcional: Admin define se o serviço tem tempo fixo
+  imagemUrl        String?  // Referência visual para a Landing Page (Portfólio)
+  ativo            Boolean  @default(true)
+
+  itensAgendamento ItemServico[]
 }
 
+model Produto {
+  id          String   @id @default(uuid())
+  nome        String
+  descricao   String?
+  precoCusto  Float    @default(0.0)
+  precoVenda  Float
+  estoque     Int      @default(0)
+  ativo       Boolean  @default(true)
+
+  itensAgendamento ItemProduto[]
+}
+
+// ==========================================
+// 3. MOTOR FINANCEIRO E COMANDAS
+// ==========================================
+
 model Agendamento {
+  id             String    @id @default(uuid())
+  clienteId      String
+  funcionarioId  String
+  dataHoraInicio DateTime
+  dataHoraFim    DateTime
+  valorBruto     Float     // Soma total em cache (Serviços + Produtos)
+  taxas          Float     @default(0)
+  concluido      Boolean   @default(false)
+
+  cliente        Cliente     @relation(fields: [clienteId], references: [id])
+  funcionario    Funcionario @relation(fields: [funcionarioId], references: [id])
+
+  // Um agendamento agora pode ter N serviços e N produtos atrelados
+  servicos       ItemServico[]
+  produtos       ItemProduto[]
+}
+
+// Tabela pivô para registrar quais serviços estão nesta comanda
+model ItemServico {
   id            String      @id @default(uuid())
-  clienteId     String
-  cliente       Cliente     @relation(fields: [clienteId], references: [id])
-  funcionarioId String
-  funcionario   Funcionario @relation(fields: [funcionarioId], references: [id])
-  valorBruto    Float
-  taxas         Float       // Deduções (cartão, insumos) para cálculo real
-  dataHoraInicio DateTime   // Alterado para suportar o Buffer Invisível
-  dataHoraFim    DateTime   // Alterado para suportar o Buffer Invisível
-  concluido     Boolean     @default(false)
+  servicoId     String
+  agendamentoId String
+  precoCobrado  Float?      // Salva o preço no momento do agendamento para blindar o histórico
+
+  servico       Servico     @relation(fields: [servicoId], references: [id])
+  agendamento   Agendamento @relation(fields: [agendamentoId], references: [id], onDelete: Cascade)
+}
+
+// Tabela pivô para dar baixa no estoque e cobrar produtos na comanda
+model ItemProduto {
+  id            String      @id @default(uuid())
+  produtoId     String
+  agendamentoId String
+  quantidade    Int
+  precoCobrado  Float       // Salva o valor de venda no momento da transação
+
+  produto       Produto     @relation(fields: [produtoId], references: [id])
+  agendamento   Agendamento @relation(fields: [agendamentoId], references: [id], onDelete: Cascade)
 }
