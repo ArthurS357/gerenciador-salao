@@ -854,3 +854,65 @@
     font-weight: 300;
     letter-spacing: 0.08em;
 }
+
+/* ── SOBRE ── */
+.secaoSobre {
+    padding: 7rem 4rem;
+    background: var(--creme-escuro);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+@media (max-width: 768px) {
+    .secaoSobre {
+        padding: 4rem 1.5rem;
+        flex-direction: column;
+        text-align: center;
+    }
+}
+
+.sobreInner {
+    max-width: 1000px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4rem;
+    align-items: center;
+}
+
+@media (max-width: 768px) {
+    .sobreInner {
+        grid-template-columns: 1fr;
+        gap: 2rem;
+    }
+}
+
+.sobreImagem {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 4/5;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 20px 40px rgba(42, 24, 16, 0.1);
+}
+
+.sobreTexto h2 {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: clamp(2.5rem, 4vw, 3.5rem);
+    font-weight: 300;
+    color: var(--marrom-profundo);
+    margin-bottom: 1.5rem;
+    line-height: 1.1;
+}
+
+.sobreTexto em {
+    font-style: italic;
+    color: var(--marrom-claro);
+}
+
+.sobreTexto p {
+    font-size: 0.95rem;
+    color: var(--texto-suave);
+    line-height: 1.8;
+    margin-bottom: 1.5rem;
+}

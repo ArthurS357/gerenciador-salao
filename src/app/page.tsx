@@ -5,7 +5,9 @@ import { useRouter } from 'next/navigation';
 
 import Navbar from '@/components/landing/Navbar';
 import Hero from '@/components/landing/Hero';
+import Sobre from '@/components/landing/Sobre'; // NOVO COMPONENTE
 import ServicosVitrine from '@/components/landing/ServicosVitrine';
+import PortfolioGaleria from '@/components/landing/PortfolioGaleria'; // NOVO COMPONENTE
 import FormularioReserva from '@/components/landing/FormularioReserva';
 import Footer from '@/components/landing/Footer';
 
@@ -13,11 +15,13 @@ import { buscarProfissionais } from '@/app/actions/profissionais';
 import { criarAgendamentoMultiplo } from '@/app/actions/agendamento';
 import { verificarSessaoCliente } from '@/app/actions/auth';
 import { listarServicosPublicos } from '@/app/actions/servico';
+import { listarPortfolioPublico } from '@/app/actions/portfolio'; // NOVA AÇÃO DE BANCO
 
 export default function LandingPage() {
   const router = useRouter();
   const [profissionais, setProfissionais] = useState<{ id: string; nome: string; fotoUrl: string | null }[]>([]);
   const [catalogoServicos, setCatalogoServicos] = useState<any[]>([]);
+  const [itensPortfolio, setItensPortfolio] = useState<any[]>([]); // ESTADO DO PORTFÓLIO
   const [sessao, setSessao] = useState({ logado: false, id: '' });
   const [mounted, setMounted] = useState(false);
 
@@ -29,13 +33,18 @@ export default function LandingPage() {
   useEffect(() => {
     setMounted(true);
     async function carregarDadosIniciais() {
-      const [resProfissionais, resSessao, resServicos] = await Promise.all([
+      // Fazemos o fetch de tudo simultaneamente para não atrasar a tela
+      const [resProfissionais, resSessao, resServicos, resPortfolio] = await Promise.all([
         buscarProfissionais(),
         verificarSessaoCliente(),
         listarServicosPublicos(),
+        listarPortfolioPublico()
       ]);
+
       if (resProfissionais.sucesso) setProfissionais(resProfissionais.profissionais);
       if (resServicos.sucesso) setCatalogoServicos(resServicos.servicos);
+      if (resPortfolio.sucesso) setItensPortfolio(resPortfolio.itens); // CARREGA AS FOTOS DO INSTAGRAM
+
       setSessao({ logado: resSessao.logado, id: resSessao.id ?? '' });
     }
     carregarDadosIniciais();
@@ -57,7 +66,7 @@ export default function LandingPage() {
     }
 
     if (servicosSelecionados.length === 0) {
-      setMensagem({ texto: 'Por favor, selecione pelo menos um serviço do nosso portefólio.', tipo: 'erro' });
+      setMensagem({ texto: 'Por favor, selecione pelo menos um serviço do nosso portfólio.', tipo: 'erro' });
       return;
     }
 
@@ -86,12 +95,22 @@ export default function LandingPage() {
     <>
       <Navbar sessao={sessao} />
       <Hero mounted={mounted} />
+
+      {/* SEÇÃO SOBRE FICA LOGO ABAIXO DO HERO */}
+      <Sobre />
+
       <ServicosVitrine
         catalogoServicos={catalogoServicos}
         servicosSelecionados={servicosSelecionados}
         toggleServico={toggleServico}
         totalSelecionado={totalSelecionado}
       />
+
+      {/* SEÇÃO DO PORTFÓLIO (Só renderiza se o Admin tiver cadastrado algo no BD) */}
+      {itensPortfolio.length > 0 && (
+        <PortfolioGaleria itensPortfolio={itensPortfolio} />
+      )}
+
       <FormularioReserva
         sessao={sessao}
         mounted={mounted}
