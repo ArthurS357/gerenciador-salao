@@ -45,3 +45,15 @@ export async function adicionarProdutoNaComanda(agendamentoId: string, produtoId
         return { sucesso: false, erro: 'Falha técnica ao adicionar produto à comanda.' };
     }
 }
+
+export async function finalizarComanda(agendamentoId: string) {
+    try {
+        await prisma.agendamento.update({
+            where: { id: agendamentoId },
+            data: { concluido: true }
+        });
+        return { sucesso: true };
+    } catch (error) {
+        return { sucesso: false, erro: 'Falha ao fechar a comanda e enviar para o caixa.' };
+    }
+}

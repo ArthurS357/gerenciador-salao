@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { listarProdutosDisponiveis, adicionarProdutoNaComanda } from '@/app/actions/comanda';
+import { listarProdutosDisponiveis, adicionarProdutoNaComanda, finalizarComanda } from '@/app/actions/comanda';
 
 interface PainelComandaProps {
     agendamentoId: string;
@@ -46,7 +46,16 @@ export default function PainelComanda({ agendamentoId, clienteNome, servicoInici
         const confirmar = confirm(`Finalizar comanda de R$ ${total.toFixed(2)} e enviar para o caixa?`);
         if (!confirmar) return;
 
-        router.push('/profissional/agenda');
+        setLoadingAcao(true);
+        const res = await finalizarComanda(agendamentoId);
+
+        if (res.sucesso) {
+            alert('Atendimento finalizado! Os valores já estão no caixa.');
+            router.push('/profissional/agenda');
+        } else {
+            alert(res.erro);
+            setLoadingAcao(false);
+        }
     };
 
     return (

@@ -175,3 +175,15 @@ export async function anonimizarClienteLGPD(clienteId: string) {
         return { sucesso: false, erro: 'Falha ao processar a exclusão e anonimização dos dados.' };
     }
 }
+
+export async function listarEquipaAdmin() {
+    try {
+        const equipa = await prisma.funcionario.findMany({
+            where: { role: 'PROFISSIONAL', ativo: true },
+            orderBy: { nome: 'asc' }
+        });
+        return { sucesso: true, equipa };
+    } catch (error) {
+        return { sucesso: false, equipa: [] };
+    }
+}
