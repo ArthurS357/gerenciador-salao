@@ -84,3 +84,36 @@ export async function criarAgendamentoMultiplo(
         return { sucesso: false, erro: 'Falha técnica ao processar a reserva.' };
     }
 }
+
+// Lógica para listar a agenda completa do salão, do mais recente para o mais antigo
+export async function listarAgendamentosGlobais() {
+    try {
+        const agendamentos = await prisma.agendamento.findMany({
+            orderBy: { dataHoraInicio: 'desc' },
+            include: {
+                cliente: { select: { nome: true, anonimizado: true, telefone: true } },
+                funcionario: { select: { nome: true } }
+            }
+        });
+        return { sucesso: true, agendamentos };
+    } catch (error) {
+        return { sucesso: false, agendamentos: [] };
+    }
+}
+
+// Lógica para o admin cancelar um agendamento (exclusão estrita apenas para itens não faturados)
+export async function cancelarAgendamentoPendente(id: string) {
+    try {
+        const agendamento = await prisma.agendamento.findUnique({ where: { id } });
+
+        // Trava financeira inegociável: não apaga comandas que já geraram receita
+        if (agendamento?.concluido) {
+            return { sucesso: false, erro: 'Não é possível cancelar uma comanda que já foi faturada e enviada ao caixa.' };
+        }
+
+        await prisma.agendamento.delete({ where: { id } });
+        return { sucesso: true };
+    } catch (error) {
+        return { sucesso: false, erro: 'Falha técnica ao tentar cancelar o agendamento.' };
+    }
+}

@@ -29,3 +29,20 @@ export async function excluirMinhaContaLGPD(clienteId: string) {
         return { sucesso: false, erro: 'Ocorreu uma falha ao processar o seu pedido.' };
     }
 }
+
+// Lógica para listar todos os clientes e contar quantas vezes já visitaram o salão
+export async function listarTodosClientes() {
+    try {
+        const clientes = await prisma.cliente.findMany({
+            orderBy: { nome: 'asc' },
+            include: {
+                _count: {
+                    select: { agendamentos: true } // Conta o total de agendamentos por cliente
+                }
+            }
+        });
+        return { sucesso: true, clientes };
+    } catch (error) {
+        return { sucesso: false, clientes: [] };
+    }
+}
