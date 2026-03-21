@@ -16,7 +16,7 @@ import { listarServicosPublicos } from '@/app/actions/servico';
 
 export default function LandingPage() {
   const router = useRouter();
-  const [profissionais, setProfissionais] = useState<{ id: string; nome: string }[]>([]);
+  const [profissionais, setProfissionais] = useState<{ id: string; nome: string; fotoUrl: string | null }[]>([]);
   const [catalogoServicos, setCatalogoServicos] = useState<any[]>([]);
   const [sessao, setSessao] = useState({ logado: false, id: '' });
   const [mounted, setMounted] = useState(false);
@@ -105,6 +105,9 @@ export default function LandingPage() {
         setDataHora={setDataHora}
         mensagem={mensagem}
         handleAgendar={handleAgendar}
+        profissionalSelecionado={
+          profissionais.find(p => p.id === profissionalId)
+        }
       />
       <Footer />
     </>

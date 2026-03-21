@@ -5,8 +5,8 @@ import { prisma } from '@/lib/prisma';
 export async function buscarProfissionais() {
     try {
         const profissionais = await prisma.funcionario.findMany({
-            where: { role: 'PROFISSIONAL' },
-            select: { id: true, nome: true },
+            where: { role: 'PROFISSIONAL', ativo: true },
+            select: { id: true, nome: true, fotoUrl: true },
             orderBy: { nome: 'asc' }
         });
         return { sucesso: true, profissionais };
