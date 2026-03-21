@@ -9,6 +9,7 @@ import Sobre from '@/components/landing/Sobre'; // NOVO COMPONENTE
 import ServicosVitrine from '@/components/landing/ServicosVitrine';
 import PortfolioGaleria from '@/components/landing/PortfolioGaleria'; // NOVO COMPONENTE
 import FormularioReserva from '@/components/landing/FormularioReserva';
+import Localizacao from '@/components/landing/Localizacao';
 import Footer from '@/components/landing/Footer';
 
 import { buscarProfissionais } from '@/app/actions/profissionais';
@@ -128,6 +129,10 @@ export default function LandingPage() {
           profissionais.find(p => p.id === profissionalId)
         }
       />
+
+      {/* Aqui entra a localização */}
+      <Localizacao />
+
       <Footer />
     </>
   );

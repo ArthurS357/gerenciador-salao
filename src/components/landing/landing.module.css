@@ -916,3 +916,132 @@
     line-height: 1.8;
     margin-bottom: 1.5rem;
 }
+
+/* ── LOCALIZAÇÃO E CONTATOS ── */
+.secaoLocalizacao {
+    padding: 7rem 4rem;
+    background: white;
+    border-top: 1px solid var(--creme-escuro);
+}
+
+@media (max-width: 768px) {
+    .secaoLocalizacao {
+        padding: 4rem 1.5rem;
+    }
+}
+
+.localizacaoInner {
+    max-width: 1100px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4rem;
+    align-items: center;
+}
+
+@media (max-width: 768px) {
+    .localizacaoInner {
+        grid-template-columns: 1fr;
+        gap: 3rem;
+    }
+}
+
+.localizacaoTitulo {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: clamp(2rem, 3vw, 2.75rem);
+    font-weight: 600;
+    color: var(--marrom-profundo);
+    margin-bottom: 1.5rem;
+    line-height: 1.15;
+}
+
+.localizacaoDesc {
+    font-size: 0.95rem;
+    color: var(--texto-suave);
+    line-height: 1.8;
+    margin-bottom: 2.5rem;
+}
+
+.contatosGrid {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.contatoItem {
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+}
+
+.contatoIcone {
+    font-size: 1.5rem;
+    line-height: 1;
+}
+
+.contatoNome {
+    font-weight: 600;
+    color: var(--marrom-profundo);
+    margin-bottom: 0.25rem;
+    font-size: 1.05rem;
+}
+
+.contatoTexto {
+    color: var(--texto-suave);
+    font-size: 0.9rem;
+    line-height: 1.5;
+}
+
+.contatoLink {
+    color: var(--texto-suave);
+    font-size: 0.9rem;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    transition: color 0.2s;
+}
+
+.contatoLink:hover {
+    color: var(--marrom-claro);
+}
+
+.badgeWhatsapp {
+    font-size: 0.65rem;
+    font-weight: 700;
+    color: #166534;
+    background: #dcfce7;
+    padding: 0.1rem 0.4rem;
+    border-radius: 3px;
+    margin-left: 0.5rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.badgeFixo {
+    font-size: 0.65rem;
+    font-weight: 700;
+    color: #4b5563;
+    background: #f3f4f6;
+    padding: 0.1rem 0.4rem;
+    border-radius: 3px;
+    margin-left: 0.5rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.contatoAviso {
+    font-size: 0.8rem;
+    color: #dc2626;
+    font-weight: 500;
+    margin-top: 0.25rem;
+}
+
+.mapaContainer {
+    width: 100%;
+    height: 400px;
+    background: #f3f4f6;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
+    border: 4px solid white;
+}
