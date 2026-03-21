@@ -145,6 +145,50 @@
     }
 }
 
+/* ── HERO VISUAL (Pai do efeito 3D) ── */
+.heroVisual {
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    /* Ativa o espaço 3D no container */
+    perspective: 2000px;
+}
+
+/* CONTAINER DA IMAGEM (controla a interação) */
+.hero3dContainer {
+    position: relative;
+    z-index: 2;
+    /* Acima da grade de fundo */
+    width: 90%;
+    max-width: 500px;
+    transform-style: preserve-3d;
+    /* Garante que filhos herdem o espaço 3D */
+    transition: transform 0.1s ease;
+    /* Transição suave para interação do mouse (necessita JS para interagir com mousemove) */
+}
+
+/* A IMAGEM EM SI (aplica o efeito estático de profundidade) */
+.hero3dImage {
+    width: 100%;
+    height: auto;
+    object-fit: contain;
+    /* Efeito pseudo-3D estático: inclinação e sombra suave */
+    transform: translateZ(50px) rotateY(-10deg) rotateX(5deg);
+    filter: drop-shadow(0 40px 100px rgba(0, 0, 0, 0.4));
+    /* Sombra difusa para profundidade */
+    border-radius: 8px;
+    /* Opcional, suaviza as bordas do pedestal */
+    transition: transform 0.5s ease-out;
+    /* Transição suave para hover simples */
+}
+
+/* Efeito simples de inclinação no HOVER (se não usar JS para mousemove) */
+.heroVisual:hover .hero3dImage {
+    transform: translateZ(100px) rotateY(15deg) rotateX(10deg);
+}
+
 .heroTag {
     display: inline-flex;
     align-items: center;
@@ -1044,4 +1088,48 @@
     overflow: hidden;
     box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
     border: 4px solid white;
+}
+
+/* ── ADIÇÕES para Localizacao.tsx ── Colar no final de landing.module.css ── */
+
+/* Ícone SVG no lugar de emoji */
+.contatoIconeSvg {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    border-radius: 50%;
+    background: var(--creme-escuro);
+    color: var(--marrom-medio);
+    flex-shrink: 0;
+}
+
+/* Botão WhatsApp principal */
+.btnWhatsapp {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.65rem;
+    margin-top: 2rem;
+    padding: 0.9rem 2rem;
+    background: #16a34a;
+    color: white;
+    border-radius: 4px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.85rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-decoration: none;
+    transition: background 0.2s, transform 0.1s;
+    touch-action: manipulation;
+    /* elimina delay 300ms mobile */
+}
+
+.btnWhatsapp:hover {
+    background: #15803d;
+}
+
+.btnWhatsapp:active {
+    transform: scale(0.98);
 }

@@ -13,8 +13,19 @@ export default function Hero({ mounted }: { mounted: boolean }) {
                 </div>
             </div>
 
+            {/* ÁREA VISUAL ATUALIZADA */}
             <div className={styles.heroVisual}>
                 <div className={styles.heroVisualGrade} />
+
+                {/* CONTAINER DA IMAGEM 3D */}
+                <div className={styles.hero3dContainer}>
+                    <img
+                        src="/images/logo-hero-render.png"
+                        alt="LmLu Mattielo Emblem"
+                        className={styles.hero3dImage}
+                    />
+                </div>
+
                 <div className={styles.heroNumero}>
                     <div className={styles.stat}><span className={styles.statNum}>8+</span><span className={styles.statLabel}>Anos de experiência</span></div>
                     <div className={styles.stat}><span className={styles.statNum}>2k</span><span className={styles.statLabel}>Clientes atendidas</span></div>
