@@ -1,6 +1,8 @@
 'use server'
 
 import { prisma } from '@/lib/prisma';
+import { revalidatePath } from 'next/cache'
+
 
 export async function listarProdutosDisponiveis() {
     return await prisma.produto.findMany({
@@ -49,12 +51,30 @@ export async function adicionarProdutoNaComanda(agendamentoId: string, produtoId
 
 export async function finalizarComanda(agendamentoId: string) {
     try {
+        const agendamento = await prisma.agendamento.findUnique({
+            where: { id: agendamentoId }
+        })
+
+        if (!agendamento) {
+            return { sucesso: false, erro: 'Comanda não encontrada.' }
+        }
+
+        if (agendamento.concluido) {
+            return { sucesso: false, erro: 'Esta comanda já foi faturada.' }
+        }
+
+        // Fatura a comanda
         await prisma.agendamento.update({
             where: { id: agendamentoId },
             data: { concluido: true }
-        });
-        return { sucesso: true };
+        })
+
+        revalidatePath('/profissional/agenda')
+        revalidatePath(`/profissional/comanda/${agendamentoId}`)
+
+        return { sucesso: true }
     } catch (error) {
-        return { sucesso: false, erro: 'Falha ao fechar a comanda e enviar para o caixa.' };
+        console.error("Erro ao finalizar comanda:", error)
+        return { sucesso: false, erro: 'Falha ao processar o faturamento.' }
     }
 }

@@ -1,138 +1,186 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import {
-    listarProdutosDisponiveis,
-    adicionarProdutoNaComanda,
-    finalizarComanda,
-} from '@/app/actions/comanda'
-import type { Produto } from '@/types/domain'
+import { adicionarProdutoNaComanda } from '@/app/actions/comanda'
+import { finalizarComanda } from '@/app/actions/comanda'
 
-interface PainelComandaProps {
-    agendamentoId: string
-    clienteNome: string
-    servicoInicial: { id: string; nome: string; preco: number }
+type PainelComandaProps = {
+    agendamento: any; // Tipagem simplificada para o payload vindo do Prisma
+    produtosDisponiveis: Array<{ id: string, nome: string, precoVenda: number, estoque: number }>;
 }
 
-export default function PainelComanda({
-    agendamentoId,
-    clienteNome,
-    servicoInicial,
-}: PainelComandaProps) {
+export default function PainelComanda({ agendamento, produtosDisponiveis }: PainelComandaProps) {
     const router = useRouter()
-    const [total, setTotal] = useState(servicoInicial.preco)
-    const [produtos, setProdutos] = useState<Produto[]>([])
-    const [produtoSelecionado, setProdutoSelecionado] = useState('')
-    const [qtdProduto, setQtdProduto] = useState(1)
-    const [loadingAcao, setLoadingAcao] = useState(false)
 
-    const carregarProdutos = useCallback(async () => {
-        const lista = await listarProdutosDisponiveis()
-        setProdutos(lista as Produto[])
-    }, [])
+    // Estados do formulário de adição de produto
+    const [produtoIdSelecionado, setProdutoIdSelecionado] = useState('')
+    const [quantidade, setQuantidade] = useState(1)
 
-    useEffect(() => {
-        void carregarProdutos()
-    }, [carregarProdutos])
+    // Estados de processamento para evitar Race Conditions no Client-Side
+    const [isAdicionando, setIsAdicionando] = useState(false)
+    const [isFinalizando, setIsFinalizando] = useState(false)
+    const [erro, setErro] = useState('')
+
+    // Cálculos Financeiros Dinâmicos
+    const totalServicos = agendamento.servicos.reduce((acc: number, item: any) => acc + (item.precoCobrado || 0), 0)
+    const totalProdutos = agendamento.produtos.reduce((acc: number, item: any) => acc + (item.precoCobrado * item.quantidade), 0)
+    const valorTotalRevisado = totalServicos + totalProdutos
 
     const handleAdicionarProduto = async () => {
-        if (!produtoSelecionado) return
-        setLoadingAcao(true)
+        if (!produtoIdSelecionado || quantidade < 1) return
 
-        const res = await adicionarProdutoNaComanda(agendamentoId, produtoSelecionado, qtdProduto)
+        setIsAdicionando(true)
+        setErro('')
+
+        const res = await adicionarProdutoNaComanda(agendamento.id, produtoIdSelecionado, quantidade)
 
         if (res.sucesso) {
-            const prod = produtos.find((p) => p.id === produtoSelecionado)
-            if (prod) {
-                setTotal((prev) => prev + prod.precoVenda * qtdProduto)
-            }
-            // Reload para reflectir novo estoque
-            void carregarProdutos()
-            setProdutoSelecionado('')
-            setQtdProduto(1)
-            alert('Produto adicionado e debitado do estoque!')
+            setProdutoIdSelecionado('')
+            setQuantidade(1)
+            router.refresh() // Atualiza os dados da tela mantendo o estado
         } else {
-            alert(res.erro)
+            setErro(res.erro || 'Erro ao adicionar produto.')
         }
-        setLoadingAcao(false)
+
+        setIsAdicionando(false)
     }
 
-    const handleConcluirAtendimento = async () => {
-        if (!confirm(`Finalizar comanda de R$ ${total.toFixed(2)} e enviar para o caixa?`)) return
+    const handleFinalizar = async () => {
+        const confirmar = window.confirm(`Deseja faturar esta comanda no valor de R$ ${valorTotalRevisado.toFixed(2)}? Após isso, não será possível alterar os itens.`)
+        if (!confirmar) return
 
-        setLoadingAcao(true)
-        const res = await finalizarComanda(agendamentoId)
+        setIsFinalizando(true)
+        setErro('')
 
+        const res = await finalizarComanda(agendamento.id)
         if (res.sucesso) {
-            alert('Atendimento finalizado! Os valores já estão no caixa.')
             router.push('/profissional/agenda')
+            router.refresh()
         } else {
-            alert(res.erro)
-            setLoadingAcao(false)
+            setErro(res.erro || 'Erro ao faturar comanda.')
+            setIsFinalizando(false)
         }
     }
 
     return (
-        <div className="bg-white rounded-lg shadow-xl border-t-8 border-[#5C4033] p-8">
-            <div className="flex justify-between items-start mb-8 border-b border-gray-100 pb-4">
+        <div className="bg-white rounded-2xl shadow-xl border border-[#e5d9c5] overflow-hidden">
+
+            {/* Cabeçalho da Comanda */}
+            <div className="bg-[#5C4033] p-8 text-white flex justify-between items-center">
                 <div>
-                    <h2 className="text-2xl font-bold text-gray-800">Comanda Aberta</h2>
-                    <p className="text-gray-500 font-medium">Cliente: {clienteNome}</p>
+                    <h2 className="text-sm font-semibold tracking-[0.2em] uppercase text-[#c5a87c] mb-2">Comanda Eletrônica</h2>
+                    <h1 className="text-3xl font-serif">{agendamento.cliente.nome}</h1>
+                    <p className="text-sm opacity-80 mt-1">{agendamento.cliente.telefone}</p>
                 </div>
                 <div className="text-right">
-                    <p className="text-sm text-gray-500 uppercase tracking-wide">Total Corrente</p>
-                    <p className="text-3xl font-bold text-[#8B5A2B]">R$ {total.toFixed(2)}</p>
+                    <p className="text-xs uppercase tracking-wider opacity-70 mb-1">Status</p>
+                    {agendamento.concluido ? (
+                        <span className="px-3 py-1 bg-green-500/20 border border-green-400 text-green-300 font-bold rounded">FATURADO</span>
+                    ) : (
+                        <span className="px-3 py-1 bg-orange-500/20 border border-orange-400 text-orange-300 font-bold rounded">EM ABERTO</span>
+                    )}
                 </div>
             </div>
 
-            <div className="space-y-6">
-                <div className="bg-[#fdfbf7] p-6 rounded-lg border border-[#e5d9c5]">
-                    <h3 className="text-lg font-bold text-[#5C4033] mb-4">Lançar Produtos / Adicionais</h3>
+            <div className="p-8 space-y-8">
+                {erro && (
+                    <div className="p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm font-bold">
+                        {erro}
+                    </div>
+                )}
 
-                    <div className="flex gap-4 items-end">
-                        <div className="flex-1">
-                            <label className="block text-sm font-semibold text-gray-700 mb-1">Produto</label>
+                {/* Lista de Serviços (Fixos do agendamento) */}
+                <section>
+                    <h3 className="text-lg font-bold text-[#5C4033] mb-4 flex items-center gap-2">
+                        <div className="w-1.5 h-5 bg-[#c5a87c] rounded-full"></div>
+                        Serviços Realizados
+                    </h3>
+                    <div className="space-y-3">
+                        {agendamento.servicos.map((item: any) => (
+                            <div key={item.id} className="flex justify-between items-center p-4 bg-gray-50 rounded-lg border border-gray-100">
+                                <span className="font-medium text-gray-700">{item.servico.nome}</span>
+                                <span className="font-bold text-[#5C4033]">R$ {item.precoCobrado?.toFixed(2)}</span>
+                            </div>
+                        ))}
+                    </div>
+                </section>
+
+                {/* Lista de Produtos (Adicionados durante o atendimento) */}
+                <section>
+                    <h3 className="text-lg font-bold text-[#5C4033] mb-4 flex items-center gap-2">
+                        <div className="w-1.5 h-5 bg-[#c5a87c] rounded-full"></div>
+                        Produtos Adicionados
+                    </h3>
+                    {agendamento.produtos.length === 0 ? (
+                        <p className="text-sm text-gray-500 italic">Nenhum produto adicionado nesta comanda.</p>
+                    ) : (
+                        <div className="space-y-3">
+                            {agendamento.produtos.map((item: any) => (
+                                <div key={item.id} className="flex justify-between items-center p-4 bg-orange-50/50 rounded-lg border border-orange-100">
+                                    <div>
+                                        <span className="font-medium text-gray-800">{item.produto.nome}</span>
+                                        <span className="text-xs text-gray-500 ml-2">x{item.quantidade}</span>
+                                    </div>
+                                    <span className="font-bold text-[#5C4033]">R$ {(item.precoCobrado * item.quantidade).toFixed(2)}</span>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+
+                    {/* Formulário para adicionar novos produtos (Oculto se faturado) */}
+                    {!agendamento.concluido && (
+                        <div className="mt-4 p-4 border border-[#e5d9c5] rounded-xl bg-white flex flex-col md:flex-row gap-3">
                             <select
-                                className="w-full border border-gray-300 rounded px-3 py-2 outline-none"
-                                value={produtoSelecionado}
-                                onChange={(e) => setProdutoSelecionado(e.target.value)}
+                                value={produtoIdSelecionado}
+                                onChange={(e) => setProdutoIdSelecionado(e.target.value)}
+                                className="flex-1 p-2.5 border border-gray-300 rounded text-sm outline-none focus:border-[#8B5A2B]"
                             >
-                                <option value="">Selecione um produto...</option>
-                                {produtos.map((p) => (
+                                <option value="">Adicionar produto da vitrine...</option>
+                                {produtosDisponiveis.map(p => (
                                     <option key={p.id} value={p.id}>
-                                        {p.nome} — R$ {p.precoVenda.toFixed(2)} (Estoque: {p.estoque})
+                                        {p.nome} - R$ {p.precoVenda.toFixed(2)} ({p.estoque} em estoque)
                                     </option>
                                 ))}
                             </select>
-                        </div>
-                        <div className="w-24">
-                            <label className="block text-sm font-semibold text-gray-700 mb-1">Qtd</label>
                             <input
                                 type="number"
                                 min="1"
-                                value={qtdProduto}
-                                onChange={(e) => setQtdProduto(Math.max(1, Number(e.target.value)))}
-                                className="w-full border border-gray-300 rounded px-3 py-2 text-center outline-none"
+                                value={quantidade}
+                                onChange={(e) => setQuantidade(Number(e.target.value))}
+                                className="w-20 p-2.5 border border-gray-300 rounded text-sm text-center outline-none focus:border-[#8B5A2B]"
                             />
+                            <button
+                                onClick={handleAdicionarProduto}
+                                disabled={isAdicionando || !produtoIdSelecionado}
+                                className="px-5 py-2.5 bg-gray-100 text-[#5C4033] font-bold rounded hover:bg-[#e5d9c5] transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm uppercase tracking-wider"
+                            >
+                                {isAdicionando ? '...' : 'Incluir'}
+                            </button>
                         </div>
-                        <button
-                            onClick={() => { void handleAdicionarProduto() }}
-                            disabled={loadingAcao || !produtoSelecionado}
-                            className="bg-[#5C4033] text-white px-6 py-2 rounded font-bold hover:bg-[#3e2b22] disabled:opacity-50 h-10"
-                        >
-                            Adicionar
-                        </button>
-                    </div>
-                </div>
+                    )}
+                </section>
 
-                <button
-                    onClick={() => { void handleConcluirAtendimento() }}
-                    disabled={loadingAcao}
-                    className="w-full bg-green-600 text-white text-lg font-bold py-4 rounded hover:bg-green-700 transition-colors shadow-lg mt-8 disabled:opacity-50"
-                >
-                    Finalizar Atendimento e Enviar para o Caixa
-                </button>
+                {/* Rodapé Financeiro e Ações */}
+                <div className="mt-12 pt-8 border-t-2 border-dashed border-[#e5d9c5]">
+                    <div className="flex flex-col items-end gap-1 mb-8">
+                        <p className="text-sm text-gray-500">Subtotal Serviços: R$ {totalServicos.toFixed(2)}</p>
+                        <p className="text-sm text-gray-500">Subtotal Produtos: R$ {totalProdutos.toFixed(2)}</p>
+                        <h2 className="text-3xl font-serif text-[#5C4033] mt-2">
+                            Total: R$ {valorTotalRevisado.toFixed(2)}
+                        </h2>
+                    </div>
+
+                    {!agendamento.concluido && (
+                        <button
+                            onClick={handleFinalizar}
+                            disabled={isFinalizando}
+                            className="w-full py-4 bg-[#8B5A2B] text-white font-bold rounded-xl text-lg uppercase tracking-widest hover:bg-[#704620] transition-colors shadow-lg disabled:opacity-70 disabled:cursor-not-allowed"
+                        >
+                            {isFinalizando ? 'A Processar Faturamento...' : 'Concluir Atendimento'}
+                        </button>
+                    )}
+                </div>
             </div>
         </div>
     )
