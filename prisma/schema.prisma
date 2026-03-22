@@ -26,7 +26,7 @@ model Funcionario {
   senhaHash         String
   role              String        @default("PROFISSIONAL")
   comissao          Float         @default(40.0)
-  podeVerComissao   Boolean       @default(true) // Admin define se o profissional vê a %
+  podeVerComissao   Boolean       @default(true)
   podeAgendar       Boolean       @default(false)
   podeVerHistorico  Boolean       @default(false)
   cpf               String?       @unique
@@ -37,6 +37,8 @@ model Funcionario {
   ativo             Boolean       @default(true)
 
   agendamentos     Agendamento[]
+  servicos         Servico[]      // Serviços que o profissional está apto a executar
+
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt
 }
@@ -47,25 +49,26 @@ model Servico {
   id               String   @id @default(uuid())
   nome             String
   descricao        String?
-  preco            Float?   // Opcional: Se nulo, fica "Sob Consulta" ou invisível
-  tempoMinutos     Int?     // Opcional: Admin define se o serviço tem tempo fixo
-  imagemUrl        String?  // Referência visual para a Landing Page (Portfólio)
+  preco            Float?
+  tempoMinutos     Int?
+  imagemUrl        String?
   ativo            Boolean  @default(true)
 
   itensAgendamento ItemServico[]
+  funcionarios     Funcionario[]  // Profissionais aptos a realizar este serviço
 }
 
 model Produto {
-  id          String   @id @default(uuid())
-  nome        String
-  descricao   String?
-  precoCusto  Float    @default(0.0)
-  precoVenda  Float
-  estoque     Int      @default(0)
-  ativo       Boolean  @default(true)
+  id            String   @id @default(uuid())
+  nome          String
+  descricao     String?
+  precoCusto    Float    @default(0.0)
+  precoVenda    Float
+  estoque       Int      @default(0)
+  estoqueMinimo Int      @default(5)
+  ativo         Boolean  @default(true)
 
   itensAgendamento ItemProduto[]
-  estoqueMinimo Int @default(5)
 }
 
 // 3. MOTOR FINANCEIRO E COMANDAS
@@ -76,36 +79,33 @@ model Agendamento {
   funcionarioId  String
   dataHoraInicio DateTime
   dataHoraFim    DateTime
-  valorBruto     Float     // Soma total em cache (Serviços + Produtos)
+  valorBruto     Float
   taxas          Float     @default(0)
   concluido      Boolean   @default(false)
 
   cliente        Cliente     @relation(fields: [clienteId], references: [id])
   funcionario    Funcionario @relation(fields: [funcionarioId], references: [id])
 
-  // Um agendamento agora pode ter N serviços e N produtos atrelados
   servicos       ItemServico[]
   produtos       ItemProduto[]
 }
 
-// Tabela pivô para registrar quais serviços estão nesta comanda
 model ItemServico {
   id            String      @id @default(uuid())
   servicoId     String
   agendamentoId String
-  precoCobrado  Float?      // Salva o preço no momento do agendamento para blindar o histórico
+  precoCobrado  Float?
 
   servico       Servico     @relation(fields: [servicoId], references: [id])
   agendamento   Agendamento @relation(fields: [agendamentoId], references: [id], onDelete: Cascade)
 }
 
-// Tabela pivô para dar baixa no estoque e cobrar produtos na comanda
 model ItemProduto {
   id            String      @id @default(uuid())
   produtoId     String
   agendamentoId String
   quantidade    Int
-  precoCobrado  Float       // Salva o valor de venda no momento da transação
+  precoCobrado  Float
 
   produto       Produto     @relation(fields: [produtoId], references: [id])
   agendamento   Agendamento @relation(fields: [agendamentoId], references: [id], onDelete: Cascade)
@@ -114,10 +114,10 @@ model ItemProduto {
 // 4. Vitrine de portfólio homepage
 model ItemPortfolio {
   id          String   @id @default(uuid())
-  titulo      String   // Ex: "Mechas e Iluminação"
-  valor       Float?   // Ex: 450.00
-  imagemUrl   String   // URL que virá do Cloudinary/S3
-  linkSocial  String?  // URL do post no Instagram/TikTok
+  titulo      String
+  valor       Float?
+  imagemUrl   String
+  linkSocial  String?
   ativo       Boolean  @default(true)
-  criadoEm    DateTime @default(now())
+  criadoEm   DateTime @default(now())
 }

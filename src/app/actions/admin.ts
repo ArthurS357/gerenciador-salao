@@ -18,6 +18,7 @@ type DadosCriarFuncionario = {
     comissao?: number
     podeAgendar?: boolean
     podeVerHistorico?: boolean
+    servicosIds?: string[]
 }
 
 type DadosEditarFuncionario = {
@@ -30,6 +31,7 @@ type DadosEditarFuncionario = {
     comissao?: number
     podeAgendar?: boolean
     podeVerHistorico?: boolean
+    servicosIds?: string[]
 }
 
 type ActionOk<T> = { sucesso: true } & T
@@ -92,6 +94,10 @@ export async function criarFuncionario(
                 comissao: Number(dados.comissao) || 40.0,
                 podeAgendar: dados.podeAgendar ?? false,
                 podeVerHistorico: dados.podeVerHistorico ?? false,
+                // Conecta os serviços se o array existir e não estiver vazio
+                servicos: dados.servicosIds && dados.servicosIds.length > 0
+                    ? { connect: dados.servicosIds.map(id => ({ id })) }
+                    : undefined,
             },
         })
 
@@ -109,9 +115,20 @@ export async function editarFuncionarioCompleto(
     dados: DadosEditarFuncionario
 ): Promise<ActionResult<{ funcionario: Funcionario }>> {
     try {
+        // Separa os servicosIds do restante dos dados para não quebrar o update do Prisma
+        const { servicosIds, ...restoDosDados } = dados;
+
         const atualizado = await prisma.funcionario.update({
             where: { id },
-            data: dados,
+            data: {
+                ...restoDosDados,
+                // O método 'set' sobrescreve a lista antiga com a nova lista de serviços
+                ...(servicosIds && {
+                    servicos: {
+                        set: servicosIds.map(id => ({ id }))
+                    }
+                })
+            },
         })
 
         return { sucesso: true, funcionario: atualizado as Funcionario }
@@ -237,6 +254,8 @@ export async function listarEquipaAdmin(): Promise<ActionResult<{ equipa: Funcio
         const equipa = await prisma.funcionario.findMany({
             where: { role: 'PROFISSIONAL', ativo: true },
             orderBy: { nome: 'asc' },
+            // Pode opcionalmente incluir a lista de serviços caso o frontend precise:
+            // include: { servicos: { select: { id: true, nome: true } } }
         })
         return { sucesso: true, equipa: equipa as Funcionario[] }
     } catch (error) {

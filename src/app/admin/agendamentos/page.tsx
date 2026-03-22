@@ -2,13 +2,24 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
-import { listarAgendamentosGlobais, cancelarAgendamentoPendente } from '@/app/actions/agendamento'
+import { listarAgendamentosGlobais, cancelarAgendamentoPendente, criarAgendamentoMultiplo } from '@/app/actions/agendamento'
 
 export default function AgendamentosGlobaisPage() {
+    // Estados de Listagem
     const [agendamentos, setAgendamentos] = useState<any[]>([])
     const [busca, setBusca] = useState('')
     const [mesFiltro, setMesFiltro] = useState(new Date().getMonth().toString())
     const [loading, setLoading] = useState(true)
+
+    // Estados do Modal de Criação
+    const [isModalOpen, setIsModalOpen] = useState(false)
+    const [loadingSalvar, setLoadingSalvar] = useState(false)
+    const [novaReserva, setNovaReserva] = useState({
+        clienteId: '',
+        funcionarioId: '',
+        dataHora: '',
+        servicoId: '' // Simplificado para 1 serviço na interface inicial
+    })
 
     const carregarAgendamentos = useCallback(async () => {
         setLoading(true)
@@ -32,6 +43,35 @@ export default function AgendamentosGlobaisPage() {
         }
     }
 
+    const handleCriarAgendamento = async (e: React.FormEvent) => {
+        e.preventDefault()
+        setLoadingSalvar(true)
+
+        try {
+            const dataFormatada = new Date(novaReserva.dataHora)
+
+            const res = await criarAgendamentoMultiplo(
+                novaReserva.clienteId,
+                novaReserva.funcionarioId,
+                dataFormatada,
+                [novaReserva.servicoId] // Array conforme exige o backend
+            )
+
+            if (res.sucesso) {
+                alert("Agendamento criado com sucesso!")
+                setIsModalOpen(false)
+                setNovaReserva({ clienteId: '', funcionarioId: '', dataHora: '', servicoId: '' })
+                void carregarAgendamentos()
+            } else {
+                alert(res.erro || "Erro ao criar agendamento.")
+            }
+        } catch (error) {
+            alert("Erro ao processar os dados do formulário.")
+        } finally {
+            setLoadingSalvar(false)
+        }
+    }
+
     // Filtro Combinado: Busca por Nome (Cliente/Profissional) + Filtro por Mês
     const agendamentosFiltrados = agendamentos.filter(ag => {
         const mesAgendamento = new Date(ag.dataHoraInicio).getMonth().toString()
@@ -49,6 +89,13 @@ export default function AgendamentosGlobaisPage() {
                     <h1 className="text-3xl font-bold text-[#5C4033]">Agendamento Global</h1>
                     <p className="text-gray-500 mt-1">Busque, edite e acompanhe toda a agenda do salão.</p>
                 </div>
+
+                <button
+                    onClick={() => setIsModalOpen(true)}
+                    className="bg-[#8B5A2B] text-white px-5 py-2.5 rounded font-bold hover:bg-[#704620] shadow-sm transition-colors"
+                >
+                    + Novo Agendamento
+                </button>
             </header>
 
             {/* Navegação Horizontal Uniforme do Admin */}
@@ -150,6 +197,81 @@ export default function AgendamentosGlobaisPage() {
                     </div>
                 )}
             </section>
+
+            {/* Modal de Criação de Agendamento */}
+            {isModalOpen && (
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+                    <div className="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-md border-t-4 border-[#5C4033]">
+                        <h2 className="text-2xl font-bold text-[#5C4033] mb-6">Nova Reserva</h2>
+
+                        <form onSubmit={handleCriarAgendamento} className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-semibold text-gray-700 mb-1">ID do Cliente *</label>
+                                <input
+                                    required
+                                    type="text"
+                                    placeholder="Cole o ID do cliente..."
+                                    className="w-full border border-gray-300 rounded-lg px-4 py-2.5 outline-none focus:border-[#8B5A2B]"
+                                    value={novaReserva.clienteId}
+                                    onChange={(e) => setNovaReserva({ ...novaReserva, clienteId: e.target.value })}
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-semibold text-gray-700 mb-1">ID do Profissional *</label>
+                                <input
+                                    required
+                                    type="text"
+                                    placeholder="Cole o ID do profissional..."
+                                    className="w-full border border-gray-300 rounded-lg px-4 py-2.5 outline-none focus:border-[#8B5A2B]"
+                                    value={novaReserva.funcionarioId}
+                                    onChange={(e) => setNovaReserva({ ...novaReserva, funcionarioId: e.target.value })}
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-semibold text-gray-700 mb-1">ID do Serviço Principal *</label>
+                                <input
+                                    required
+                                    type="text"
+                                    placeholder="Cole o ID do serviço..."
+                                    className="w-full border border-gray-300 rounded-lg px-4 py-2.5 outline-none focus:border-[#8B5A2B]"
+                                    value={novaReserva.servicoId}
+                                    onChange={(e) => setNovaReserva({ ...novaReserva, servicoId: e.target.value })}
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-semibold text-gray-700 mb-1">Data e Hora *</label>
+                                <input
+                                    required
+                                    type="datetime-local"
+                                    className="w-full border border-gray-300 rounded-lg px-4 py-2.5 outline-none focus:border-[#8B5A2B]"
+                                    value={novaReserva.dataHora}
+                                    onChange={(e) => setNovaReserva({ ...novaReserva, dataHora: e.target.value })}
+                                />
+                            </div>
+
+                            <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-gray-100">
+                                <button
+                                    type="button"
+                                    onClick={() => setIsModalOpen(false)}
+                                    className="px-5 py-2.5 text-gray-600 font-bold hover:bg-gray-100 rounded-lg transition-colors"
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={loadingSalvar}
+                                    className="px-6 py-2.5 bg-[#5C4033] text-white font-bold rounded-lg hover:bg-[#3e2b22] disabled:opacity-70 transition-colors"
+                                >
+                                    {loadingSalvar ? "A Salvar..." : "Confirmar Agenda"}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
         </div>
     )
 }
