@@ -11,7 +11,6 @@ const JWT_SECRET = new TextEncoder().encode(
 
 // ── Tipos de retorno ─────────────────────────────────────────────────────────
 
-// Usando tipo plano com opcionais para evitar erros de tipagem estrita no frontend
 export type LoginResult = {
     success: boolean;
     clienteId?: string;
@@ -25,7 +24,7 @@ type LoginFuncionarioResult =
     | { success: false; error: string }
 
 type SessaoClienteResult =
-    | { logado: true; id: string }
+    | { logado: true; id: string; nome: string } // <-- Atualizado para exigir o nome
     | { logado: false }
 
 type SessaoFuncionarioResult =
@@ -42,12 +41,10 @@ export async function loginCliente(
     try {
         let cliente = await prisma.cliente.findFirst({ where: { telefone } })
 
-        // Se o cliente existe e não estamos forçando o login após confirmação
         if (cliente && !forcarLogin) {
             const nomeDB = cliente.nome.trim().toLowerCase();
             const nomeInput = nome.trim().toLowerCase();
 
-            // Se o nome digitado for diferente do que está no banco, pede confirmação
             if (nomeDB !== nomeInput) {
                 return { success: false, requireConfirmation: true, registeredName: cliente.nome }
             }
@@ -136,7 +133,15 @@ export async function verificarSessaoCliente(): Promise<SessaoClienteResult> {
 
         if (payload.role !== 'CLIENTE' || !payload.sub) return { logado: false }
 
-        return { logado: true, id: payload.sub }
+        // <-- NOVA LÓGICA: Buscar o cliente no banco para resgatar o nome
+        const cliente = await prisma.cliente.findUnique({
+            where: { id: payload.sub },
+            select: { nome: true, anonimizado: true }
+        })
+
+        if (!cliente || cliente.anonimizado) return { logado: false }
+
+        return { logado: true, id: payload.sub, nome: cliente.nome }
     } catch {
         return { logado: false }
     }

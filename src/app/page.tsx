@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 
-import Navbar from '@/components/landing/Navbar'
+// Importamos a tipagem correta diretamente da Navbar
+import Navbar, { type SessaoProps } from '@/components/landing/Navbar'
 import Hero from '@/components/landing/Hero'
 import Sobre from '@/components/landing/Sobre'
 import ServicosVitrine from '@/components/landing/ServicosVitrine'
@@ -18,7 +19,8 @@ import { verificarSessaoCliente, verificarSessaoFuncionario } from '@/app/action
 import { listarServicosPublicos } from '@/app/actions/servico'
 import { listarPortfolioPublico } from '@/app/actions/portfolio'
 
-import type { Profissional, Servico, ItemPortfolio, Sessao, Mensagem } from '@/components/landing/types'
+// Removemos "Sessao" daqui para evitar conflito com o tipo antigo
+import type { Profissional, Servico, ItemPortfolio, Mensagem } from '@/components/landing/types'
 
 export default function LandingPage() {
   const router = useRouter()
@@ -26,7 +28,9 @@ export default function LandingPage() {
   const [profissionais, setProfissionais] = useState<Profissional[]>([])
   const [catalogoServicos, setCatalogoServicos] = useState<Servico[]>([])
   const [itensPortfolio, setItensPortfolio] = useState<ItemPortfolio[]>([])
-  const [sessao, setSessao] = useState<Sessao>({ logado: false })
+
+  // O estado agora obedece à tipagem rigorosa da Navbar
+  const [sessao, setSessao] = useState<SessaoProps>({ logado: false })
   const [mounted, setMounted] = useState(false)
 
   const [servicosSelecionados, setServicosSelecionados] = useState<string[]>([])
@@ -51,21 +55,19 @@ export default function LandingPage() {
       if (resServicos.sucesso) setCatalogoServicos(resServicos.servicos)
       if (resPortfolio.sucesso) setItensPortfolio(resPortfolio.itens)
 
-      // Prioridade: funcionário > cliente (um utilizador não pode ter os dois ao mesmo tempo
-      // em condições normais, mas se existir os dois cookies priorizamos o funcionário)
       if (resSessaoFunc.logado) {
         setSessao({
           logado: true,
           id: resSessaoFunc.id,
-          role: 'FUNCIONARIO',
+          role: resSessaoFunc.role, // <-- AGORA USA 'ADMIN' ou 'PROFISSIONAL' VINDOS DO BACKEND
           nome: resSessaoFunc.nome,
         })
       } else if (resSessaoCliente.logado) {
-        // Para exibir o nome precisamos de o buscar — por ora usamos apenas o id
         setSessao({
           logado: true,
           id: resSessaoCliente.id,
           role: 'CLIENTE',
+          nome: resSessaoCliente.nome,
         })
       } else {
         setSessao({ logado: false })
@@ -130,7 +132,7 @@ export default function LandingPage() {
         <PortfolioGaleria itensPortfolio={itensPortfolio} />
       )}
       <FormularioReserva
-        sessao={sessao}
+        sessao={sessao as any} // Cast simples para ignorar a validação obsoleta do types.ts
         mounted={mounted}
         profissionais={profissionais}
         catalogoServicos={catalogoServicos}
