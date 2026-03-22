@@ -30,10 +30,19 @@ export default async function ComandaPage({ params }: PageProps) {
         redirect('/login-profissional');
     }
 
-    // Passo 3: Busca consolidada da comanda (incluindo serviços e produtos já adicionados)
+    // Passo 3: Buscar permissões atualizadas do usuário logado
+    const usuarioLogado = await prisma.funcionario.findUnique({
+        where: { id: funcionarioId },
+        select: { role: true, podeVerComissao: true }
+    });
+
+    // Se for ADMIN, vê tudo. Se for PROFISSIONAL, depende da trava do banco.
+    const podeVerFinancas = usuarioLogado?.role === 'ADMIN' || usuarioLogado?.podeVerComissao === true;
+
+    // Passo 4: Busca consolidada da comanda
     const agendamento = await prisma.agendamento.findUnique({
         where: { id: resolvedParams.id },
-        include: { 
+        include: {
             cliente: { select: { nome: true, telefone: true } },
             funcionario: { select: { nome: true } },
             servicos: {
@@ -46,7 +55,7 @@ export default async function ComandaPage({ params }: PageProps) {
     });
 
     if (!agendamento) {
-        return notFound(); // Mostra a página de erro 404 padrão do Next.js
+        return notFound();
     }
 
     // Trava de segurança: impede que um profissional abra a comanda de outro (exceto ADMIN)
@@ -60,7 +69,7 @@ export default async function ComandaPage({ params }: PageProps) {
         );
     }
 
-    // Passo 4: Busca os produtos do catálogo que estão disponíveis para venda extra
+    // Passo 5: Busca os produtos do catálogo disponíveis para venda extra
     const produtosDisponiveis = await prisma.produto.findMany({
         where: { ativo: true, estoque: { gt: 0 } },
         select: { id: true, nome: true, precoVenda: true, estoque: true },
@@ -70,10 +79,10 @@ export default async function ComandaPage({ params }: PageProps) {
     return (
         <div className="min-h-screen bg-[#fdfbf7] p-4 md:p-8 font-sans flex items-start md:items-center justify-center pt-32">
             <div className="w-full max-w-4xl">
-                {/* Renderiza o componente interativo com os dados consolidados */}
                 <PainelComanda
                     agendamento={agendamento}
                     produtosDisponiveis={produtosDisponiveis}
+                    podeVerFinancas={podeVerFinancas} // <-- Repassando a permissão
                 />
             </div>
         </div>

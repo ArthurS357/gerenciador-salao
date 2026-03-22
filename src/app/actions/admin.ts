@@ -249,15 +249,15 @@ export async function anonimizarClienteLGPD(
 
 // ── 7. LISTAGEM DE EQUIPA ─────────────────────────────────────────────────────
 
-export async function listarEquipaAdmin(): Promise<ActionResult<{ equipa: Funcionario[] }>> {
+export async function listarEquipaAdmin(): Promise<ActionResult<{ equipa: any[] }>> {
     try {
         const equipa = await prisma.funcionario.findMany({
             where: { role: 'PROFISSIONAL', ativo: true },
             orderBy: { nome: 'asc' },
-            // Pode opcionalmente incluir a lista de serviços caso o frontend precise:
-            // include: { servicos: { select: { id: true, nome: true } } }
+            // Agora trazemos os serviços atrelados a cada profissional
+            include: { servicos: { select: { id: true, nome: true } } }
         })
-        return { sucesso: true, equipa: equipa as Funcionario[] }
+        return { sucesso: true, equipa }
     } catch (error) {
         console.error('Erro ao listar equipa:', error)
         return { sucesso: false, erro: 'Falha ao carregar a equipa.' }

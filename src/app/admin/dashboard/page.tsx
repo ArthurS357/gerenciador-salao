@@ -7,7 +7,8 @@ import {
     inativarFuncionario,
     listarEquipaAdmin,
     atualizarFuncionarioCompleto,
-    excluirFuncionarioPermanente
+    excluirFuncionarioPermanente,
+    editarFuncionarioCompleto // <-- Nova importação para salvar serviços
 } from '@/app/actions/admin'
 import { listarServicosAdmin } from '@/app/actions/servico'
 
@@ -38,6 +39,10 @@ export default function TorreControleDashboard() {
     // Estados de controle de fluxo e UI
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [idAcaoLoading, setIdAcaoLoading] = useState<string | null>(null)
+
+    // NOVO ESTADO: Controle do Modal de Edição de Serviços
+    const [modalServicos, setModalServicos] = useState<{ id: string, nome: string, servicosIds: string[] } | null>(null)
+    const [loadingServicos, setLoadingServicos] = useState(false)
 
     const carregarEquipa = useCallback(async () => {
         try {
@@ -81,7 +86,6 @@ export default function TorreControleDashboard() {
     // --- AÇÃO: CADASTRAR NOVO PROFISSIONAL ---
     const handleCadastrarEquipe = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault()
-
         if (isSubmitting) return
 
         setIsSubmitting(true)
@@ -89,7 +93,6 @@ export default function TorreControleDashboard() {
 
         try {
             const res = await criarFuncionario(formData)
-
             if (res.sucesso) {
                 setMensagem({ texto: 'Profissional cadastrado! Senha temporária: Mudar@123', tipo: 'sucesso' })
                 setIsModalOpen(false)
@@ -99,7 +102,7 @@ export default function TorreControleDashboard() {
                 setMensagem({ texto: res.erro || 'Falha ao registrar profissional.', tipo: 'erro' })
             }
         } catch (error) {
-            setMensagem({ texto: 'Erro de comunicação com o servidor. Verifique a internet.', tipo: 'erro' })
+            setMensagem({ texto: 'Erro de comunicação com o servidor.', tipo: 'erro' })
         } finally {
             setIsSubmitting(false)
         }
@@ -126,24 +129,43 @@ export default function TorreControleDashboard() {
         }
     }
 
+    // --- AÇÃO: SALVAR SERVIÇOS DO PROFISSIONAL EXISTENTE ---
+    const handleSalvarServicosExistente = async () => {
+        if (!modalServicos) return
+        setLoadingServicos(true)
+
+        try {
+            const res = await editarFuncionarioCompleto(modalServicos.id, {
+                servicosIds: modalServicos.servicosIds
+            })
+
+            if (res.sucesso) {
+                setMensagem({ texto: `Serviços de ${modalServicos.nome} atualizados!`, tipo: 'sucesso' })
+                setModalServicos(null)
+                void carregarEquipa()
+            } else {
+                setMensagem({ texto: res.erro || 'Erro ao atualizar serviços.', tipo: 'erro' })
+            }
+        } catch (error) {
+            setMensagem({ texto: 'Erro de comunicação.', tipo: 'erro' })
+        } finally {
+            setLoadingServicos(false)
+        }
+    }
+
     // --- AÇÃO: INATIVAR ---
     const handleInativar = async (id: string, nome: string) => {
         if (idAcaoLoading) return
-        const confirmar = confirm(`Tem a certeza que deseja desativar o acesso de ${nome}?`)
-        if (!confirmar) return
+        if (!confirm(`Tem a certeza que deseja desativar o acesso de ${nome}?`)) return
 
         setIdAcaoLoading(id)
-        setMensagem({ texto: 'A desativar...', tipo: 'info' })
-
         try {
             const res = await inativarFuncionario(id)
             if (res.sucesso) {
                 setMensagem({ texto: 'Profissional inativado com sucesso.', tipo: 'sucesso' })
                 void carregarEquipa()
-            } else {
-                setMensagem({ texto: res.erro || 'Não foi possível inativar.', tipo: 'erro' })
-            }
-        } catch (error) {
+            } else setMensagem({ texto: res.erro || 'Não foi possível inativar.', tipo: 'erro' })
+        } catch {
             setMensagem({ texto: 'Erro de comunicação ao inativar.', tipo: 'erro' })
         } finally {
             setIdAcaoLoading(null)
@@ -153,21 +175,16 @@ export default function TorreControleDashboard() {
     // --- AÇÃO: EXCLUIR DEFINITIVO ---
     const handleExcluir = async (id: string, nome: string) => {
         if (idAcaoLoading) return
-        const confirmar = confirm(`ATENÇÃO: Deseja EXCLUIR DEFINITIVAMENTE a conta de ${nome}?`)
-        if (!confirmar) return
+        if (!confirm(`ATENÇÃO: Deseja EXCLUIR DEFINITIVAMENTE a conta de ${nome}?`)) return
 
         setIdAcaoLoading(id)
-        setMensagem({ texto: 'A excluir...', tipo: 'info' })
-
         try {
             const res = await excluirFuncionarioPermanente(id)
             if (res.sucesso) {
-                setMensagem({ texto: 'Funcionário excluído permanentemente do sistema.', tipo: 'sucesso' })
+                setMensagem({ texto: 'Funcionário excluído permanentemente.', tipo: 'sucesso' })
                 void carregarEquipa()
-            } else {
-                setMensagem({ texto: res.erro || 'Não foi possível excluir.', tipo: 'erro' })
-            }
-        } catch (error) {
+            } else setMensagem({ texto: res.erro || 'Não foi possível excluir.', tipo: 'erro' })
+        } catch {
             setMensagem({ texto: 'Erro de comunicação ao excluir.', tipo: 'erro' })
         } finally {
             setIdAcaoLoading(null)
@@ -183,15 +200,25 @@ export default function TorreControleDashboard() {
         setEditState(prev => ({ ...prev, [id]: { ...prev[id], [campo]: valor } }))
     }
 
-    const handleServicoToggle = (servicoId: string) => {
-        setFormData(prev => {
-            const isSelected = prev.servicosIds.includes(servicoId)
-            if (isSelected) {
-                // Remove o serviço da lista
-                return { ...prev, servicosIds: prev.servicosIds.filter(id => id !== servicoId) }
-            } else {
-                // Adiciona o serviço à lista
-                return { ...prev, servicosIds: [...prev.servicosIds, servicoId] }
+    // Toggle para o modal de CRIAÇÃO
+    const handleServicoToggleNovo = (servicoId: string) => {
+        setFormData(prev => ({
+            ...prev,
+            servicosIds: prev.servicosIds.includes(servicoId)
+                ? prev.servicosIds.filter(id => id !== servicoId)
+                : [...prev.servicosIds, servicoId]
+        }))
+    }
+
+    // Toggle para o modal de EDIÇÃO
+    const handleServicoToggleEdicao = (servicoId: string) => {
+        setModalServicos(prev => {
+            if (!prev) return prev
+            return {
+                ...prev,
+                servicosIds: prev.servicosIds.includes(servicoId)
+                    ? prev.servicosIds.filter(id => id !== servicoId)
+                    : [...prev.servicosIds, servicoId]
             }
         })
     }
@@ -309,17 +336,30 @@ export default function TorreControleDashboard() {
                                             </td>
                                             <td className="p-4 text-right">
                                                 <div className="flex flex-col gap-2 items-end justify-center">
-                                                    <button
-                                                        onClick={() => handleSalvarPermissoes(prof.id)}
-                                                        disabled={isLoading}
-                                                        className={`px-3 py-1 rounded text-xs font-bold border transition-colors w-full sm:w-auto ${isLoading
-                                                            ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
-                                                            : 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100'
-                                                            }`}
-                                                    >
-                                                        {isLoading ? '...' : 'Salvar'}
-                                                    </button>
                                                     <div className="flex gap-2">
+                                                        <button
+                                                            onClick={() => setModalServicos({
+                                                                id: prof.id,
+                                                                nome: prof.nome,
+                                                                servicosIds: prof.servicos?.map((s: any) => s.id) || []
+                                                            })}
+                                                            disabled={isLoading}
+                                                            className="px-3 py-1 bg-blue-50 text-blue-700 border border-blue-200 rounded text-xs font-bold hover:bg-blue-100 transition-colors"
+                                                        >
+                                                            Serviços ({prof.servicos?.length || 0})
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleSalvarPermissoes(prof.id)}
+                                                            disabled={isLoading}
+                                                            className={`px-3 py-1 rounded text-xs font-bold border transition-colors ${isLoading
+                                                                ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+                                                                : 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100'
+                                                                }`}
+                                                        >
+                                                            {isLoading ? '...' : 'Salvar Permissões'}
+                                                        </button>
+                                                    </div>
+                                                    <div className="flex gap-2 mt-1">
                                                         <button
                                                             onClick={() => handleInativar(prof.id, prof.nome)}
                                                             disabled={isLoading}
@@ -352,7 +392,7 @@ export default function TorreControleDashboard() {
                 </div>
             </section>
 
-            {/* Modal de Cadastro */}
+            {/* Modal de Cadastro de Novo Profissional */}
             {isModalOpen && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
                     <div className="bg-white p-8 rounded-lg shadow-xl w-full max-w-lg border-t-4 border-[#5C4033] max-h-[90vh] overflow-y-auto">
@@ -391,21 +431,20 @@ export default function TorreControleDashboard() {
                                 />
                             </div>
 
-                            {/* Seção de Seleção de Serviços */}
                             <div className="mt-4 pt-4 border-t border-gray-100">
                                 <label className="block text-sm font-semibold text-gray-700 mb-2">Serviços Habilitados</label>
                                 <p className="text-xs text-gray-500 mb-3">Marque os serviços que este profissional realiza.</p>
 
                                 <div className="grid grid-cols-2 gap-3 max-h-40 overflow-y-auto p-3 border border-gray-200 rounded-lg bg-gray-50">
                                     {servicosDisponiveis.length === 0 ? (
-                                        <span className="text-sm text-gray-500 col-span-2 text-center py-2">Nenhum serviço cadastrado no portfólio.</span>
+                                        <span className="text-sm text-gray-500 col-span-2 text-center py-2">Nenhum serviço cadastrado.</span>
                                     ) : (
                                         servicosDisponiveis.map(servico => (
                                             <label key={servico.id} className="flex items-start space-x-2 text-sm text-gray-700 cursor-pointer hover:bg-white p-1 rounded transition-colors">
                                                 <input
                                                     type="checkbox"
                                                     checked={formData.servicosIds.includes(servico.id)}
-                                                    onChange={() => handleServicoToggle(servico.id)}
+                                                    onChange={() => handleServicoToggleNovo(servico.id)}
                                                     disabled={isSubmitting}
                                                     className="w-4 h-4 mt-0.5 accent-[#8B5A2B] rounded border-gray-300"
                                                 />
@@ -428,12 +467,59 @@ export default function TorreControleDashboard() {
                                 <button
                                     type="submit"
                                     disabled={isSubmitting}
-                                    className="px-5 py-2 bg-[#5C4033] text-white font-bold rounded shadow-sm hover:bg-[#3e2b22] disabled:opacity-70 disabled:cursor-not-allowed transition-colors"
+                                    className="px-5 py-2 bg-[#5C4033] text-white font-bold rounded shadow-sm hover:bg-[#3e2b22] disabled:opacity-70 transition-colors"
                                 >
                                     {isSubmitting ? 'Salvando...' : 'Salvar Cadastro'}
                                 </button>
                             </div>
                         </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal de Edição de Serviços de Profissional Existente */}
+            {modalServicos && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                    <div className="bg-white p-8 rounded-lg shadow-xl w-full max-w-md border-t-4 border-[#8B5A2B]">
+                        <h2 className="text-xl font-bold text-[#5C4033] mb-2">Serviços Habilitados</h2>
+                        <p className="text-sm text-gray-500 mb-6">Ajustando o portfólio de <strong>{modalServicos.nome}</strong></p>
+
+                        <div className="grid grid-cols-1 gap-3 max-h-64 overflow-y-auto p-3 border border-gray-200 rounded-lg bg-gray-50 mb-6">
+                            {servicosDisponiveis.length === 0 ? (
+                                <span className="text-sm text-gray-500 text-center py-2">Nenhum serviço cadastrado no salão.</span>
+                            ) : (
+                                servicosDisponiveis.map(servico => (
+                                    <label key={servico.id} className="flex items-center space-x-3 text-sm text-gray-700 cursor-pointer hover:bg-white p-2 rounded transition-colors border border-transparent hover:border-gray-200">
+                                        <input
+                                            type="checkbox"
+                                            checked={modalServicos.servicosIds.includes(servico.id)}
+                                            onChange={() => handleServicoToggleEdicao(servico.id)}
+                                            disabled={loadingServicos}
+                                            className="w-4 h-4 accent-[#8B5A2B] rounded border-gray-300"
+                                        />
+                                        <span className="font-medium">{servico.nome}</span>
+                                    </label>
+                                ))
+                            )}
+                        </div>
+
+                        <div className="flex justify-end gap-3">
+                            <button
+                                type="button"
+                                disabled={loadingServicos}
+                                onClick={() => setModalServicos(null)}
+                                className="px-4 py-2 text-gray-600 font-bold hover:bg-gray-100 rounded transition-colors"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                onClick={handleSalvarServicosExistente}
+                                disabled={loadingServicos}
+                                className="px-5 py-2 bg-[#8B5A2B] text-white font-bold rounded shadow-sm hover:bg-[#704620] disabled:opacity-70 transition-colors"
+                            >
+                                {loadingServicos ? 'Salvando...' : 'Atualizar Serviços'}
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}

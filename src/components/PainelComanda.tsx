@@ -6,18 +6,17 @@ import { adicionarProdutoNaComanda } from '@/app/actions/comanda'
 import { finalizarComanda } from '@/app/actions/comanda'
 
 type PainelComandaProps = {
-    agendamento: any; // Tipagem simplificada para o payload vindo do Prisma
+    agendamento: any;
     produtosDisponiveis: Array<{ id: string, nome: string, precoVenda: number, estoque: number }>;
+    podeVerFinancas: boolean; // <-- Nova propriedade de permissão
 }
 
-export default function PainelComanda({ agendamento, produtosDisponiveis }: PainelComandaProps) {
+export default function PainelComanda({ agendamento, produtosDisponiveis, podeVerFinancas }: PainelComandaProps) {
     const router = useRouter()
 
-    // Estados do formulário de adição de produto
     const [produtoIdSelecionado, setProdutoIdSelecionado] = useState('')
     const [quantidade, setQuantidade] = useState(1)
 
-    // Estados de processamento para evitar Race Conditions no Client-Side
     const [isAdicionando, setIsAdicionando] = useState(false)
     const [isFinalizando, setIsFinalizando] = useState(false)
     const [erro, setErro] = useState('')
@@ -38,7 +37,7 @@ export default function PainelComanda({ agendamento, produtosDisponiveis }: Pain
         if (res.sucesso) {
             setProdutoIdSelecionado('')
             setQuantidade(1)
-            router.refresh() // Atualiza os dados da tela mantendo o estado
+            router.refresh()
         } else {
             setErro(res.erro || 'Erro ao adicionar produto.')
         }
@@ -47,7 +46,12 @@ export default function PainelComanda({ agendamento, produtosDisponiveis }: Pain
     }
 
     const handleFinalizar = async () => {
-        const confirmar = window.confirm(`Deseja faturar esta comanda no valor de R$ ${valorTotalRevisado.toFixed(2)}? Após isso, não será possível alterar os itens.`)
+        // Altera a mensagem de confirmação baseada na permissão
+        const mensagemConfirmacao = podeVerFinancas
+            ? `Deseja faturar esta comanda no valor de R$ ${valorTotalRevisado.toFixed(2)}? Após isso, não será possível alterar os itens.`
+            : `Deseja faturar esta comanda e enviar ao caixa? Após isso, não será possível alterar os itens.`;
+
+        const confirmar = window.confirm(mensagemConfirmacao)
         if (!confirmar) return
 
         setIsFinalizando(true)
@@ -65,7 +69,6 @@ export default function PainelComanda({ agendamento, produtosDisponiveis }: Pain
 
     return (
         <div className="bg-white rounded-2xl shadow-xl border border-[#e5d9c5] overflow-hidden">
-
             {/* Cabeçalho da Comanda */}
             <div className="bg-[#5C4033] p-8 text-white flex justify-between items-center">
                 <div>
@@ -90,7 +93,7 @@ export default function PainelComanda({ agendamento, produtosDisponiveis }: Pain
                     </div>
                 )}
 
-                {/* Lista de Serviços (Fixos do agendamento) */}
+                {/* Lista de Serviços */}
                 <section>
                     <h3 className="text-lg font-bold text-[#5C4033] mb-4 flex items-center gap-2">
                         <div className="w-1.5 h-5 bg-[#c5a87c] rounded-full"></div>
@@ -100,13 +103,15 @@ export default function PainelComanda({ agendamento, produtosDisponiveis }: Pain
                         {agendamento.servicos.map((item: any) => (
                             <div key={item.id} className="flex justify-between items-center p-4 bg-gray-50 rounded-lg border border-gray-100">
                                 <span className="font-medium text-gray-700">{item.servico.nome}</span>
-                                <span className="font-bold text-[#5C4033]">R$ {item.precoCobrado?.toFixed(2)}</span>
+                                <span className="font-bold text-[#5C4033]">
+                                    {podeVerFinancas ? `R$ ${item.precoCobrado?.toFixed(2)}` : 'R$ ***'}
+                                </span>
                             </div>
                         ))}
                     </div>
                 </section>
 
-                {/* Lista de Produtos (Adicionados durante o atendimento) */}
+                {/* Lista de Produtos */}
                 <section>
                     <h3 className="text-lg font-bold text-[#5C4033] mb-4 flex items-center gap-2">
                         <div className="w-1.5 h-5 bg-[#c5a87c] rounded-full"></div>
@@ -122,13 +127,15 @@ export default function PainelComanda({ agendamento, produtosDisponiveis }: Pain
                                         <span className="font-medium text-gray-800">{item.produto.nome}</span>
                                         <span className="text-xs text-gray-500 ml-2">x{item.quantidade}</span>
                                     </div>
-                                    <span className="font-bold text-[#5C4033]">R$ {(item.precoCobrado * item.quantidade).toFixed(2)}</span>
+                                    <span className="font-bold text-[#5C4033]">
+                                        {podeVerFinancas ? `R$ ${(item.precoCobrado * item.quantidade).toFixed(2)}` : 'R$ ***'}
+                                    </span>
                                 </div>
                             ))}
                         </div>
                     )}
 
-                    {/* Formulário para adicionar novos produtos (Oculto se faturado) */}
+                    {/* Formulário para adicionar novos produtos */}
                     {!agendamento.concluido && (
                         <div className="mt-4 p-4 border border-[#e5d9c5] rounded-xl bg-white flex flex-col md:flex-row gap-3">
                             <select
@@ -139,7 +146,7 @@ export default function PainelComanda({ agendamento, produtosDisponiveis }: Pain
                                 <option value="">Adicionar produto da vitrine...</option>
                                 {produtosDisponiveis.map(p => (
                                     <option key={p.id} value={p.id}>
-                                        {p.nome} - R$ {p.precoVenda.toFixed(2)} ({p.estoque} em estoque)
+                                        {p.nome} {podeVerFinancas ? `- R$ ${p.precoVenda.toFixed(2)} ` : ''}({p.estoque} em estoque)
                                     </option>
                                 ))}
                             </select>
@@ -163,13 +170,19 @@ export default function PainelComanda({ agendamento, produtosDisponiveis }: Pain
 
                 {/* Rodapé Financeiro e Ações */}
                 <div className="mt-12 pt-8 border-t-2 border-dashed border-[#e5d9c5]">
-                    <div className="flex flex-col items-end gap-1 mb-8">
-                        <p className="text-sm text-gray-500">Subtotal Serviços: R$ {totalServicos.toFixed(2)}</p>
-                        <p className="text-sm text-gray-500">Subtotal Produtos: R$ {totalProdutos.toFixed(2)}</p>
-                        <h2 className="text-3xl font-serif text-[#5C4033] mt-2">
-                            Total: R$ {valorTotalRevisado.toFixed(2)}
-                        </h2>
-                    </div>
+                    {podeVerFinancas ? (
+                        <div className="flex flex-col items-end gap-1 mb-8">
+                            <p className="text-sm text-gray-500">Subtotal Serviços: R$ {totalServicos.toFixed(2)}</p>
+                            <p className="text-sm text-gray-500">Subtotal Produtos: R$ {totalProdutos.toFixed(2)}</p>
+                            <h2 className="text-3xl font-serif text-[#5C4033] mt-2">
+                                Total: R$ {valorTotalRevisado.toFixed(2)}
+                            </h2>
+                        </div>
+                    ) : (
+                        <div className="flex flex-col items-end gap-1 mb-8">
+                            <p className="text-sm text-gray-500 italic">Os valores estão ocultados pelas configurações de privacidade.</p>
+                        </div>
+                    )}
 
                     {!agendamento.concluido && (
                         <button
@@ -177,7 +190,7 @@ export default function PainelComanda({ agendamento, produtosDisponiveis }: Pain
                             disabled={isFinalizando}
                             className="w-full py-4 bg-[#8B5A2B] text-white font-bold rounded-xl text-lg uppercase tracking-widest hover:bg-[#704620] transition-colors shadow-lg disabled:opacity-70 disabled:cursor-not-allowed"
                         >
-                            {isFinalizando ? 'A Processar Faturamento...' : 'Concluir Atendimento'}
+                            {isFinalizando ? 'A Processar...' : 'Concluir Atendimento'}
                         </button>
                     )}
                 </div>

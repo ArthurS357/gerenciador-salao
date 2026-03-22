@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { excluirMinhaContaLGPD } from '@/app/actions/cliente';
+import { excluirContaCliente } from '@/app/actions/cliente';
 
 export default function BotaoExcluirConta({ clienteId }: { clienteId: string }) {
     const [loading, setLoading] = useState(false);
@@ -14,7 +14,7 @@ export default function BotaoExcluirConta({ clienteId }: { clienteId: string }) 
         if (!confirmar) return;
 
         setLoading(true);
-        const res = await excluirMinhaContaLGPD(clienteId);
+        const res = await excluirContaCliente(clienteId);
 
         if (res.sucesso) {
             alert('A sua conta foi removida com sucesso, em conformidade com a LGPD.');
