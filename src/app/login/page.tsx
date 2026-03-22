@@ -14,16 +14,46 @@ export default function LoginPage() {
 
     useEffect(() => setMounted(true), []);
 
+    // Função que aplica a máscara (XX) XXXXX-XXXX
+    const formatarTelefone = (valor: string) => {
+        let v = valor.replace(/\D/g, '');
+        if (v.length > 11) v = v.slice(0, 11);
+        if (v.length > 2) v = v.replace(/^(\d{2})(\d)/g, '($1) $2');
+        if (v.length > 7) v = v.replace(/(\d{5})(\d)/, '$1-$2');
+        return v;
+    };
+
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
         setErro('');
 
+        if (telefone.length < 14) {
+            setErro('Por favor, insira um telefone válido com DDD.');
+            setLoading(false);
+            return;
+        }
+
         try {
-            const res = await loginCliente(telefone, nome);
+            // Passo 1: Tenta logar normalmente
+            let res = await loginCliente(telefone, nome);
+
+            // Passo 2: Se o nome não bater exatamente com o do banco, o servidor pede confirmação
+            if (res.requireConfirmation) {
+                const confirmar = window.confirm(`Encontramos um cadastro no nome de "${res.registeredName}" para este número. É você?`);
+
+                if (confirmar) {
+                    // Se confirmou, envia a requisição forçando o login com a flag "true"
+                    res = await loginCliente(telefone, res.registeredName!, true);
+                } else {
+                    setErro('Por favor, verifique o número digitado ou contate o salão.');
+                    setLoading(false);
+                    return;
+                }
+            }
 
             if (res.success) {
-                router.push('/');
+                window.location.href = '/'; // Redirecionamento nativo para limpar cache de sessão
             } else {
                 setErro(res.error || 'Ocorreu um erro ao tentar entrar.');
             }
@@ -372,9 +402,10 @@ export default function LoginPage() {
                                     type="tel"
                                     required
                                     value={telefone}
-                                    onChange={(e) => setTelefone(e.target.value)}
+                                    onChange={(e) => setTelefone(formatarTelefone(e.target.value))}
                                     placeholder="(11) 90000-0000"
                                     autoComplete="tel"
+                                    maxLength={15}
                                 />
                             </div>
 

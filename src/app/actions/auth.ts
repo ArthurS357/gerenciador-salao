@@ -9,11 +9,16 @@ const JWT_SECRET = new TextEncoder().encode(
     process.env.JWT_SECRET ?? 'chave_secreta_desenvolvimento'
 )
 
-// ── Tipos de retorno explícitos ───────────────────────────────────────────────
+// ── Tipos de retorno ─────────────────────────────────────────────────────────
 
-type LoginResult =
-    | { success: true; clienteId: string }
-    | { success: false; error: string }
+// Usando tipo plano com opcionais para evitar erros de tipagem estrita no frontend
+export type LoginResult = {
+    success: boolean;
+    clienteId?: string;
+    error?: string;
+    requireConfirmation?: boolean;
+    registeredName?: string;
+}
 
 type LoginFuncionarioResult =
     | { success: true; role: string }
@@ -31,12 +36,23 @@ type SessaoFuncionarioResult =
 
 export async function loginCliente(
     telefone: string,
-    nome: string
+    nome: string,
+    forcarLogin: boolean = false
 ): Promise<LoginResult> {
     try {
         let cliente = await prisma.cliente.findFirst({ where: { telefone } })
 
-        // Corrige a falha de sobrescrita: cria apenas se não existir
+        // Se o cliente existe e não estamos forçando o login após confirmação
+        if (cliente && !forcarLogin) {
+            const nomeDB = cliente.nome.trim().toLowerCase();
+            const nomeInput = nome.trim().toLowerCase();
+
+            // Se o nome digitado for diferente do que está no banco, pede confirmação
+            if (nomeDB !== nomeInput) {
+                return { success: false, requireConfirmation: true, registeredName: cliente.nome }
+            }
+        }
+
         if (!cliente) {
             cliente = await prisma.cliente.create({ data: { telefone, nome } })
         }
@@ -127,7 +143,6 @@ export async function verificarSessaoCliente(): Promise<SessaoClienteResult> {
 }
 
 // ── Verificação de sessão do funcionário ──────────────────────────────────────
-// Usada na landing page para exibir o menu correto na Navbar.
 
 export async function verificarSessaoFuncionario(): Promise<SessaoFuncionarioResult> {
     try {
