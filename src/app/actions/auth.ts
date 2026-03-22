@@ -36,12 +36,8 @@ export async function loginCliente(
     try {
         let cliente = await prisma.cliente.findFirst({ where: { telefone } })
 
-        if (cliente) {
-            cliente = await prisma.cliente.update({
-                where: { id: cliente.id },
-                data: { nome },
-            })
-        } else {
+        // Corrige a falha de sobrescrita: cria apenas se não existir
+        if (!cliente) {
             cliente = await prisma.cliente.create({ data: { telefone, nome } })
         }
 

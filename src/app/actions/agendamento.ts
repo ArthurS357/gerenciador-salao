@@ -103,7 +103,11 @@ export async function listarAgendamentosGlobais(): Promise<
 
 export async function cancelarAgendamentoPendente(id: string): Promise<ActionResult> {
     try {
-        const agendamento = await prisma.agendamento.findUnique({ where: { id } })
+        // Passo 1: Buscar o agendamento junto com os produtos atrelados
+        const agendamento = await prisma.agendamento.findUnique({
+            where: { id },
+            include: { produtos: true }
+        })
 
         if (!agendamento) {
             return { sucesso: false, erro: 'Agendamento não encontrado.' }
@@ -116,7 +120,20 @@ export async function cancelarAgendamentoPendente(id: string): Promise<ActionRes
             }
         }
 
-        await prisma.agendamento.delete({ where: { id } })
+        // Passo 2, 3 e 4: Abrir transação para devolver estoque e deletar
+        await prisma.$transaction(async (tx) => {
+            // Restaura o estoque de cada produto que estava na comanda
+            for (const item of agendamento.produtos) {
+                await tx.produto.update({
+                    where: { id: item.produtoId },
+                    data: { estoque: { increment: item.quantidade } }
+                })
+            }
+
+            // Deleta o agendamento (cascade deletará os itens pivô)
+            await tx.agendamento.delete({ where: { id } })
+        })
+
         return { sucesso: true }
     } catch {
         return { sucesso: false, erro: 'Falha técnica ao tentar cancelar o agendamento.' }
