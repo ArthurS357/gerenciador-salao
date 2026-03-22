@@ -9,6 +9,7 @@ import {
     atualizarFuncionarioCompleto,
     excluirFuncionarioPermanente
 } from '@/app/actions/admin'
+import { listarServicosAdmin } from '@/app/actions/servico'
 
 type FormData = {
     nome: string
@@ -17,16 +18,18 @@ type FormData = {
     telefone: string
     especialidade: string
     comissao: number
+    servicosIds: string[]
 }
 
 type Mensagem = { texto: string; tipo: 'sucesso' | 'erro' | 'info' | '' }
 
 const FORM_INICIAL: FormData = {
-    nome: '', email: '', cpf: '', telefone: '', especialidade: '', comissao: 40,
+    nome: '', email: '', cpf: '', telefone: '', especialidade: '', comissao: 40, servicosIds: []
 }
 
 export default function TorreControleDashboard() {
     const [equipa, setEquipa] = useState<any[]>([])
+    const [servicosDisponiveis, setServicosDisponiveis] = useState<any[]>([])
     const [editState, setEditState] = useState<Record<string, any>>({})
     const [mensagem, setMensagem] = useState<Mensagem>({ texto: '', tipo: '' })
     const [isModalOpen, setIsModalOpen] = useState(false)
@@ -59,9 +62,21 @@ export default function TorreControleDashboard() {
         }
     }, [])
 
+    const carregarServicos = useCallback(async () => {
+        try {
+            const res = await listarServicosAdmin()
+            if (res.sucesso) {
+                setServicosDisponiveis(res.servicos)
+            }
+        } catch (error) {
+            console.error("Falha ao carregar os serviços:", error)
+        }
+    }, [])
+
     useEffect(() => {
         void carregarEquipa()
-    }, [carregarEquipa])
+        void carregarServicos()
+    }, [carregarEquipa, carregarServicos])
 
     // --- AÇÃO: CADASTRAR NOVO PROFISSIONAL ---
     const handleCadastrarEquipe = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -168,6 +183,19 @@ export default function TorreControleDashboard() {
         setEditState(prev => ({ ...prev, [id]: { ...prev[id], [campo]: valor } }))
     }
 
+    const handleServicoToggle = (servicoId: string) => {
+        setFormData(prev => {
+            const isSelected = prev.servicosIds.includes(servicoId)
+            if (isSelected) {
+                // Remove o serviço da lista
+                return { ...prev, servicosIds: prev.servicosIds.filter(id => id !== servicoId) }
+            } else {
+                // Adiciona o serviço à lista
+                return { ...prev, servicosIds: [...prev.servicosIds, servicoId] }
+            }
+        })
+    }
+
     return (
         <div className="min-h-screen bg-[#fdfbf7] p-8 font-sans">
             <header className="mb-6 border-b-2 border-[#5C4033] pb-4 flex justify-between items-center">
@@ -210,8 +238,8 @@ export default function TorreControleDashboard() {
             {mensagem.texto && (
                 <div
                     className={`mb-6 p-4 rounded font-bold text-center ${mensagem.tipo === 'erro' ? 'bg-red-100 text-red-700' :
-                            mensagem.tipo === 'info' ? 'bg-blue-100 text-blue-700' :
-                                'bg-green-100 text-green-700'
+                        mensagem.tipo === 'info' ? 'bg-blue-100 text-blue-700' :
+                            'bg-green-100 text-green-700'
                         }`}
                 >
                     {mensagem.texto}
@@ -327,27 +355,28 @@ export default function TorreControleDashboard() {
             {/* Modal de Cadastro */}
             {isModalOpen && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-                    <div className="bg-white p-8 rounded-lg shadow-xl w-full max-w-lg border-t-4 border-[#5C4033]">
+                    <div className="bg-white p-8 rounded-lg shadow-xl w-full max-w-lg border-t-4 border-[#5C4033] max-h-[90vh] overflow-y-auto">
                         <h2 className="text-2xl font-bold text-[#5C4033] mb-6">Cadastrar Profissional</h2>
                         <form onSubmit={handleCadastrarEquipe} className="space-y-4">
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-sm font-semibold text-gray-700 mb-1">Nome Completo</label>
-                                    <input required disabled={isSubmitting} type="text" value={formData.nome} className="w-full border rounded px-3 py-2 disabled:bg-gray-100" onChange={campo('nome')} />
+                                    <input required disabled={isSubmitting} type="text" value={formData.nome} className="w-full border rounded px-3 py-2 disabled:bg-gray-100 outline-none focus:border-[#8B5A2B]" onChange={campo('nome')} />
                                 </div>
                                 <div>
                                     <label className="block text-sm font-semibold text-gray-700 mb-1">E-mail Corporativo</label>
-                                    <input required disabled={isSubmitting} type="email" value={formData.email} className="w-full border rounded px-3 py-2 disabled:bg-gray-100" onChange={campo('email')} />
+                                    <input required disabled={isSubmitting} type="email" value={formData.email} className="w-full border rounded px-3 py-2 disabled:bg-gray-100 outline-none focus:border-[#8B5A2B]" onChange={campo('email')} />
                                 </div>
                                 <div>
                                     <label className="block text-sm font-semibold text-gray-700 mb-1">CPF</label>
-                                    <input required disabled={isSubmitting} type="text" value={formData.cpf} className="w-full border rounded px-3 py-2 disabled:bg-gray-100" onChange={campo('cpf')} />
+                                    <input required disabled={isSubmitting} type="text" value={formData.cpf} className="w-full border rounded px-3 py-2 disabled:bg-gray-100 outline-none focus:border-[#8B5A2B]" onChange={campo('cpf')} />
                                 </div>
                                 <div>
                                     <label className="block text-sm font-semibold text-gray-700 mb-1">Especialidade</label>
-                                    <input type="text" disabled={isSubmitting} placeholder="Ex: Colorimetria" value={formData.especialidade} className="w-full border rounded px-3 py-2 disabled:bg-gray-100" onChange={campo('especialidade')} />
+                                    <input type="text" disabled={isSubmitting} placeholder="Ex: Colorimetria" value={formData.especialidade} className="w-full border rounded px-3 py-2 disabled:bg-gray-100 outline-none focus:border-[#8B5A2B]" onChange={campo('especialidade')} />
                                 </div>
                             </div>
+
                             <div>
                                 <label className="block text-sm font-semibold text-gray-700 mb-1">Comissão Padrão (%)</label>
                                 <input
@@ -357,23 +386,49 @@ export default function TorreControleDashboard() {
                                     min="0"
                                     max="100"
                                     value={formData.comissao}
-                                    className="w-full border rounded px-3 py-2 disabled:bg-gray-100"
+                                    className="w-full border rounded px-3 py-2 disabled:bg-gray-100 outline-none focus:border-[#8B5A2B]"
                                     onChange={campo('comissao')}
                                 />
                             </div>
-                            <div className="flex justify-end gap-3 mt-6">
+
+                            {/* Seção de Seleção de Serviços */}
+                            <div className="mt-4 pt-4 border-t border-gray-100">
+                                <label className="block text-sm font-semibold text-gray-700 mb-2">Serviços Habilitados</label>
+                                <p className="text-xs text-gray-500 mb-3">Marque os serviços que este profissional realiza.</p>
+
+                                <div className="grid grid-cols-2 gap-3 max-h-40 overflow-y-auto p-3 border border-gray-200 rounded-lg bg-gray-50">
+                                    {servicosDisponiveis.length === 0 ? (
+                                        <span className="text-sm text-gray-500 col-span-2 text-center py-2">Nenhum serviço cadastrado no portfólio.</span>
+                                    ) : (
+                                        servicosDisponiveis.map(servico => (
+                                            <label key={servico.id} className="flex items-start space-x-2 text-sm text-gray-700 cursor-pointer hover:bg-white p-1 rounded transition-colors">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={formData.servicosIds.includes(servico.id)}
+                                                    onChange={() => handleServicoToggle(servico.id)}
+                                                    disabled={isSubmitting}
+                                                    className="w-4 h-4 mt-0.5 accent-[#8B5A2B] rounded border-gray-300"
+                                                />
+                                                <span className="leading-tight">{servico.nome}</span>
+                                            </label>
+                                        ))
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="flex justify-end gap-3 mt-6 pt-4">
                                 <button
                                     type="button"
                                     disabled={isSubmitting}
                                     onClick={() => { setIsModalOpen(false); setFormData(FORM_INICIAL) }}
-                                    className="px-4 py-2 text-gray-600 font-bold hover:bg-gray-100 rounded disabled:opacity-50"
+                                    className="px-4 py-2 text-gray-600 font-bold hover:bg-gray-100 rounded disabled:opacity-50 transition-colors"
                                 >
                                     Cancelar
                                 </button>
                                 <button
                                     type="submit"
                                     disabled={isSubmitting}
-                                    className="px-4 py-2 bg-[#5C4033] text-white font-bold rounded hover:bg-[#3e2b22] disabled:opacity-70 disabled:cursor-not-allowed"
+                                    className="px-5 py-2 bg-[#5C4033] text-white font-bold rounded shadow-sm hover:bg-[#3e2b22] disabled:opacity-70 disabled:cursor-not-allowed transition-colors"
                                 >
                                     {isSubmitting ? 'Salvando...' : 'Salvar Cadastro'}
                                 </button>
