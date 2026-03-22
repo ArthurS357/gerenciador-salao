@@ -2,7 +2,12 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
-import { listarAgendamentosGlobais, cancelarAgendamentoPendente, criarAgendamentoMultiplo } from '@/app/actions/agendamento'
+import {
+    listarAgendamentosGlobais,
+    cancelarAgendamentoPendente,
+    criarAgendamentoMultiplo,
+    editarAgendamentoPendente // <-- Nova importação
+} from '@/app/actions/agendamento'
 
 export default function AgendamentosGlobaisPage() {
     // Estados de Listagem
@@ -18,8 +23,12 @@ export default function AgendamentosGlobaisPage() {
         clienteId: '',
         funcionarioId: '',
         dataHora: '',
-        servicoId: '' // Simplificado para 1 serviço na interface inicial
+        servicoId: ''
     })
+
+    // Estados do Modal de Edição <-- NOVOS ESTADOS
+    const [agendamentoEditando, setAgendamentoEditando] = useState<{ id: string; funcionarioId: string; dataHora: string } | null>(null)
+    const [loadingEditar, setLoadingEditar] = useState(false)
 
     const carregarAgendamentos = useCallback(async () => {
         setLoading(true)
@@ -54,7 +63,7 @@ export default function AgendamentosGlobaisPage() {
                 novaReserva.clienteId,
                 novaReserva.funcionarioId,
                 dataFormatada,
-                [novaReserva.servicoId] // Array conforme exige o backend
+                [novaReserva.servicoId]
             )
 
             if (res.sucesso) {
@@ -69,6 +78,49 @@ export default function AgendamentosGlobaisPage() {
             alert("Erro ao processar os dados do formulário.")
         } finally {
             setLoadingSalvar(false)
+        }
+    }
+
+    // --- NOVA FUNÇÃO: Preparar Modal de Edição ---
+    const abrirModalEdicao = (ag: any) => {
+        // Formata a data UTC do banco para o padrão local exigido pelo input datetime-local
+        const d = new Date(ag.dataHoraInicio)
+        d.setMinutes(d.getMinutes() - d.getTimezoneOffset())
+        const dataFormatadaParaInput = d.toISOString().slice(0, 16)
+
+        setAgendamentoEditando({
+            id: ag.id,
+            funcionarioId: ag.funcionarioId,
+            dataHora: dataFormatadaParaInput
+        })
+    }
+
+    // --- NOVA FUNÇÃO: Salvar Edição ---
+    const handleSalvarEdicao = async (e: React.FormEvent) => {
+        e.preventDefault()
+        if (!agendamentoEditando) return
+
+        setLoadingEditar(true)
+
+        try {
+            const dataFormatada = new Date(agendamentoEditando.dataHora)
+            const res = await editarAgendamentoPendente(
+                agendamentoEditando.id,
+                agendamentoEditando.funcionarioId,
+                dataFormatada
+            )
+
+            if (res.sucesso) {
+                alert("Agendamento atualizado com sucesso!")
+                setAgendamentoEditando(null)
+                void carregarAgendamentos()
+            } else {
+                alert(res.erro || "Erro ao editar agendamento.")
+            }
+        } catch (error) {
+            alert("Erro ao processar os dados de edição.")
+        } finally {
+            setLoadingEditar(false)
         }
     }
 
@@ -182,9 +234,20 @@ export default function AgendamentosGlobaisPage() {
                                             </td>
                                             <td className="p-4 text-right flex justify-end gap-2">
                                                 {!ag.concluido ? (
-                                                    <button onClick={() => handleCancelar(ag.id)} className="bg-red-50 text-red-600 px-4 py-1.5 rounded text-xs font-bold border border-red-200 hover:bg-red-100 transition-colors shadow-sm">
-                                                        Excluir
-                                                    </button>
+                                                    <>
+                                                        <button
+                                                            onClick={() => abrirModalEdicao(ag)}
+                                                            className="bg-blue-50 text-blue-600 px-4 py-1.5 rounded text-xs font-bold border border-blue-200 hover:bg-blue-100 transition-colors shadow-sm"
+                                                        >
+                                                            Editar
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleCancelar(ag.id)}
+                                                            className="bg-red-50 text-red-600 px-4 py-1.5 rounded text-xs font-bold border border-red-200 hover:bg-red-100 transition-colors shadow-sm"
+                                                        >
+                                                            Excluir
+                                                        </button>
+                                                    </>
                                                 ) : (
                                                     <span className="text-xs text-gray-400 italic">Travado (Faturado)</span>
                                                 )}
@@ -266,6 +329,57 @@ export default function AgendamentosGlobaisPage() {
                                     className="px-6 py-2.5 bg-[#5C4033] text-white font-bold rounded-lg hover:bg-[#3e2b22] disabled:opacity-70 transition-colors"
                                 >
                                     {loadingSalvar ? "A Salvar..." : "Confirmar Agenda"}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal de Edição de Agendamento */}
+            {agendamentoEditando && (
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+                    <div className="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-md border-t-4 border-[#8B5A2B]">
+                        <h2 className="text-2xl font-bold text-[#5C4033] mb-6">Reagendar / Trocar Profissional</h2>
+
+                        <form onSubmit={handleSalvarEdicao} className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-semibold text-gray-700 mb-1">ID do Profissional *</label>
+                                <input
+                                    required
+                                    type="text"
+                                    placeholder="Cole o novo ID ou mantenha o atual..."
+                                    className="w-full border border-gray-300 rounded-lg px-4 py-2.5 outline-none focus:border-[#8B5A2B]"
+                                    value={agendamentoEditando.funcionarioId}
+                                    onChange={(e) => setAgendamentoEditando({ ...agendamentoEditando, funcionarioId: e.target.value })}
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-semibold text-gray-700 mb-1">Nova Data e Hora *</label>
+                                <input
+                                    required
+                                    type="datetime-local"
+                                    className="w-full border border-gray-300 rounded-lg px-4 py-2.5 outline-none focus:border-[#8B5A2B]"
+                                    value={agendamentoEditando.dataHora}
+                                    onChange={(e) => setAgendamentoEditando({ ...agendamentoEditando, dataHora: e.target.value })}
+                                />
+                            </div>
+
+                            <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-gray-100">
+                                <button
+                                    type="button"
+                                    onClick={() => setAgendamentoEditando(null)}
+                                    className="px-5 py-2.5 text-gray-600 font-bold hover:bg-gray-100 rounded-lg transition-colors"
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={loadingEditar}
+                                    className="px-6 py-2.5 bg-[#8B5A2B] text-white font-bold rounded-lg hover:bg-[#704620] disabled:opacity-70 transition-colors"
+                                >
+                                    {loadingEditar ? "A Salvar..." : "Atualizar Agenda"}
                                 </button>
                             </div>
                         </form>

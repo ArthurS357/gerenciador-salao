@@ -85,8 +85,6 @@ export async function listarAgendaProfissional(funcionarioId: string): Promise<
         const agendamentos = await prisma.agendamento.findMany({
             where: {
                 funcionarioId,
-                // Opcional: Pode filtrar para mostrar apenas agendamentos de hoje em diante
-                // dataHoraInicio: { gte: new Date(new Date().setHours(0,0,0,0)) }
             },
             orderBy: { dataHoraInicio: 'asc' },
             include: {
@@ -105,7 +103,6 @@ export async function listarAgendaProfissional(funcionarioId: string): Promise<
 
 export async function cancelarAgendamentoPendente(id: string): Promise<ActionResult> {
     try {
-        // Passo 1: Buscar o agendamento junto com os produtos atrelados
         const agendamento = await prisma.agendamento.findUnique({
             where: { id },
             include: { produtos: true }
@@ -122,9 +119,7 @@ export async function cancelarAgendamentoPendente(id: string): Promise<ActionRes
             }
         }
 
-        // Passo 2, 3 e 4: Abrir transação para devolver estoque e deletar
         await prisma.$transaction(async (tx) => {
-            // Restaura o estoque de cada produto que estava na comanda
             for (const item of agendamento.produtos) {
                 await tx.produto.update({
                     where: { id: item.produtoId },
@@ -132,7 +127,6 @@ export async function cancelarAgendamentoPendente(id: string): Promise<ActionRes
                 })
             }
 
-            // Deleta o agendamento (cascade deletará os itens pivô)
             await tx.agendamento.delete({ where: { id } })
         })
 
@@ -145,7 +139,7 @@ export async function cancelarAgendamentoPendente(id: string): Promise<ActionRes
 export async function listarAgendamentosGlobais() {
     try {
         const agendamentos = await prisma.agendamento.findMany({
-            orderBy: { dataHoraInicio: 'desc' }, // Traz os mais recentes/futuros primeiro
+            orderBy: { dataHoraInicio: 'desc' },
             include: {
                 cliente: { select: { nome: true, telefone: true } },
                 funcionario: { select: { nome: true } }
@@ -156,5 +150,59 @@ export async function listarAgendamentosGlobais() {
     } catch (error) {
         console.error('Erro ao listar agendamentos globais:', error)
         return { sucesso: false, erro: 'Falha ao carregar a agenda global.' }
+    }
+}
+
+// ── NOVA FUNÇÃO: Editar agendamento existente ─────────────────────────────────
+export async function editarAgendamentoPendente(
+    id: string,
+    funcionarioId: string,
+    dataHoraInicio: Date
+): Promise<ActionResult> {
+    try {
+        // 1. Busca os serviços do agendamento para recalcular o tempo total
+        const agendamento = await prisma.agendamento.findUnique({
+            where: { id },
+            include: { servicos: { include: { servico: true } } }
+        })
+
+        if (!agendamento) return { sucesso: false, erro: 'Agendamento não encontrado.' }
+        if (agendamento.concluido) return { sucesso: false, erro: 'Não é possível editar uma comanda que já foi faturada.' }
+
+        // 2. Recalcula o tempo de fim
+        const TEMPO_BUFFER_MINUTOS = 5
+        let tempoTotalMinutos = 0
+        agendamento.servicos.forEach(item => {
+            tempoTotalMinutos += item.servico.tempoMinutos ?? 30
+        })
+        const dataHoraFim = new Date(dataHoraInicio.getTime() + (tempoTotalMinutos + TEMPO_BUFFER_MINUTOS) * 60_000)
+
+        // 3. Verifica choque de horários (ignorando o próprio agendamento sendo editado)
+        const conflito = await prisma.agendamento.findFirst({
+            where: {
+                funcionarioId,
+                id: { not: id }, // Garante que não bata conflito com ele mesmo
+                concluido: false,
+                AND: [
+                    { dataHoraInicio: { lt: dataHoraFim } },
+                    { dataHoraFim: { gt: dataHoraInicio } },
+                ],
+            },
+        })
+
+        if (conflito) {
+            return { sucesso: false, erro: 'Choque de horários. Profissional indisponível neste novo horário.' }
+        }
+
+        // 4. Salva no banco de dados
+        await prisma.agendamento.update({
+            where: { id },
+            data: { funcionarioId, dataHoraInicio, dataHoraFim }
+        })
+
+        return { sucesso: true }
+    } catch (error) {
+        console.error('Erro ao editar agendamento:', error)
+        return { sucesso: false, erro: 'Falha técnica ao atualizar o agendamento.' }
     }
 }
