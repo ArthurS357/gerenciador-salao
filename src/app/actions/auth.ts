@@ -23,7 +23,11 @@ type SessaoClienteResult =
     | { logado: true; id: string }
     | { logado: false }
 
-// ── Login do cliente (upsert por telefone) ────────────────────────────────────
+type SessaoFuncionarioResult =
+    | { logado: true; id: string; nome: string; role: 'ADMIN' | 'PROFISSIONAL' }
+    | { logado: false }
+
+// ── Login do cliente ──────────────────────────────────────────────────────────
 
 export async function loginCliente(
     telefone: string,
@@ -55,7 +59,7 @@ export async function loginCliente(
         cookieStore.set('cliente_session', token, {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
-            maxAge: 60 * 60 * 24 * 7, // 7 dias
+            maxAge: 60 * 60 * 24 * 7,
             path: '/',
             sameSite: 'lax',
         })
@@ -74,9 +78,7 @@ export async function loginFuncionario(
     senhaPlana: string
 ): Promise<LoginFuncionarioResult> {
     try {
-        const funcionario = await prisma.funcionario.findUnique({
-            where: { email },
-        })
+        const funcionario = await prisma.funcionario.findUnique({ where: { email } })
 
         if (!funcionario || !funcionario.ativo) {
             return { success: false, error: 'Credenciais inválidas.' }
@@ -97,7 +99,7 @@ export async function loginFuncionario(
         cookieStore.set('funcionario_session', token, {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
-            maxAge: 60 * 60 * 24, // 1 dia
+            maxAge: 60 * 60 * 24,
             path: '/',
             sameSite: 'lax',
         })
@@ -128,16 +130,48 @@ export async function verificarSessaoCliente(): Promise<SessaoClienteResult> {
     }
 }
 
-// ── Logout do funcionário (server action — httpOnly cookie não pode ser
-//    removido via document.cookie no cliente) ─────────────────────────────────
+// ── Verificação de sessão do funcionário ──────────────────────────────────────
+// Usada na landing page para exibir o menu correto na Navbar.
+
+export async function verificarSessaoFuncionario(): Promise<SessaoFuncionarioResult> {
+    try {
+        const cookieStore = await cookies()
+        const token = cookieStore.get('funcionario_session')?.value
+
+        if (!token) return { logado: false }
+
+        const { payload } = await jwtVerify(token, JWT_SECRET)
+
+        const role = payload.role
+        if ((role !== 'ADMIN' && role !== 'PROFISSIONAL') || !payload.sub) {
+            return { logado: false }
+        }
+
+        const funcionario = await prisma.funcionario.findUnique({
+            where: { id: payload.sub },
+            select: { nome: true, ativo: true },
+        })
+
+        if (!funcionario || !funcionario.ativo) return { logado: false }
+
+        return {
+            logado: true,
+            id: payload.sub,
+            nome: funcionario.nome,
+            role: role as 'ADMIN' | 'PROFISSIONAL',
+        }
+    } catch {
+        return { logado: false }
+    }
+}
+
+// ── Logouts ───────────────────────────────────────────────────────────────────
 
 export async function logoutFuncionario(): Promise<{ sucesso: true }> {
     const cookieStore = await cookies()
     cookieStore.delete('funcionario_session')
     return { sucesso: true }
 }
-
-// ── Logout do cliente ─────────────────────────────────────────────────────────
 
 export async function logoutCliente(): Promise<{ sucesso: true }> {
     const cookieStore = await cookies()

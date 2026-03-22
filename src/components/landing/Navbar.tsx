@@ -1,7 +1,9 @@
 'use client'
-import { useState, useEffect, memo } from 'react'
+import { useState, useEffect, useCallback, memo } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { cn } from './cn'
+import { logoutCliente, logoutFuncionario } from '@/app/actions/auth'
 import type { NavbarProps } from './types'
 
 const NAV_LINKS = [
@@ -10,9 +12,45 @@ const NAV_LINKS = [
     { label: 'Contato', href: '#contato' },
 ] as const
 
+// ── Ícones ────────────────────────────────────────────────────────────────────
+
+const IconeAgenda = () => (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" />
+    </svg>
+)
+
+const IconeHistorico = () => (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M3 3h6l2 3H3z" /><path d="M3 8v13h18V8z" /><path d="M7 13h10M7 17h6" />
+    </svg>
+)
+
+const IconeUser = () => (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <circle cx="12" cy="8" r="4" /><path d="M4 20c0-4 3.58-7 8-7s8 3 8 7" />
+    </svg>
+)
+
+const IconeSair = () => (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" />
+    </svg>
+)
+
+const IconeBriefcase = () => (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <rect x="2" y="7" width="20" height="14" rx="2" ry="2" /><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" /><line x1="12" y1="12" x2="12" y2="16" /><line x1="10" y1="14" x2="14" y2="14" />
+    </svg>
+)
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 const Navbar = memo(function Navbar({ sessao }: NavbarProps) {
+    const router = useRouter()
     const [scrolled, setScrolled] = useState(false)
     const [menuOpen, setMenuOpen] = useState(false)
+    const [loadingLogout, setLoadingLogout] = useState(false)
 
     useEffect(() => {
         const onScroll = () => setScrolled(window.scrollY > 24)
@@ -25,7 +63,25 @@ const Navbar = memo(function Navbar({ sessao }: NavbarProps) {
         return () => { document.body.style.overflow = '' }
     }, [menuOpen])
 
-    const closeMenu = () => setMenuOpen(false)
+    const closeMenu = useCallback(() => setMenuOpen(false), [])
+
+    const handleLogoutCliente = async () => {
+        setLoadingLogout(true)
+        await logoutCliente()
+        closeMenu()
+        router.refresh()
+        router.push('/')
+    }
+
+    const handleLogoutFuncionario = async () => {
+        setLoadingLogout(true)
+        await logoutFuncionario()
+        closeMenu()
+        router.push('/login-profissional')
+    }
+
+    const isCliente = sessao.logado && sessao.role === 'CLIENTE'
+    const isFuncionario = sessao.logado && sessao.role === 'FUNCIONARIO'
 
     return (
         <>
@@ -68,48 +124,53 @@ const Navbar = memo(function Navbar({ sessao }: NavbarProps) {
                     ))}
                 </div>
 
-                {/* ── Direita ── */}
-                <div className="flex items-center gap-6 relative z-10">
-                    <Link
-                        href={sessao.logado ? '/cliente/dashboard' : '/login'}
-                        className="hidden md:flex items-center gap-2 text-[0.65rem] font-medium tracking-[0.2em] uppercase text-[#c5a87c]/70 transition-all duration-500 hover:text-[#c5a87c]"
-                    >
-                        <span className="relative">
-                            {sessao.logado ? 'O Meu Painel' : 'Acesso Cliente'}
-                            <span className="absolute -bottom-1.5 left-0 h-[1px] w-0 bg-[#c5a87c]/50 transition-all duration-500 hover:w-full" />
-                        </span>
-                    </Link>
+                {/* ── Direita — contextual por role ── */}
+                <div className="flex items-center gap-5 relative z-10">
 
-                    <div aria-hidden="true" className="hidden md:block w-px h-3 bg-white/10" />
+                    {/* CLIENTE logado — desktop: link rápido para painel */}
+                    {isCliente && (
+                        <Link
+                            href="/cliente/dashboard"
+                            className="hidden md:flex items-center gap-2 text-[0.65rem] font-medium tracking-[0.2em] uppercase text-[#c5a87c]/70 transition-all duration-500 hover:text-[#c5a87c]"
+                        >
+                            O Meu Painel
+                        </Link>
+                    )}
 
-                    {/* ── Botão hamburguer esteticamente integrado ── */}
+                    {/* FUNCIONÁRIO logado — desktop: link para agenda */}
+                    {isFuncionario && (
+                        <Link
+                            href="/profissional/agenda"
+                            className="hidden md:flex items-center gap-2 text-[0.65rem] font-medium tracking-[0.2em] uppercase text-[#c5a87c]/70 transition-all duration-500 hover:text-[#c5a87c]"
+                        >
+                            Minha Agenda
+                        </Link>
+                    )}
+
+                    {/* NÃO logado — desktop: botão entrar (cliente) */}
+                    {!sessao.logado && (
+                        <Link
+                            href="/login"
+                            className="hidden md:flex items-center gap-2 text-[0.65rem] font-medium tracking-[0.2em] uppercase text-[#c5a87c]/70 transition-all duration-500 hover:text-[#c5a87c]"
+                        >
+                            Acesso Cliente
+                        </Link>
+                    )}
+
+                    {!sessao.logado && (
+                        <div aria-hidden="true" className="hidden md:block w-px h-3 bg-white/10" />
+                    )}
+
+                    {/* ── Botão hamburguer ── */}
                     <button
                         onClick={() => setMenuOpen(v => !v)}
                         aria-expanded={menuOpen}
                         aria-label={menuOpen ? 'Fechar menu' : 'Abrir menu'}
                         className="relative flex flex-col justify-center items-end gap-[6px] w-8 h-8 group"
                     >
-                        <span
-                            aria-hidden="true"
-                            className={cn(
-                                'block h-px transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] origin-center bg-white/60 group-hover:bg-[#c5a87c]',
-                                menuOpen ? 'w-full rotate-[-45deg] translate-y-[7px] bg-[#c5a87c]' : 'w-full'
-                            )}
-                        />
-                        <span
-                            aria-hidden="true"
-                            className={cn(
-                                'block h-px transition-all duration-400 ease-out bg-white/40 group-hover:bg-[#c5a87c]/70',
-                                menuOpen ? 'opacity-0 w-0' : 'w-[65%]'
-                            )}
-                        />
-                        <span
-                            aria-hidden="true"
-                            className={cn(
-                                'block h-px transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] origin-center bg-white/60 group-hover:bg-[#c5a87c]',
-                                menuOpen ? 'w-full rotate-[45deg] -translate-y-[7px] bg-[#c5a87c]' : 'w-[85%]'
-                            )}
-                        />
+                        <span aria-hidden="true" className={cn('block h-px transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] origin-center bg-white/60 group-hover:bg-[#c5a87c]', menuOpen ? 'w-full rotate-[-45deg] translate-y-[7px] bg-[#c5a87c]' : 'w-full')} />
+                        <span aria-hidden="true" className={cn('block h-px transition-all duration-400 ease-out bg-white/40 group-hover:bg-[#c5a87c]/70', menuOpen ? 'opacity-0 w-0' : 'w-[65%]')} />
+                        <span aria-hidden="true" className={cn('block h-px transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] origin-center bg-white/60 group-hover:bg-[#c5a87c]', menuOpen ? 'w-full rotate-[45deg] -translate-y-[7px] bg-[#c5a87c]' : 'w-[85%]')} />
                     </button>
                 </div>
             </nav>
@@ -124,18 +185,10 @@ const Navbar = memo(function Navbar({ sessao }: NavbarProps) {
                     'fixed inset-0 z-[98] bg-[#0e0905]/80 backdrop-blur-[4px] transition-all duration-700 ease-out',
                     menuOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
                 )}
-            >
-                {/* Continuidade do ruído do Hero no Overlay para coesão */}
-                <div
-                    className="absolute inset-0 opacity-[0.02] mix-blend-overlay pointer-events-none"
-                    style={{
-                        backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)'/%3E%3C/svg%3E")`,
-                    }}
-                />
-            </div>
+            />
 
             {/* ══════════════════════════════════════════
-                DRAWER 
+                DRAWER — contextual por role
             ══════════════════════════════════════════ */}
             <aside
                 role="dialog"
@@ -148,27 +201,28 @@ const Navbar = memo(function Navbar({ sessao }: NavbarProps) {
                     menuOpen ? 'translate-x-0' : 'translate-x-full'
                 )}
             >
-                {/* Efeitos de Luz no Background da Gaveta alinhados ao Hero */}
+                {/* Atmosfera */}
                 <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
                     <div className="absolute -top-[15%] -right-[10%] w-[65%] h-[55%] rounded-full bg-[radial-gradient(ellipse,rgba(92,64,51,0.15)_0%,transparent_70%)] blur-3xl" />
                     <div className="absolute bottom-[15%] -left-[10%] w-[50%] h-[35%] rounded-full bg-[radial-gradient(ellipse,rgba(197,168,124,0.03)_0%,transparent_70%)] blur-2xl" />
-                    {/* Linhas da Gaveta */}
-                    <div
-                        className="absolute inset-0 opacity-[0.02]"
-                        style={{
-                            backgroundImage: "linear-gradient(rgba(197,168,124,1) 1px, transparent 1px), linear-gradient(90deg, rgba(197,168,124,1) 1px, transparent 1px)",
-                            backgroundSize: "96px 96px",
-                        }}
-                    />
+                    <div className="absolute inset-0 opacity-[0.02]" style={{ backgroundImage: 'linear-gradient(rgba(197,168,124,1) 1px, transparent 1px), linear-gradient(90deg, rgba(197,168,124,1) 1px, transparent 1px)', backgroundSize: '96px 96px' }} />
                 </div>
 
                 {/* Cabeçalho */}
                 <div className="relative flex items-center justify-between px-10 py-8 flex-shrink-0">
-                    <div className="flex items-center gap-3">
-                        <div className="h-px w-6 bg-gradient-to-r from-transparent to-[#c5a87c]/50" />
-                        <span className="font-sans text-[0.55rem] font-medium tracking-[0.3em] uppercase text-[#c5a87c]/50">
-                            Navegação
-                        </span>
+                    <div className="flex flex-col gap-0.5">
+                        <div className="flex items-center gap-3">
+                            <div className="h-px w-6 bg-gradient-to-r from-transparent to-[#c5a87c]/50" />
+                            <span className="font-sans text-[0.55rem] font-medium tracking-[0.3em] uppercase text-[#c5a87c]/50">
+                                {isCliente ? 'Área do Cliente' : isFuncionario ? 'Área Profissional' : 'Navegação'}
+                            </span>
+                        </div>
+                        {/* Saudação quando logado */}
+                        {sessao.logado && sessao.nome && (
+                            <p className="font-serif text-[0.9rem] font-light text-white/50 mt-1 ml-9">
+                                Olá, {sessao.nome}
+                            </p>
+                        )}
                     </div>
 
                     <button
@@ -182,82 +236,226 @@ const Navbar = memo(function Navbar({ sessao }: NavbarProps) {
                     </button>
                 </div>
 
-                {/* Divisor Delicado */}
+                {/* Divisor */}
                 <div aria-hidden="true" className="relative mx-10 h-px bg-gradient-to-r from-[rgba(197,168,124,0.15)] to-transparent flex-shrink-0" />
 
-                {/* ── Links de navegação ── */}
-                <nav aria-label="Menu principal" className="relative flex flex-col px-10 pt-8 flex-1 overflow-y-auto">
+                {/* ── Links de navegação — sempre visíveis ── */}
+                <nav aria-label="Menu principal" className="relative flex flex-col px-10 pt-8 flex-shrink-0">
                     {NAV_LINKS.map(({ label, href }, i) => (
                         <a
                             key={label}
                             href={href}
                             onClick={closeMenu}
                             className={cn(
-                                'group flex items-center justify-between py-[1.4rem] border-b border-[rgba(197,168,124,0.04)]',
+                                'group flex items-center justify-between py-[1.1rem] border-b border-[rgba(197,168,124,0.04)]',
                                 'transition-all duration-[600ms] ease-[cubic-bezier(0.16,1,0.3,1)] hover:border-[rgba(197,168,124,0.2)]',
                                 menuOpen ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-8'
                             )}
-                            style={{ transitionDelay: menuOpen ? `${150 + i * 80}ms` : '0ms' }}
+                            style={{ transitionDelay: menuOpen ? `${150 + i * 60}ms` : '0ms' }}
                         >
-                            <span className="font-serif text-[1.4rem] font-light tracking-[0.02em] text-white/50 group-hover:text-[#c5a87c] group-hover:translate-x-2 transition-all duration-500">
+                            <span className="font-serif text-[1.2rem] font-light tracking-[0.02em] text-white/40 group-hover:text-[#c5a87c] group-hover:translate-x-1.5 transition-all duration-500">
                                 {label}
                             </span>
-                            <svg
-                                className="w-3.5 h-3.5 text-[#c5a87c]/0 group-hover:text-[#c5a87c]/60 group-hover:-translate-x-1 transition-all duration-500"
-                                viewBox="0 0 12 12" fill="none" aria-hidden="true"
-                            >
+                            <svg className="w-3 h-3 text-[#c5a87c]/0 group-hover:text-[#c5a87c]/60 transition-all duration-500" viewBox="0 0 12 12" fill="none" aria-hidden="true">
                                 <path d="M1 6h10M7 2l4 4-4 4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
                             </svg>
                         </a>
                     ))}
                 </nav>
 
-                {/* ── Área de acessos inferior ── */}
+                {/* Espaço flexível */}
+                <div className="flex-1" />
+
+                {/* ════════════════════════════════════════
+                    ZONA DE ACESSO — condicional por role
+                ════════════════════════════════════════ */}
                 <div
                     className={cn(
-                        'relative flex-shrink-0 px-10 pb-12 pt-8',
+                        'relative flex-shrink-0 px-10 pb-10 pt-6',
                         'transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)]',
                         menuOpen ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'
                     )}
-                    style={{ transitionDelay: menuOpen ? '400ms' : '0ms' }}
+                    style={{ transitionDelay: menuOpen ? '380ms' : '0ms' }}
                 >
-                    <div className="flex flex-col gap-3">
-                        {/* ── Acesso cliente ── */}
-                        <Link
-                            href={sessao.logado ? '/cliente/dashboard' : '/login'}
-                            onClick={closeMenu}
-                            className="group relative flex items-center gap-4 px-5 py-4 rounded-sm border border-[rgba(197,168,124,0.15)] bg-[#c5a87c]/[0.03] hover:bg-[#c5a87c]/[0.08] hover:border-[#c5a87c]/30 overflow-hidden transition-all duration-500"
-                        >
-                            {/* Hover effect glow */}
-                            <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-gradient-to-r from-transparent via-[#c5a87c]/10 to-transparent -translate-x-full group-hover:animate-[shimmer_2s_infinite]" />
-
-                            <div className="flex flex-col gap-1 relative z-10">
-                                <span className="text-[0.68rem] font-semibold tracking-[0.15em] uppercase text-white/80 group-hover:text-[#c5a87c] transition-colors duration-300">
-                                    {sessao.logado ? 'O Meu Painel' : 'Acesso Cliente'}
-                                </span>
-                                <span className="text-[0.55rem] font-light text-white/30 tracking-[0.05em] group-hover:text-white/50 transition-colors">
-                                    {sessao.logado ? 'Gerenciar agendamentos' : 'Faça login na sua conta'}
-                                </span>
-                            </div>
-                            <svg className="ml-auto w-3 h-3 text-[#c5a87c]/30 group-hover:text-[#c5a87c] transition-colors duration-300 relative z-10" viewBox="0 0 12 12" fill="none" aria-hidden="true">
-                                <path d="M1 6h10M7 2l4 4-4 4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-                            </svg>
-                        </Link>
-
-                        {/* ── Acesso profissional ── */}
-                        <Link
-                            href="/login-profissional"
-                            onClick={closeMenu}
-                            className="group flex items-center justify-between px-5 py-3.5 mt-2 rounded-sm border border-transparent hover:border-white/5 hover:bg-white/[0.02] transition-all duration-500"
-                        >
-                            <span className="text-[0.6rem] font-medium tracking-[0.15em] uppercase text-white/30 group-hover:text-white/60 transition-colors duration-300">
-                                Área Profissional
-                            </span>
-                            <svg className="w-2.5 h-2.5 text-white/10 group-hover:text-white/40 transition-colors duration-300" viewBox="0 0 12 12" fill="none" aria-hidden="true">
-                                <path d="M1 6h10M7 2l4 4-4 4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-                            </svg>
-                        </Link>
+                    {/* Label da zona */}
+                    <div className="flex items-center gap-3 mb-5">
+                        <span className="text-[0.52rem] font-medium tracking-[0.26em] uppercase text-[#c5a87c]/35 whitespace-nowrap">
+                            {isCliente ? 'Os seus acessos' : isFuncionario ? 'Painel profissional' : 'Área de acesso'}
+                        </span>
+                        <div aria-hidden="true" className="flex-1 h-px bg-gradient-to-r from-[rgba(197,168,124,0.15)] to-transparent" />
                     </div>
+
+                    {/* ── MENU CLIENTE LOGADO ── */}
+                    {isCliente && (
+                        <div className="flex flex-col gap-2.5">
+
+                            {/* Meus Agendamentos */}
+                            <Link
+                                href="/cliente/dashboard#agendamentos"
+                                onClick={closeMenu}
+                                className="group flex items-center gap-3.5 px-4 py-3.5 border border-[rgba(197,168,124,0.14)] bg-[rgba(197,168,124,0.03)] hover:bg-[rgba(197,168,124,0.07)] hover:border-[rgba(197,168,124,0.28)] transition-all duration-300 active:scale-[0.98]"
+                                style={{ clipPath: 'polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px)' }}
+                            >
+                                <div className="w-8 h-8 rounded-full border border-[rgba(197,168,124,0.15)] bg-[rgba(197,168,124,0.06)] flex items-center justify-center flex-shrink-0 text-[#c5a87c]/70 group-hover:bg-[rgba(197,168,124,0.12)] transition-all duration-300">
+                                    <IconeAgenda />
+                                </div>
+                                <div className="flex flex-col gap-0.5">
+                                    <span className="text-[0.7rem] font-medium tracking-[0.08em] text-white/70 group-hover:text-white/90 transition-colors duration-200">
+                                        Meus Agendamentos
+                                    </span>
+                                    <span className="text-[0.56rem] text-white/25 tracking-[0.04em]">
+                                        Próximos e futuros
+                                    </span>
+                                </div>
+                                <svg className="ml-auto w-3 h-3 text-[#c5a87c]/20 group-hover:text-[#c5a87c]/60 group-hover:translate-x-0.5 transition-all duration-200 flex-shrink-0" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                                    <path d="M1 6h10M7 2l4 4-4 4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+                                </svg>
+                            </Link>
+
+                            {/* Histórico */}
+                            <Link
+                                href="/cliente/dashboard"
+                                onClick={closeMenu}
+                                className="group flex items-center gap-3.5 px-4 py-3.5 border border-[rgba(197,168,124,0.08)] bg-transparent hover:bg-[rgba(197,168,124,0.04)] hover:border-[rgba(197,168,124,0.18)] transition-all duration-300 active:scale-[0.98]"
+                                style={{ clipPath: 'polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px)' }}
+                            >
+                                <div className="w-8 h-8 rounded-full border border-[rgba(197,168,124,0.08)] bg-transparent flex items-center justify-center flex-shrink-0 text-[#c5a87c]/45 group-hover:bg-[rgba(197,168,124,0.08)] transition-all duration-300">
+                                    <IconeHistorico />
+                                </div>
+                                <div className="flex flex-col gap-0.5">
+                                    <span className="text-[0.7rem] font-medium tracking-[0.08em] text-white/45 group-hover:text-white/70 transition-colors duration-200">
+                                        Histórico de Visitas
+                                    </span>
+                                    <span className="text-[0.56rem] text-white/20 tracking-[0.04em]">
+                                        Atendimentos passados
+                                    </span>
+                                </div>
+                                <svg className="ml-auto w-3 h-3 text-[#c5a87c]/12 group-hover:text-[#c5a87c]/40 group-hover:translate-x-0.5 transition-all duration-200 flex-shrink-0" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                                    <path d="M1 6h10M7 2l4 4-4 4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+                                </svg>
+                            </Link>
+
+                            {/* Sair */}
+                            <button
+                                onClick={() => { void handleLogoutCliente() }}
+                                disabled={loadingLogout}
+                                className="group flex items-center gap-3 px-4 py-2.5 mt-1 text-left border border-transparent hover:border-red-900/30 hover:bg-red-950/20 transition-all duration-300 disabled:opacity-50"
+                            >
+                                <IconeSair />
+                                <span className="text-[0.65rem] font-medium tracking-[0.1em] uppercase text-white/25 group-hover:text-red-400/70 transition-colors duration-200">
+                                    {loadingLogout ? 'A sair...' : 'Terminar Sessão'}
+                                </span>
+                            </button>
+                        </div>
+                    )}
+
+                    {/* ── MENU FUNCIONÁRIO LOGADO ── */}
+                    {isFuncionario && (
+                        <div className="flex flex-col gap-2.5">
+
+                            {/* Minha Agenda */}
+                            <Link
+                                href="/profissional/agenda"
+                                onClick={closeMenu}
+                                className="group flex items-center gap-3.5 px-4 py-3.5 border border-[rgba(197,168,124,0.14)] bg-[rgba(197,168,124,0.03)] hover:bg-[rgba(197,168,124,0.07)] hover:border-[rgba(197,168,124,0.28)] transition-all duration-300 active:scale-[0.98]"
+                                style={{ clipPath: 'polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px)' }}
+                            >
+                                <div className="w-8 h-8 rounded-full border border-[rgba(197,168,124,0.15)] bg-[rgba(197,168,124,0.06)] flex items-center justify-center flex-shrink-0 text-[#c5a87c]/70 group-hover:bg-[rgba(197,168,124,0.12)] transition-all duration-300">
+                                    <IconeAgenda />
+                                </div>
+                                <div className="flex flex-col gap-0.5">
+                                    <span className="text-[0.7rem] font-medium tracking-[0.08em] text-white/70 group-hover:text-white/90 transition-colors duration-200">
+                                        Minha Agenda
+                                    </span>
+                                    <span className="text-[0.56rem] text-white/25 tracking-[0.04em]">
+                                        Atendimentos de hoje
+                                    </span>
+                                </div>
+                                <svg className="ml-auto w-3 h-3 text-[#c5a87c]/20 group-hover:text-[#c5a87c]/60 transition-all duration-200 flex-shrink-0" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                                    <path d="M1 6h10M7 2l4 4-4 4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+                                </svg>
+                            </Link>
+
+                            {/* Dashboard admin (só para ADMIN) */}
+                            {sessao.role === 'FUNCIONARIO' && (
+                                <Link
+                                    href="/admin/dashboard"
+                                    onClick={closeMenu}
+                                    className="group flex items-center gap-3.5 px-4 py-3.5 border border-[rgba(197,168,124,0.08)] bg-transparent hover:bg-[rgba(197,168,124,0.04)] hover:border-[rgba(197,168,124,0.18)] transition-all duration-300 active:scale-[0.98]"
+                                    style={{ clipPath: 'polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px)' }}
+                                >
+                                    <div className="w-8 h-8 rounded-full border border-[rgba(197,168,124,0.08)] flex items-center justify-center flex-shrink-0 text-[#c5a87c]/40 group-hover:bg-[rgba(197,168,124,0.08)] transition-all duration-300">
+                                        <IconeBriefcase />
+                                    </div>
+                                    <div className="flex flex-col gap-0.5">
+                                        <span className="text-[0.7rem] font-medium tracking-[0.08em] text-white/40 group-hover:text-white/65 transition-colors duration-200">
+                                            Painel Administrativo
+                                        </span>
+                                        <span className="text-[0.56rem] text-white/18 tracking-[0.04em]">
+                                            Gestão do salão
+                                        </span>
+                                    </div>
+                                    <svg className="ml-auto w-3 h-3 text-[#c5a87c]/10 group-hover:text-[#c5a87c]/35 transition-all duration-200 flex-shrink-0" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                                        <path d="M1 6h10M7 2l4 4-4 4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+                                    </svg>
+                                </Link>
+                            )}
+
+                            {/* Sair */}
+                            <button
+                                onClick={() => { void handleLogoutFuncionario() }}
+                                disabled={loadingLogout}
+                                className="group flex items-center gap-3 px-4 py-2.5 mt-1 text-left border border-transparent hover:border-red-900/30 hover:bg-red-950/20 transition-all duration-300 disabled:opacity-50"
+                            >
+                                <IconeSair />
+                                <span className="text-[0.65rem] font-medium tracking-[0.1em] uppercase text-white/25 group-hover:text-red-400/70 transition-colors duration-200">
+                                    {loadingLogout ? 'A sair...' : 'Terminar Sessão'}
+                                </span>
+                            </button>
+                        </div>
+                    )}
+
+                    {/* ── NÃO LOGADO — dois cards de acesso ── */}
+                    {!sessao.logado && (
+                        <div className="flex flex-col gap-3">
+                            {/* Acesso cliente */}
+                            <Link
+                                href="/login"
+                                onClick={closeMenu}
+                                className="group flex items-center gap-3.5 px-4 py-3.5 border border-[rgba(197,168,124,0.15)] bg-[rgba(197,168,124,0.03)] hover:bg-[rgba(197,168,124,0.08)] hover:border-[rgba(197,168,124,0.3)] transition-all duration-300 active:scale-[0.98]"
+                                style={{ clipPath: 'polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px)' }}
+                            >
+                                <div className="w-8 h-8 rounded-full border border-[rgba(197,168,124,0.15)] bg-[rgba(197,168,124,0.06)] flex items-center justify-center flex-shrink-0 text-[#c5a87c]/70 group-hover:bg-[rgba(197,168,124,0.14)] transition-all duration-300">
+                                    <IconeUser />
+                                </div>
+                                <div className="flex flex-col gap-0.5">
+                                    <span className="text-[0.7rem] font-semibold tracking-[0.08em] uppercase text-white/75 group-hover:text-[#c5a87c] transition-colors duration-300">
+                                        Acesso Cliente
+                                    </span>
+                                    <span className="text-[0.56rem] font-light text-white/28 tracking-[0.05em] group-hover:text-white/45 transition-colors">
+                                        Faça login na sua conta
+                                    </span>
+                                </div>
+                                <svg className="ml-auto w-3 h-3 text-[#c5a87c]/25 group-hover:text-[#c5a87c] transition-colors duration-300 flex-shrink-0" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                                    <path d="M1 6h10M7 2l4 4-4 4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+                                </svg>
+                            </Link>
+
+                            {/* Acesso profissional — discreto */}
+                            <Link
+                                href="/login-profissional"
+                                onClick={closeMenu}
+                                className="group flex items-center justify-between px-4 py-3 border border-transparent hover:border-white/5 hover:bg-white/[0.02] transition-all duration-500"
+                            >
+                                <span className="text-[0.62rem] font-medium tracking-[0.15em] uppercase text-white/28 group-hover:text-white/55 transition-colors duration-300">
+                                    Área Profissional
+                                </span>
+                                <svg className="w-2.5 h-2.5 text-white/10 group-hover:text-white/35 transition-colors duration-300" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                                    <path d="M1 6h10M7 2l4 4-4 4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+                                </svg>
+                            </Link>
+                        </div>
+                    )}
                 </div>
             </aside>
         </>

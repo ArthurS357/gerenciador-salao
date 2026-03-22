@@ -14,7 +14,7 @@ import Footer from '@/components/landing/Footer'
 
 import { buscarProfissionais } from '@/app/actions/profissionais'
 import { criarAgendamentoMultiplo } from '@/app/actions/agendamento'
-import { verificarSessaoCliente } from '@/app/actions/auth'
+import { verificarSessaoCliente, verificarSessaoFuncionario } from '@/app/actions/auth'
 import { listarServicosPublicos } from '@/app/actions/servico'
 import { listarPortfolioPublico } from '@/app/actions/portfolio'
 
@@ -38,20 +38,35 @@ export default function LandingPage() {
     setMounted(true)
 
     async function carregarDados() {
-      const [resProfissionais, resSessao, resServicos, resPortfolio] = await Promise.all([
-        buscarProfissionais(),
-        verificarSessaoCliente(),
-        listarServicosPublicos(),
-        listarPortfolioPublico(),
-      ])
+      const [resProfissionais, resSessaoCliente, resSessaoFunc, resServicos, resPortfolio] =
+        await Promise.all([
+          buscarProfissionais(),
+          verificarSessaoCliente(),
+          verificarSessaoFuncionario(),
+          listarServicosPublicos(),
+          listarPortfolioPublico(),
+        ])
 
       if (resProfissionais.sucesso) setProfissionais(resProfissionais.profissionais)
       if (resServicos.sucesso) setCatalogoServicos(resServicos.servicos)
       if (resPortfolio.sucesso) setItensPortfolio(resPortfolio.itens)
 
-      // Narrowing correto da union discriminada: { logado: true; id: string } | { logado: false }
-      if (resSessao.logado) {
-        setSessao({ logado: true, id: resSessao.id })
+      // Prioridade: funcionário > cliente (um utilizador não pode ter os dois ao mesmo tempo
+      // em condições normais, mas se existir os dois cookies priorizamos o funcionário)
+      if (resSessaoFunc.logado) {
+        setSessao({
+          logado: true,
+          id: resSessaoFunc.id,
+          role: 'FUNCIONARIO',
+          nome: resSessaoFunc.nome,
+        })
+      } else if (resSessaoCliente.logado) {
+        // Para exibir o nome precisamos de o buscar — por ora usamos apenas o id
+        setSessao({
+          logado: true,
+          id: resSessaoCliente.id,
+          role: 'CLIENTE',
+        })
       } else {
         setSessao({ logado: false })
       }
@@ -68,9 +83,7 @@ export default function LandingPage() {
   const handleAgendar = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    // Adicionamos o `|| !sessao.id` aqui. 
-    // Isso ensina ao TypeScript que, se o código passar daqui, o id é garantidamente uma string.
-    if (!sessao.logado || !sessao.id) {
+    if (!sessao.logado || !sessao.id || sessao.role !== 'CLIENTE') {
       setMensagem({ texto: 'Para agendar, faça login com a sua conta. A redirecionar...', tipo: 'erro' })
       setTimeout(() => router.push('/login'), 2500)
       return
@@ -84,7 +97,7 @@ export default function LandingPage() {
     setMensagem({ texto: 'A processar reserva...', tipo: 'info' })
 
     const res = await criarAgendamentoMultiplo(
-      sessao.id, // O TypeScript agora sabe que isso é uma string!
+      sessao.id,
       profissionalId,
       new Date(dataHora),
       servicosSelecionados,

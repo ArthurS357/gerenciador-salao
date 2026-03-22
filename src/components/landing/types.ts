@@ -25,9 +25,16 @@ export interface ItemPortfolio {
     linkSocial: string | null
 }
 
+/** Papel do utilizador logado — discrimina o menu exibido na Navbar */
+export type SessaoRole = 'CLIENTE' | 'FUNCIONARIO'
+
 export interface Sessao {
     logado: boolean
     id?: string
+    /** Definido quando logado: controla qual menu a Navbar exibe */
+    role?: SessaoRole
+    /** Nome para saudação personalizada no drawer */
+    nome?: string
 }
 
 /** Tipo discriminado — o campo `tipo` garante narrowing seguro na UI */
@@ -41,7 +48,7 @@ export interface Mensagem {
 // ── Props de componentes ──────────────────────────────────────────────────────
 
 export interface NavbarProps {
-    sessao: Pick<Sessao, 'logado'>
+    sessao: Sessao
 }
 
 export interface ServicosVitrineProps {
