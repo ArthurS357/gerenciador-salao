@@ -141,3 +141,20 @@ export async function cancelarAgendamentoPendente(id: string): Promise<ActionRes
         return { sucesso: false, erro: 'Falha técnica ao tentar cancelar o agendamento.' }
     }
 }
+
+export async function listarAgendamentosGlobais() {
+    try {
+        const agendamentos = await prisma.agendamento.findMany({
+            orderBy: { dataHoraInicio: 'desc' }, // Traz os mais recentes/futuros primeiro
+            include: {
+                cliente: { select: { nome: true, telefone: true } },
+                funcionario: { select: { nome: true } }
+            }
+        })
+
+        return { sucesso: true, agendamentos }
+    } catch (error) {
+        console.error('Erro ao listar agendamentos globais:', error)
+        return { sucesso: false, erro: 'Falha ao carregar a agenda global.' }
+    }
+}

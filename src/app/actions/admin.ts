@@ -3,6 +3,7 @@
 import { prisma } from '@/lib/prisma'
 import { hash } from 'bcrypt'
 import { randomUUID } from 'crypto'
+import { revalidatePath } from 'next/cache'
 import type { Funcionario } from '@/types/domain'
 
 // ── Tipagens explícitas ────────────────────────────────────────────────────────
@@ -120,7 +121,7 @@ export async function editarFuncionarioCompleto(
     }
 }
 
-// ── 4. PERMISSÕES ─────────────────────────────────────────────────────────────
+// ── 4. PERMISSÕES E ATUALIZAÇÃO COMPLETA ──────────────────────────────────────
 
 export async function atualizarPermissoesFuncionario(
     funcionarioId: string,
@@ -139,7 +140,23 @@ export async function atualizarPermissoesFuncionario(
     }
 }
 
-// ── 5. EXCLUSÃO LÓGICA ────────────────────────────────────────────────────────
+export async function atualizarFuncionarioCompleto(
+    id: string,
+    dados: { comissao: number, podeVerComissao: boolean, podeAgendar: boolean, podeVerHistorico: boolean }
+): Promise<ActionResult> {
+    try {
+        await prisma.funcionario.update({
+            where: { id },
+            data: dados
+        })
+        revalidatePath('/admin/dashboard')
+        return { sucesso: true }
+    } catch (error) {
+        return { sucesso: false, erro: 'Falha ao atualizar permissões do funcionário.' }
+    }
+}
+
+// ── 5. EXCLUSÃO FÍSICA E LÓGICA ───────────────────────────────────────────────
 
 export async function inativarFuncionario(id: string): Promise<ActionResult<{ mensagem: string }>> {
     try {
@@ -152,6 +169,40 @@ export async function inativarFuncionario(id: string): Promise<ActionResult<{ me
     } catch (error) {
         console.error('Erro ao inativar funcionário:', error)
         return { sucesso: false, erro: 'Falha ao inativar funcionário.' }
+    }
+}
+
+export async function excluirFuncionarioPermanente(id: string): Promise<ActionResult> {
+    try {
+        // Proteção: não exclui se tiver agendamentos (para não quebrar histórico financeiro)
+        const temAgendamentos = await prisma.agendamento.findFirst({ where: { funcionarioId: id } })
+
+        if (temAgendamentos) {
+            return { sucesso: false, erro: 'Não é possível excluir um funcionário que já possui agendamentos no histórico. Utilize a inativação.' }
+        }
+
+        await prisma.funcionario.delete({ where: { id } })
+        revalidatePath('/admin/dashboard')
+        return { sucesso: true }
+    } catch (error) {
+        return { sucesso: false, erro: 'Falha ao excluir o funcionário permanentemente.' }
+    }
+}
+
+export async function excluirClientePermanente(id: string): Promise<ActionResult> {
+    try {
+        // Proteção: não exclui se tiver agendamentos (para não quebrar histórico financeiro)
+        const temAgendamentos = await prisma.agendamento.findFirst({ where: { clienteId: id } })
+
+        if (temAgendamentos) {
+            return { sucesso: false, erro: 'O cliente possui histórico financeiro. Utilize a anonimização (LGPD) ou inative-o.' }
+        }
+
+        await prisma.cliente.delete({ where: { id } })
+        revalidatePath('/admin/clientes')
+        return { sucesso: true }
+    } catch (error) {
+        return { sucesso: false, erro: 'Falha ao excluir o cliente permanentemente.' }
     }
 }
 

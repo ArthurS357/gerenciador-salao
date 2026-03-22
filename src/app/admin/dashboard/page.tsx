@@ -2,8 +2,13 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
-import { criarFuncionario, inativarFuncionario, listarEquipaAdmin } from '@/app/actions/admin'
-import type { Funcionario } from '@/types/domain'
+import {
+    criarFuncionario,
+    inativarFuncionario,
+    listarEquipaAdmin,
+    atualizarFuncionarioCompleto,
+    excluirFuncionarioPermanente
+} from '@/app/actions/admin'
 
 type FormData = {
     nome: string
@@ -21,19 +26,34 @@ const FORM_INICIAL: FormData = {
 }
 
 export default function TorreControleDashboard() {
-    const [equipa, setEquipa] = useState<Funcionario[]>([])
+    const [equipa, setEquipa] = useState<any[]>([])
+    const [editState, setEditState] = useState<Record<string, any>>({})
     const [mensagem, setMensagem] = useState<Mensagem>({ texto: '', tipo: '' })
     const [isModalOpen, setIsModalOpen] = useState(false)
     const [formData, setFormData] = useState<FormData>(FORM_INICIAL)
 
-    // Novos estados de controle de fluxo e UI
+    // Estados de controle de fluxo e UI
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [idAcaoLoading, setIdAcaoLoading] = useState<string | null>(null)
 
     const carregarEquipa = useCallback(async () => {
         try {
             const res = await listarEquipaAdmin()
-            if (res.sucesso) setEquipa(res.equipa)
+            if (res.sucesso) {
+                setEquipa(res.equipa)
+
+                // Carrega o estado de permissões de cada funcionário
+                const estadoInicial: Record<string, any> = {}
+                res.equipa.forEach((p: any) => {
+                    estadoInicial[p.id] = {
+                        comissao: p.comissao,
+                        podeVerComissao: p.podeVerComissao,
+                        podeAgendar: p.podeAgendar,
+                        podeVerHistorico: p.podeVerHistorico
+                    }
+                })
+                setEditState(estadoInicial)
+            }
         } catch (error) {
             console.error("Falha ao carregar a equipa:", error)
         }
@@ -43,10 +63,10 @@ export default function TorreControleDashboard() {
         void carregarEquipa()
     }, [carregarEquipa])
 
+    // --- AÇÃO: CADASTRAR NOVO PROFISSIONAL ---
     const handleCadastrarEquipe = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault()
 
-        // Bloqueia tentativas extras se já estiver enviando
         if (isSubmitting) return
 
         setIsSubmitting(true)
@@ -64,25 +84,41 @@ export default function TorreControleDashboard() {
                 setMensagem({ texto: res.erro || 'Falha ao registrar profissional.', tipo: 'erro' })
             }
         } catch (error) {
-            // Captura de erro de rede ou timeout
-            setMensagem({ texto: 'Erro de comunicação com o servidor. Verifique a internet e tente novamente.', tipo: 'erro' })
+            setMensagem({ texto: 'Erro de comunicação com o servidor. Verifique a internet.', tipo: 'erro' })
         } finally {
-            // Libera o formulário em caso de sucesso ou erro
             setIsSubmitting(false)
         }
     }
 
-    const handleInativar = async (id: string, nome: string) => {
-        // Bloqueia cliques paralelos na tabela
+    // --- AÇÃO: SALVAR PERMISSÕES ---
+    const handleSalvarPermissoes = async (id: string) => {
         if (idAcaoLoading) return
+        setIdAcaoLoading(id)
+        setMensagem({ texto: 'A salvar permissões...', tipo: 'info' })
 
-        const confirmar = confirm(
-            `Tem a certeza que deseja desativar o acesso de ${nome}? O histórico financeiro será mantido.`
-        )
+        try {
+            const res = await atualizarFuncionarioCompleto(id, editState[id])
+            if (res.sucesso) {
+                setMensagem({ texto: 'Permissões atualizadas com sucesso!', tipo: 'sucesso' })
+                void carregarEquipa()
+            } else {
+                setMensagem({ texto: res.erro || 'Erro ao atualizar.', tipo: 'erro' })
+            }
+        } catch (error) {
+            setMensagem({ texto: 'Falha de conexão ao salvar permissões.', tipo: 'erro' })
+        } finally {
+            setIdAcaoLoading(null)
+        }
+    }
+
+    // --- AÇÃO: INATIVAR ---
+    const handleInativar = async (id: string, nome: string) => {
+        if (idAcaoLoading) return
+        const confirmar = confirm(`Tem a certeza que deseja desativar o acesso de ${nome}?`)
         if (!confirmar) return
 
         setIdAcaoLoading(id)
-        setMensagem({ texto: '', tipo: '' })
+        setMensagem({ texto: 'A desativar...', tipo: 'info' })
 
         try {
             const res = await inativarFuncionario(id)
@@ -93,15 +129,44 @@ export default function TorreControleDashboard() {
                 setMensagem({ texto: res.erro || 'Não foi possível inativar.', tipo: 'erro' })
             }
         } catch (error) {
-            setMensagem({ texto: 'Erro de comunicação ao tentar inativar.', tipo: 'erro' })
+            setMensagem({ texto: 'Erro de comunicação ao inativar.', tipo: 'erro' })
         } finally {
             setIdAcaoLoading(null)
         }
     }
 
+    // --- AÇÃO: EXCLUIR DEFINITIVO ---
+    const handleExcluir = async (id: string, nome: string) => {
+        if (idAcaoLoading) return
+        const confirmar = confirm(`ATENÇÃO: Deseja EXCLUIR DEFINITIVAMENTE a conta de ${nome}?`)
+        if (!confirmar) return
+
+        setIdAcaoLoading(id)
+        setMensagem({ texto: 'A excluir...', tipo: 'info' })
+
+        try {
+            const res = await excluirFuncionarioPermanente(id)
+            if (res.sucesso) {
+                setMensagem({ texto: 'Funcionário excluído permanentemente do sistema.', tipo: 'sucesso' })
+                void carregarEquipa()
+            } else {
+                setMensagem({ texto: res.erro || 'Não foi possível excluir.', tipo: 'erro' })
+            }
+        } catch (error) {
+            setMensagem({ texto: 'Erro de comunicação ao excluir.', tipo: 'erro' })
+        } finally {
+            setIdAcaoLoading(null)
+        }
+    }
+
+    // --- CONTROLES DE INPUT ---
     const campo = <K extends keyof FormData>(key: K) =>
         (e: React.ChangeEvent<HTMLInputElement>) =>
             setFormData((prev) => ({ ...prev, [key]: key === 'comissao' ? Number(e.target.value) : e.target.value }))
+
+    const setValorEdit = (id: string, campo: string, valor: any) => {
+        setEditState(prev => ({ ...prev, [id]: { ...prev[id], [campo]: valor } }))
+    }
 
     return (
         <div className="min-h-screen bg-[#fdfbf7] p-8 font-sans">
@@ -144,7 +209,9 @@ export default function TorreControleDashboard() {
 
             {mensagem.texto && (
                 <div
-                    className={`mb-6 p-4 rounded font-bold text-center ${mensagem.tipo === 'erro' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'
+                    className={`mb-6 p-4 rounded font-bold text-center ${mensagem.tipo === 'erro' ? 'bg-red-100 text-red-700' :
+                            mensagem.tipo === 'info' ? 'bg-blue-100 text-blue-700' :
+                                'bg-green-100 text-green-700'
                         }`}
                 >
                     {mensagem.texto}
@@ -156,51 +223,108 @@ export default function TorreControleDashboard() {
                 <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
                     <h2 className="font-bold text-gray-700">Gestão de Equipa e Perfis</h2>
                 </div>
-                <table className="w-full text-left border-collapse">
-                    <thead className="bg-[#5C4033] text-white">
-                        <tr>
-                            <th className="p-4 text-sm font-semibold">Nome &amp; Contacto</th>
-                            <th className="p-4 text-sm font-semibold">Especialidade</th>
-                            <th className="p-4 text-sm font-semibold text-center">Comissão</th>
-                            <th className="p-4 text-sm font-semibold text-right">Ações</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {equipa.length === 0 ? (
-                            <tr className="border-b border-gray-100">
-                                <td colSpan={4} className="p-8 text-center text-gray-500">
-                                    Nenhum profissional ativo na equipa. Clique em &quot;+ Novo Profissional&quot;.
-                                </td>
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                        <thead className="bg-[#5C4033] text-white">
+                            <tr>
+                                <th className="p-4 text-sm font-semibold">Nome &amp; Contacto</th>
+                                <th className="p-4 text-sm font-semibold text-center">Comissão</th>
+                                <th className="p-4 text-sm font-semibold text-center">Vê Finanças?</th>
+                                <th className="p-4 text-sm font-semibold text-center">Pode Agendar?</th>
+                                <th className="p-4 text-sm font-semibold text-center">Vê Histórico?</th>
+                                <th className="p-4 text-sm font-semibold text-right">Ações</th>
                             </tr>
-                        ) : (
-                            equipa.map((prof) => (
-                                <tr key={prof.id} className="border-b border-gray-100 hover:bg-gray-50">
-                                    <td className="p-4">
-                                        <p className="font-bold text-gray-800">{prof.nome}</p>
-                                        <p className="text-xs text-gray-500">{prof.email}</p>
-                                    </td>
-                                    <td className="p-4 text-gray-600">{prof.especialidade ?? '-'}</td>
-                                    <td className="p-4 text-center font-bold text-gray-800">{prof.comissao}%</td>
-                                    <td className="p-4 text-right">
-                                        <button
-                                            onClick={() => handleInativar(prof.id, prof.nome)}
-                                            disabled={idAcaoLoading === prof.id}
-                                            className={`px-3 py-1 rounded text-sm font-bold border transition-colors ${idAcaoLoading === prof.id
-                                                    ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
-                                                    : 'bg-red-50 text-red-600 border-red-200 hover:bg-red-100'
-                                                }`}
-                                        >
-                                            {idAcaoLoading === prof.id ? 'A processar...' : 'Desativar'}
-                                        </button>
+                        </thead>
+                        <tbody>
+                            {equipa.length === 0 ? (
+                                <tr className="border-b border-gray-100">
+                                    <td colSpan={6} className="p-8 text-center text-gray-500">
+                                        Nenhum profissional ativo na equipa. Clique em &quot;+ Novo Profissional&quot;.
                                     </td>
                                 </tr>
-                            ))
-                        )}
-                    </tbody>
-                </table>
+                            ) : (
+                                equipa.map((prof) => {
+                                    const estado = editState[prof.id]
+                                    if (!estado) return null
+
+                                    const isLoading = idAcaoLoading === prof.id
+
+                                    return (
+                                        <tr key={prof.id} className="border-b border-gray-100 hover:bg-gray-50">
+                                            <td className="p-4">
+                                                <p className="font-bold text-gray-800">{prof.nome}</p>
+                                                <p className="text-xs text-gray-500">{prof.email}</p>
+                                                <p className="text-xs text-[#8B5A2B] mt-1">{prof.especialidade ?? '-'}</p>
+                                            </td>
+                                            <td className="p-4 text-center">
+                                                <div className="inline-flex items-center border border-gray-300 rounded overflow-hidden">
+                                                    <input
+                                                        type="number"
+                                                        min={0}
+                                                        max={100}
+                                                        disabled={isLoading}
+                                                        value={estado.comissao}
+                                                        onChange={(e) => setValorEdit(prof.id, 'comissao', Number(e.target.value))}
+                                                        className="w-14 px-2 py-1 text-center font-bold text-[#8B5A2B] outline-none focus:bg-orange-50 disabled:bg-gray-100 text-sm"
+                                                    />
+                                                    <span className="bg-gray-100 px-2 py-1 text-gray-500 font-bold border-l border-gray-300 text-sm">%</span>
+                                                </div>
+                                            </td>
+                                            <td className="p-4 text-center">
+                                                <input type="checkbox" disabled={isLoading} checked={estado.podeVerComissao} onChange={e => setValorEdit(prof.id, 'podeVerComissao', e.target.checked)} className="w-4 h-4 accent-[#8B5A2B]" />
+                                            </td>
+                                            <td className="p-4 text-center">
+                                                <input type="checkbox" disabled={isLoading} checked={estado.podeAgendar} onChange={e => setValorEdit(prof.id, 'podeAgendar', e.target.checked)} className="w-4 h-4 accent-[#8B5A2B]" />
+                                            </td>
+                                            <td className="p-4 text-center">
+                                                <input type="checkbox" disabled={isLoading} checked={estado.podeVerHistorico} onChange={e => setValorEdit(prof.id, 'podeVerHistorico', e.target.checked)} className="w-4 h-4 accent-[#8B5A2B]" />
+                                            </td>
+                                            <td className="p-4 text-right">
+                                                <div className="flex flex-col gap-2 items-end justify-center">
+                                                    <button
+                                                        onClick={() => handleSalvarPermissoes(prof.id)}
+                                                        disabled={isLoading}
+                                                        className={`px-3 py-1 rounded text-xs font-bold border transition-colors w-full sm:w-auto ${isLoading
+                                                            ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+                                                            : 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100'
+                                                            }`}
+                                                    >
+                                                        {isLoading ? '...' : 'Salvar'}
+                                                    </button>
+                                                    <div className="flex gap-2">
+                                                        <button
+                                                            onClick={() => handleInativar(prof.id, prof.nome)}
+                                                            disabled={isLoading}
+                                                            className={`px-3 py-1 rounded text-xs font-bold border transition-colors ${isLoading
+                                                                ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+                                                                : 'bg-orange-50 text-orange-600 border-orange-200 hover:bg-orange-100'
+                                                                }`}
+                                                        >
+                                                            Desativar
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleExcluir(prof.id, prof.nome)}
+                                                            disabled={isLoading}
+                                                            className={`px-3 py-1 rounded text-xs font-bold border transition-colors ${isLoading
+                                                                ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+                                                                : 'bg-red-50 text-red-600 border-red-200 hover:bg-red-100'
+                                                                }`}
+                                                        >
+                                                            Excluir
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    )
+                                })
+                            )}
+                        </tbody>
+                    </table>
+                </div>
             </section>
 
-            {/* Modal */}
+            {/* Modal de Cadastro */}
             {isModalOpen && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
                     <div className="bg-white p-8 rounded-lg shadow-xl w-full max-w-lg border-t-4 border-[#5C4033]">

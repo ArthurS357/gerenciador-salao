@@ -1,11 +1,5 @@
-// ─────────────────────────────────────────────────────────────────────────────
-// domain.ts — Contratos centrais de domínio inferidos do schema Prisma
-// ─────────────────────────────────────────────────────────────────────────────
-
-// ── Roles ─────────────────────────────────────────────────────────────────────
 export type Role = 'ADMIN' | 'PROFISSIONAL' | 'CLIENTE'
 
-// ── Funcionário ───────────────────────────────────────────────────────────────
 export interface Funcionario {
     id: string
     nome: string
@@ -25,7 +19,6 @@ export interface Funcionario {
 
 export type FuncionarioResumo = Pick<Funcionario, 'id' | 'nome' | 'comissao' | 'podeVerComissao'>
 
-// ── Cliente ───────────────────────────────────────────────────────────────────
 export interface Cliente {
     id: string
     nome: string
@@ -35,7 +28,6 @@ export interface Cliente {
     agendamentos?: AgendamentoCliente[]
 }
 
-// ── Serviço ───────────────────────────────────────────────────────────────────
 export interface Servico {
     id: string
     nome: string
@@ -46,7 +38,6 @@ export interface Servico {
     ativo: boolean
 }
 
-// ── Produto ───────────────────────────────────────────────────────────────────
 export interface Produto {
     id: string
     nome: string
@@ -54,10 +45,11 @@ export interface Produto {
     precoCusto: number
     precoVenda: number
     estoque: number
+    /** Limiar mínimo de estoque — dispara alertas visuais na interface */
+    estoqueMinimo: number
     ativo: boolean
 }
 
-// ── Agendamento ───────────────────────────────────────────────────────────────
 export interface AgendamentoServico {
     id: string
     servicoId: string
@@ -88,7 +80,6 @@ export interface AgendamentoGlobal {
     produtos: AgendamentoItemProduto[]
 }
 
-/** Agendamento no painel do profissional (inclui detalhes do cliente e serviços) */
 export interface AgendamentoProfissional {
     id: string
     valorBruto: number
@@ -99,7 +90,6 @@ export interface AgendamentoProfissional {
     servicos: AgendamentoServico[]
 }
 
-/** Agendamento simples no dashboard do cliente */
 export interface AgendamentoCliente {
     id: string
     valorBruto: number
@@ -108,7 +98,6 @@ export interface AgendamentoCliente {
     funcionario: Pick<Funcionario, 'nome'>
 }
 
-// ── Portfólio ─────────────────────────────────────────────────────────────────
 export interface ItemPortfolioDb {
     id: string
     titulo: string
@@ -119,7 +108,6 @@ export interface ItemPortfolioDb {
     criadoEm: string
 }
 
-// ── Action results (discriminated unions) ────────────────────────────────────
 export type ActionResult<T = void> =
     | ({ sucesso: true } & (T extends void ? object : T))
     | { sucesso: false; erro: string }

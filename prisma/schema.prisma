@@ -65,6 +65,7 @@ model Produto {
   ativo       Boolean  @default(true)
 
   itensAgendamento ItemProduto[]
+  estoqueMinimo Int @default(5)
 }
 
 // 3. MOTOR FINANCEIRO E COMANDAS
