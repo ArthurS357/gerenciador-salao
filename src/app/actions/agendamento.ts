@@ -78,26 +78,28 @@ export async function criarAgendamentoMultiplo(
     }
 }
 
-export async function listarAgendamentosGlobais(): Promise<
-    ActionResult<{ agendamentos: AgendamentoGlobal[] }>
+export async function listarAgendaProfissional(funcionarioId: string): Promise<
+    ActionResult<{ agendamentos: any[] }>
 > {
     try {
         const agendamentos = await prisma.agendamento.findMany({
-            orderBy: { dataHoraInicio: 'desc' },
+            where: {
+                funcionarioId,
+                // Opcional: Pode filtrar para mostrar apenas agendamentos de hoje em diante
+                // dataHoraInicio: { gte: new Date(new Date().setHours(0,0,0,0)) }
+            },
+            orderBy: { dataHoraInicio: 'asc' },
             include: {
-                cliente: { select: { nome: true, anonimizado: true, telefone: true } },
-                funcionario: { select: { nome: true } },
-                servicos: { include: { servico: { select: { id: true, nome: true, preco: true } } } },
-                produtos: {
-                    include: {
-                        produto: { select: { precoCusto: true, nome: true, precoVenda: true } },
-                    },
-                },
+                cliente: { select: { nome: true, telefone: true } },
+                servicos: { include: { servico: { select: { nome: true, preco: true, tempoMinutos: true } } } },
+                produtos: { include: { produto: { select: { nome: true, precoVenda: true } } } },
             },
         })
-        return { sucesso: true, agendamentos: agendamentos as unknown as AgendamentoGlobal[] }
-    } catch {
-        return { sucesso: false, erro: 'Falha ao listar agendamentos.' }
+
+        return { sucesso: true, agendamentos }
+    } catch (error) {
+        console.error('Erro ao listar agenda do profissional:', error)
+        return { sucesso: false, erro: 'Falha ao carregar a sua agenda.' }
     }
 }
 

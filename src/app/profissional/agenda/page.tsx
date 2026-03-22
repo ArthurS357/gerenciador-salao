@@ -1,154 +1,151 @@
-'use client'
+import { cookies } from 'next/headers';
+import { redirect } from 'next/navigation';
+import { jwtVerify } from 'jose';
+import Link from 'next/link';
+import { listarAgendaProfissional } from '@/app/actions/agendamento';
 
-import { useState, useEffect, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
-import Link from 'next/link'
-import { obterDadosPainelProfissional } from '@/app/actions/profissional'
-import { logoutFuncionario } from '@/app/actions/auth'
-import type { AgendamentoProfissional } from '@/types/domain'
+const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || 'chave_secreta_desenvolvimento');
 
-type PainelData = {
-    profissional: {
-        nome: string
-        podeVerComissao: boolean
-        taxaComissao: number
-        comissaoMensal: number
-    }
-    agendamentosHoje: AgendamentoProfissional[]
-}
+export default async function AgendaProfissionalPage() {
+    // 1. Verificação rigorosa de Autenticação e Role
+    const cookieStore = await cookies();
+    const token = cookieStore.get('funcionario_session')?.value;
 
-export default function DashboardProfissionalPage() {
-    const router = useRouter()
-    const [dados, setDados] = useState<PainelData | null>(null)
-    const [erro, setErro] = useState('')
+    if (!token) redirect('/login-profissional');
 
-    const carregar = useCallback(async () => {
-        const res = await obterDadosPainelProfissional()
-        if (res.sucesso) {
-            setDados(res as PainelData)
-        } else {
-            setErro(res.erro ?? 'Erro ao carregar os dados.')
+    let funcionarioId = '';
+    let funcionarioNome = '';
+    try {
+        const { payload } = await jwtVerify(token, JWT_SECRET);
+        if (payload.role !== 'PROFISSIONAL' && payload.role !== 'ADMIN') {
+            redirect('/login-profissional');
         }
-    }, [])
-
-    useEffect(() => {
-        void carregar()
-    }, [carregar])
-
-    const formatarHora = (dataString: string) =>
-        new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' }).format(
-            new Date(dataString)
-        )
-
-    // ⚠️ CORREÇÃO CRÍTICA: cookies httpOnly NÃO podem ser removidos via document.cookie.
-    // A remoção deve ser feita via Server Action.
-    const fazerLogout = async () => {
-        await logoutFuncionario()
-        router.push('/login-profissional')
+        funcionarioId = payload.sub as string;
+    } catch {
+        redirect('/login-profissional');
     }
 
-    if (erro)
-        return (
-            <div className="p-8 text-center text-red-500 font-bold">{erro}</div>
-        )
+    // 2. Resgata a agenda do profissional logado
+    const res = await listarAgendaProfissional(funcionarioId);
+    const agendamentos = res.sucesso ? res.agendamentos : [];
 
-    if (!dados)
-        return (
-            <div className="p-8 text-center text-gray-500">A carregar a sua agenda...</div>
-        )
+    // Filtramos para separar o que está pendente do que já foi concluído (faturado)
+    const pendentes = agendamentos.filter((a: any) => !a.concluido);
+    const concluidos = agendamentos.filter((a: any) => a.concluido);
 
-    const { profissional, agendamentosHoje } = dados
+    const formatarHora = (dataHora: Date) => {
+        return new Intl.DateTimeFormat('pt-PT', { hour: '2-digit', minute: '2-digit' }).format(new Date(dataHora));
+    };
+
+    const formatarData = (dataHora: Date) => {
+        return new Intl.DateTimeFormat('pt-PT', { day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(dataHora));
+    };
 
     return (
-        <div className="min-h-screen bg-[#fdfbf7] p-4 md:p-8 font-sans">
-            <header className="mb-8 border-b-2 border-[#5C4033] pb-4 flex justify-between items-center">
-                <div>
-                    <h1 className="text-2xl md:text-3xl font-bold text-[#5C4033]">
-                        Olá, {profissional.nome}
-                    </h1>
-                    <p className="text-gray-500 mt-1">O seu painel de atendimentos de hoje</p>
-                </div>
-                <button
-                    onClick={() => { void fazerLogout() }}
-                    className="text-sm font-bold text-red-500 hover:underline"
-                >
-                    Sair da Conta
-                </button>
-            </header>
+        <div className="min-h-screen bg-[#fdfbf7] p-6 md:p-12 font-sans pt-32">
+            <div className="max-w-5xl mx-auto space-y-8">
 
-            {profissional.podeVerComissao && (
-                <div className="bg-[#5C4033] text-white p-6 rounded-lg shadow-lg mb-8 flex justify-between items-center">
+                {/* Cabeçalho */}
+                <div className="bg-white p-8 rounded-2xl shadow-sm border border-[#e5d9c5] flex justify-between items-center">
                     <div>
-                        <p className="text-sm text-[#e5d9c5] font-semibold uppercase tracking-wider mb-1">
-                            Comissões do Mês ({profissional.taxaComissao}%)
-                        </p>
-                        <p className="text-3xl font-bold">R$ {profissional.comissaoMensal.toFixed(2)}</p>
+                        <h1 className="text-3xl font-bold text-[#5C4033]">A Minha Agenda</h1>
+                        <p className="text-gray-600 mt-1 text-sm tracking-wide">Faça a gestão dos seus atendimentos de forma simples.</p>
                     </div>
-                    <div className="text-right hidden md:block">
-                        <p className="text-sm text-[#e5d9c5]">Serviços concluídos</p>
+                    <div className="hidden md:block px-4 py-2 bg-[#8B5A2B]/10 text-[#8B5A2B] rounded-lg font-semibold border border-[#8B5A2B]/20">
+                        {new Intl.DateTimeFormat('pt-PT', { weekday: 'long', day: '2-digit', month: 'long' }).format(new Date())}
                     </div>
                 </div>
-            )}
 
-            <section>
-                <h2 className="text-xl font-bold text-[#5C4033] mb-4 flex items-center gap-2">
-                    <span>📅</span> Agenda de Hoje
-                </h2>
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
 
-                <div className="space-y-4">
-                    {agendamentosHoje.length === 0 ? (
-                        <div className="bg-white p-8 rounded-lg shadow border border-[#e5d9c5] text-center text-gray-500">
-                            Você não possui nenhum agendamento pendente para hoje.
+                    {/* COLUNA PRINCIPAL: Próximos Atendimentos */}
+                    <div className="lg:col-span-2 space-y-6">
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="w-2 h-8 bg-[#8B5A2B] rounded-full"></div>
+                            <h2 className="text-xl font-bold text-[#5C4033]">Próximos Atendimentos</h2>
                         </div>
-                    ) : (
-                        agendamentosHoje.map((ag) => (
-                            <div
-                                key={ag.id}
-                                className={`bg-white p-5 md:p-6 rounded-lg shadow border-l-4 transition-all ${ag.concluido
-                                        ? 'border-gray-300 opacity-60'
-                                        : 'border-[#8B5A2B] hover:shadow-md'
-                                    }`}
-                            >
-                                <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
-                                    <div>
-                                        <div className="flex items-center gap-3 mb-1">
-                                            <span className="bg-gray-100 text-gray-800 font-bold px-3 py-1 rounded text-lg">
-                                                {formatarHora(ag.dataHoraInicio)}
+
+                        {pendentes.length === 0 ? (
+                            <div className="text-center py-16 bg-white rounded-2xl border border-dashed border-[#e5d9c5] text-gray-500">
+                                Não há agendamentos pendentes. Bom descanso!
+                            </div>
+                        ) : (
+                            <div className="space-y-4">
+                                {pendentes.map((agendamento: any) => (
+                                    <div key={agendamento.id} className="bg-white border border-[#e5d9c5] rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow flex flex-col md:flex-row gap-6 items-start md:items-center">
+
+                                        {/* Bloco de Hora */}
+                                        <div className="flex flex-col items-center justify-center min-w-[100px] py-4 bg-orange-50 rounded-xl border border-orange-100">
+                                            <span className="text-2xl font-black text-[#5C4033] leading-none">
+                                                {formatarHora(agendamento.dataHoraInicio)}
                                             </span>
-                                            {ag.concluido && (
-                                                <span className="text-xs bg-gray-200 text-gray-600 px-2 py-1 rounded font-bold uppercase">
-                                                    Finalizado
-                                                </span>
-                                            )}
+                                            <span className="text-xs font-semibold text-[#8B5A2B] mt-1 uppercase tracking-wider">
+                                                {formatarData(agendamento.dataHoraInicio)}
+                                            </span>
                                         </div>
-                                        <h3 className="text-lg font-bold text-gray-800 mt-2">{ag.cliente.nome}</h3>
-                                        <p className="text-sm text-gray-500">{ag.cliente.telefone}</p>
-                                        <div className="mt-3 flex flex-wrap gap-2">
-                                            {ag.servicos.map((item) => (
-                                                <span
-                                                    key={item.id}
-                                                    className="text-xs bg-orange-50 text-orange-800 border border-orange-200 px-2 py-1 rounded-full"
-                                                >
-                                                    {item.servico.nome}
-                                                </span>
-                                            ))}
+
+                                        {/* Detalhes do Cliente e Serviços */}
+                                        <div className="flex-1 w-full">
+                                            <h3 className="text-lg font-bold text-gray-800">{agendamento.cliente.nome}</h3>
+                                            <p className="text-sm text-gray-500 mb-3 font-medium flex items-center gap-2">
+                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
+                                                {agendamento.cliente.telefone}
+                                            </p>
+                                            <div className="flex flex-wrap gap-2">
+                                                {agendamento.servicos.map((item: any) => (
+                                                    <span key={item.id} className="text-[0.65rem] font-bold uppercase tracking-wider bg-gray-100 text-gray-600 px-2.5 py-1 rounded">
+                                                        {item.servico.nome}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        {/* Ação: Abrir Comanda */}
+                                        <div className="w-full md:w-auto">
+                                            <Link
+                                                href={`/profissional/comanda/${agendamento.id}`}
+                                                className="block w-full md:w-auto text-center px-6 py-3 bg-[#5C4033] text-white font-bold rounded-xl hover:bg-[#3e2b22] transition-colors shadow-sm"
+                                            >
+                                                Abrir Comanda
+                                            </Link>
                                         </div>
                                     </div>
-
-                                    {!ag.concluido && (
-                                        <Link
-                                            href={`/profissional/comanda/${ag.id}`}
-                                            className="bg-[#8B5A2B] text-white px-6 py-3 rounded font-bold hover:bg-[#704620] text-center w-full md:w-auto"
-                                        >
-                                            Abrir Comanda
-                                        </Link>
-                                    )}
-                                </div>
+                                ))}
                             </div>
-                        ))
-                    )}
+                        )}
+                    </div>
+
+                    {/* COLUNA LATERAL: Serviços Concluídos Hoje */}
+                    <div className="space-y-6">
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="w-2 h-8 bg-green-600 rounded-full"></div>
+                            <h2 className="text-xl font-bold text-[#5C4033]">Concluídos</h2>
+                        </div>
+
+                        <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
+                            {concluidos.length === 0 ? (
+                                <p className="text-sm text-gray-500 text-center py-4">Nenhum atendimento finalizado ainda.</p>
+                            ) : (
+                                <div className="space-y-4">
+                                    {concluidos.map((agendamento: any) => (
+                                        <div key={agendamento.id} className="flex justify-between items-center border-b border-gray-100 pb-4 last:border-0 last:pb-0">
+                                            <div>
+                                                <p className="font-bold text-gray-800 text-sm">{formatarHora(agendamento.dataHoraInicio)}</p>
+                                                <p className="text-xs text-gray-500 truncate max-w-[120px]">{agendamento.cliente.nome}</p>
+                                            </div>
+                                            <div className="text-right">
+                                                <p className="font-black text-green-700 text-sm">€ {agendamento.valorBruto.toFixed(2)}</p>
+                                                <p className="text-[0.6rem] font-bold uppercase tracking-wider text-green-500">Faturado</p>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
                 </div>
-            </section>
+            </div>
         </div>
-    )
+    );
 }
