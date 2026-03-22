@@ -1,7 +1,6 @@
 'use server'
 
 import { prisma } from '@/lib/prisma'
-import { randomUUID } from 'crypto'
 import { cookies } from 'next/headers'
 import type { Cliente } from '@/types/domain'
 
@@ -9,14 +8,20 @@ type ActionResult<T = object> =
     | ({ sucesso: true } & T)
     | { sucesso: false; erro: string }
 
-export async function excluirMinhaContaLGPD(clienteId: string): Promise<ActionResult> {
+export async function excluirContaCliente(clienteId: string) {
     try {
-        const hashNome = `Anonimizado_${randomUUID().substring(0, 8)}`
-        const hashTelefone = `0000_${randomUUID().substring(0, 8)}`
+        const cliente = await prisma.cliente.findUnique({ where: { id: clienteId } })
+        if (!cliente) return { sucesso: false, erro: 'Cliente não encontrado.' }
 
         await prisma.cliente.update({
             where: { id: clienteId },
-            data: { nome: hashNome, telefone: hashTelefone, anonimizado: true },
+            data: {
+                nome: 'Cliente Excluído',
+                // Adicionamos um sufixo com ID para garantir que o telefone não dê conflito de unique
+                telefone: `EXCLUIDO-${clienteId.substring(0, 8)}`,
+                anonimizado: true,
+                senhaHash: null,
+            }
         })
 
         const cookieStore = await cookies()
@@ -24,8 +29,8 @@ export async function excluirMinhaContaLGPD(clienteId: string): Promise<ActionRe
 
         return { sucesso: true }
     } catch (error) {
-        console.error('Erro na exclusão de conta via LGPD:', error)
-        return { sucesso: false, erro: 'Ocorreu uma falha ao processar o seu pedido.' }
+        console.error('Erro ao anonimizar cliente:', error)
+        return { sucesso: false, erro: 'Falha técnica ao excluir os dados.' }
     }
 }
 

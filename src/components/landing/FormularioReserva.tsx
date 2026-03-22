@@ -1,5 +1,5 @@
 'use client'
-import { memo } from 'react'
+import { memo, useState, useEffect } from 'react'
 import Link from 'next/link'
 import { cn } from './cn'
 import type { FormularioReservaProps, TipoMensagem } from './types'
@@ -44,7 +44,33 @@ const FormularioReserva = memo(function FormularioReserva({
     totalSelecionado, profissionalId, setProfissionalId, dataHora, setDataHora,
     mensagem, handleAgendar, profissionalSelecionado,
 }: FormularioReservaProps) {
+
+    // Estados locais para os dados do cliente
+    const [nome, setNome] = useState('')
+    const [telefone, setTelefone] = useState('')
+
+    // Preenche automaticamente se o usuário já estiver logado
+    useEffect(() => {
+        // Passo 1 e 2: Asserção de tipo para evitar o erro do Pick<Sessao, "logado">
+        const sessaoAtual = sessao as { logado: boolean; nome?: string }
+
+        if (sessaoAtual?.logado && sessaoAtual?.nome) {
+            setNome(sessaoAtual.nome)
+        }
+    }, [sessao])
+
     const inicial = (nome?: string) => nome?.charAt(0).toUpperCase() ?? '?'
+
+    // Máscara robusta para telefone (BR)
+    const formatarTelefone = (valor: string) => {
+        let v = valor.replace(/\D/g, '')
+        if (v.length > 11) v = v.slice(0, 11)
+        if (v.length > 2) v = v.replace(/^(\d{2})(\d)/g, '($1) $2')
+        if (v.length > 7) v = v.replace(/(\d{5})(\d)/, '$1-$2')
+        return v
+    }
+
+    const prontoParaAgendar = servicosSelecionados.length > 0 && nome.length > 2 && telefone.length >= 14 && profissionalId && dataHora
 
     return (
         <section id="agendamento" className="relative bg-[#0e0905] py-24 md:py-32 overflow-hidden">
@@ -86,13 +112,13 @@ const FormularioReserva = memo(function FormularioReserva({
                     className="bg-white/[0.03] border border-[rgba(197,168,124,0.1)] p-8 md:p-12 backdrop-blur-sm"
                     style={{ clipPath: 'polygon(12px 0,100% 0,100% calc(100% - 12px),calc(100% - 12px) 100%,0 100%,0 12px)' }}
                 >
-                    {/* Aviso de login */}
+                    {/* Aviso de login suave */}
                     {mounted && !sessao.logado && (
                         <div className="flex items-center justify-between gap-4 flex-wrap p-5 mb-8 bg-[rgba(197,168,124,0.05)] border border-[rgba(197,168,124,0.15)]"
                             style={{ clipPath: 'polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px)' }}
                         >
-                            <p className="text-[0.78rem] text-white/40 font-light">
-                                Para agendar, <strong className="text-[#c5a87c] font-medium">faça login com a sua conta</strong>.
+                            <p className="text-[0.75rem] text-white/40 font-light">
+                                Já possui cadastro no salão? <strong className="text-[#c5a87c] font-medium">Faça login para agilizar.</strong>
                             </p>
                             <Link
                                 href="/login"
@@ -123,23 +149,58 @@ const FormularioReserva = memo(function FormularioReserva({
                     )}
 
                     <form onSubmit={handleAgendar}>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-5">
 
+                        {/* 1. Dados do Cliente */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-5">
+                            <div>
+                                <label htmlFor="nome" className="block font-sans text-[0.62rem] font-medium tracking-[0.2em] uppercase text-[rgba(197,168,124,0.75)] mb-2.5">
+                                    Nome Completo *
+                                </label>
+                                <DarkInput
+                                    id="nome"
+                                    name="nome"
+                                    type="text"
+                                    required
+                                    placeholder="Ex: Ana Silva"
+                                    value={nome}
+                                    onChange={(e) => setNome(e.target.value)}
+                                    disabled={sessao?.logado}
+                                />
+                            </div>
+                            <div>
+                                <label htmlFor="telefone" className="block font-sans text-[0.62rem] font-medium tracking-[0.2em] uppercase text-[rgba(197,168,124,0.75)] mb-2.5">
+                                    Celular / WhatsApp *
+                                </label>
+                                <DarkInput
+                                    id="telefone"
+                                    name="telefone"
+                                    type="tel"
+                                    required
+                                    placeholder="(11) 90000-0000"
+                                    value={telefone}
+                                    onChange={(e) => setTelefone(formatarTelefone(e.target.value))}
+                                    disabled={sessao?.logado}
+                                />
+                            </div>
+                        </div>
+
+                        {/* 2. Seleção de Profissional e Data */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-5">
                             {/* Profissional */}
                             <div>
                                 <label htmlFor="profissional" className="block font-sans text-[0.62rem] font-medium tracking-[0.2em] uppercase text-[rgba(197,168,124,0.75)] mb-2.5">
                                     Profissional
                                 </label>
                                 <div className="flex gap-3 items-center">
-                                    {profissionalId && (
+                                    {profissionalId && profissionalSelecionado && (
                                         <div className="w-10 h-10 rounded-full flex-shrink-0 bg-[#8B5A2B] text-white flex items-center justify-center font-bold text-sm overflow-hidden border border-[rgba(197,168,124,0.4)]">
                                             {profissionalSelecionado?.fotoUrl
                                                 ? <img src={profissionalSelecionado.fotoUrl} alt={`Foto de ${profissionalSelecionado.nome}`} className="w-full h-full object-cover" />
                                                 : inicial(profissionalSelecionado?.nome)}
                                         </div>
                                     )}
-                                    <DarkSelect id="profissional" required value={profissionalId} onChange={e => setProfissionalId(e.target.value)} disabled={!sessao.logado} style={{ flex: 1 }}>
-                                        <option value="">Qualquer profissional</option>
+                                    <DarkSelect id="profissional" required value={profissionalId} onChange={e => setProfissionalId(e.target.value)} style={{ flex: 1 }}>
+                                        <option value="">Selecione quem fará o serviço</option>
                                         {profissionais.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
                                     </DarkSelect>
                                 </div>
@@ -150,7 +211,7 @@ const FormularioReserva = memo(function FormularioReserva({
                                 <label htmlFor="dataHora" className="block font-sans text-[0.62rem] font-medium tracking-[0.2em] uppercase text-[rgba(197,168,124,0.75)] mb-2.5">
                                     Data e Horário
                                 </label>
-                                <DarkInput id="dataHora" type="datetime-local" required value={dataHora} onChange={e => setDataHora(e.target.value)} disabled={!sessao.logado} />
+                                <DarkInput id="dataHora" type="datetime-local" required value={dataHora} onChange={e => setDataHora(e.target.value)} />
                             </div>
                         </div>
 
@@ -166,16 +227,19 @@ const FormularioReserva = memo(function FormularioReserva({
                             </div>
                         )}
 
+                        {/* Botão Dinâmico Inteligente */}
                         <button
                             type="submit"
-                            disabled={!sessao.logado}
+                            disabled={!prontoParaAgendar}
                             className="w-full py-4 mt-5 bg-[#c5a87c] text-[#0e0905] border-none font-sans text-[0.72rem] font-semibold tracking-[0.2em] uppercase cursor-pointer transition-all duration-300 hover:enabled:bg-[#d4b896] hover:enabled:shadow-[0_8px_32px_rgba(197,168,124,0.25)] active:enabled:scale-[0.99] disabled:opacity-35 disabled:cursor-not-allowed"
                         >
-                            {sessao.logado
-                                ? servicosSelecionados.length > 0
-                                    ? `Confirmar ${servicosSelecionados.length} Serviço${servicosSelecionados.length > 1 ? 's' : ''}`
-                                    : 'Selecione os serviços acima'
-                                : 'Faça login para agendar'}
+                            {servicosSelecionados.length === 0
+                                ? 'Selecione os serviços acima'
+                                : !prontoParaAgendar
+                                    ? 'Preencha todos os dados'
+                                    : sessao?.logado
+                                        ? `Confirmar ${servicosSelecionados.length} Serviço${servicosSelecionados.length > 1 ? 's' : ''}`
+                                        : 'Registrar e Agendar'}
                         </button>
                     </form>
                 </div>

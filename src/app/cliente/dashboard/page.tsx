@@ -1,95 +1,73 @@
-import { cookies } from 'next/headers';
-import { redirect } from 'next/navigation';
-import { jwtVerify } from 'jose';
-import { prisma } from '@/lib/prisma';
-import BotaoExcluirConta from '@/components/BotaoExcluirConta';
+'use client'
 
-const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || 'chave_secreta_desenvolvimento');
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { logoutCliente } from '@/app/actions/auth'
+import { excluirContaCliente } from '@/app/actions/cliente'
 
-export default async function PainelClientePage() {
-    // 1. Verificação do Cookie de Sessão do Cliente
-    const cookieStore = await cookies();
-    const token = cookieStore.get('cliente_session')?.value;
+export default function ClienteDashboard({ clienteId, nomeCliente }: { clienteId: string, nomeCliente: string }) {
+    const router = useRouter()
+    const [isProcessing, setIsProcessing] = useState(false)
 
-    if (!token) redirect('/login');
-
-    let clienteId = '';
-    try {
-        const { payload } = await jwtVerify(token, JWT_SECRET);
-        clienteId = payload.sub as string;
-    } catch {
-        redirect('/login');
+    const handleLogout = async () => {
+        await logoutCliente()
+        router.push('/')
+        router.refresh()
     }
 
-    // 2. Procura os dados do cliente e o seu histórico, ordenando pelo mais recente
-    const cliente = await prisma.cliente.findUnique({
-        where: { id: clienteId },
-        include: {
-            agendamentos: {
-                orderBy: { dataHoraInicio: 'desc' },
-                include: { funcionario: true } // Traz o nome do profissional que o atendeu
-            }
+    const handleExcluirConta = async () => {
+        const confirmacao = window.confirm(
+            "ATENÇÃO: Isso apagará permanentemente seu nome e telefone do nosso sistema. Seu histórico de agendamentos será mantido de forma anônima para controle fiscal. Deseja continuar?"
+        )
+
+        if (!confirmacao) return
+
+        setIsProcessing(true)
+        const res = await excluirContaCliente(clienteId)
+
+        if (res.sucesso) {
+            alert("Sua conta foi excluída com sucesso.")
+            router.push('/')
+            router.refresh()
+        } else {
+            alert(res.erro)
+            setIsProcessing(false)
         }
-    });
-
-    if (!cliente || cliente.anonimizado) {
-        redirect('/login');
     }
 
-    // Função para formatar a data visualmente
-    const formatarData = (data: Date) => {
-        return new Intl.DateTimeFormat('pt-BR', {
-            day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
-        }).format(data);
-    };
-
-    // 3. Estrutura Visual da Interface (Marrom e Branco)
     return (
-        <div className="min-h-screen bg-[#fdfbf7] p-6 md:p-12 font-sans">
-            <div className="max-w-4xl mx-auto bg-white p-8 rounded-lg shadow-lg border border-[#e5d9c5]">
-
-                <header className="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-[#e5d9c5] pb-6 mb-8 gap-4">
+        <div className="min-h-screen bg-[#fdfbf7] p-8">
+            <div className="max-w-4xl mx-auto bg-white p-8 rounded-lg shadow border border-[#e5d9c5]">
+                <div className="flex justify-between items-center border-b pb-6 mb-6">
                     <div>
-                        <h1 className="text-3xl font-bold text-[#5C4033]">O meu Painel</h1>
-                        <p className="text-gray-600 mt-1">Bem-vindo(a), {cliente.nome}</p>
+                        <h1 className="text-3xl font-bold text-[#5C4033]">Olá, {nomeCliente}</h1>
+                        <p className="text-gray-500">Bem-vindo ao seu painel de cliente.</p>
                     </div>
-                    <BotaoExcluirConta clienteId={cliente.id} />
-                </header>
+                    <button
+                        onClick={handleLogout}
+                        className="bg-gray-100 text-gray-700 px-4 py-2 rounded font-bold hover:bg-gray-200"
+                    >
+                        Sair (Logout)
+                    </button>
+                </div>
 
-                <section>
-                    <h2 className="text-2xl font-bold text-[#5C4033] mb-6">Histórico de Atendimentos</h2>
+                {/* Aqui entrará a lista de agendamentos do cliente no futuro */}
+                <div className="mb-12 h-40 bg-gray-50 flex items-center justify-center rounded border border-dashed border-gray-300">
+                    <p className="text-gray-500 font-medium">Seus próximos agendamentos aparecerão aqui.</p>
+                </div>
 
-                    {cliente.agendamentos.length === 0 ? (
-                        <div className="text-center py-10 bg-gray-50 rounded border border-gray-100 text-gray-500">
-                            Ainda não possui agendamentos no nosso espaço.
-                        </div>
-                    ) : (
-                        <div className="space-y-4">
-                            {cliente.agendamentos.map(agendamento => (
-                                <div key={agendamento.id} className="flex justify-between items-center p-4 border border-gray-100 rounded hover:shadow-sm transition-shadow">
-                                    <div>
-                                        <p className="font-bold text-gray-800 text-lg">
-                                            {formatarData(agendamento.dataHoraInicio)}
-                                        </p>
-                                        <p className="text-sm text-gray-500">
-                                            Profissional: {agendamento.funcionario.nome}
-                                        </p>
-                                    </div>
-                                    <div className="text-right">
-                                        <span className={`px-3 py-1 text-xs font-bold rounded-full ${agendamento.concluido ? 'bg-[#e5d9c5] text-[#5C4033]' : 'bg-green-100 text-green-700'}`}>
-                                            {agendamento.concluido ? 'Concluído' : 'Agendado'}
-                                        </span>
-                                        <p className="text-sm font-semibold text-gray-700 mt-2">
-                                            R$ {agendamento.valorBruto.toFixed(2)}
-                                        </p>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </section>
-
+                <div className="mt-12 pt-6 border-t border-red-100 bg-red-50 p-6 rounded-lg">
+                    <h3 className="text-red-800 font-bold text-lg mb-2">Zona de Perigo</h3>
+                    <p className="text-sm text-red-600 mb-4">Ao excluir sua conta, seus dados pessoais serão removidos e você perderá acesso ao sistema.</p>
+                    <button
+                        onClick={handleExcluirConta}
+                        disabled={isProcessing}
+                        className="bg-red-600 text-white px-4 py-2 rounded font-bold hover:bg-red-700 disabled:opacity-50"
+                    >
+                        {isProcessing ? 'Excluindo...' : 'Excluir Meus Dados'}
+                    </button>
+                </div>
             </div>
         </div>
-    );
+    )
 }
