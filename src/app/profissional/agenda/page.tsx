@@ -2,6 +2,7 @@ import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { jwtVerify } from 'jose';
 import Link from 'next/link';
+import { prisma } from '@/lib/prisma';
 import { listarAgendaProfissional } from '@/app/actions/agendamento';
 
 const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || 'chave_secreta_desenvolvimento');
@@ -14,18 +15,29 @@ export default async function AgendaProfissionalPage() {
     if (!token) redirect('/login-profissional');
 
     let funcionarioId = '';
-    let funcionarioNome = '';
+    let funcionarioRole = '';
     try {
         const { payload } = await jwtVerify(token, JWT_SECRET);
         if (payload.role !== 'PROFISSIONAL' && payload.role !== 'ADMIN') {
             redirect('/login-profissional');
         }
         funcionarioId = payload.sub as string;
+        funcionarioRole = payload.role as string;
     } catch {
         redirect('/login-profissional');
     }
 
-    // 2. Resgata a agenda do profissional logado
+    // 2. Consulta as permissões em tempo real no banco de dados
+    const usuarioLogado = await prisma.funcionario.findUnique({
+        where: { id: funcionarioId },
+        select: { podeAgendar: true, podeVerHistorico: true }
+    });
+
+    // Administradores têm sempre acesso total; Profissionais dependem da flag no banco
+    const permissaoAgendar = funcionarioRole === 'ADMIN' || usuarioLogado?.podeAgendar === true;
+    const permissaoHistorico = funcionarioRole === 'ADMIN' || usuarioLogado?.podeVerHistorico === true;
+
+    // 3. Resgata a agenda do profissional logado
     const res = await listarAgendaProfissional(funcionarioId);
     const agendamentos = res.sucesso ? res.agendamentos : [];
 
@@ -46,13 +58,23 @@ export default async function AgendaProfissionalPage() {
             <div className="max-w-5xl mx-auto space-y-8">
 
                 {/* Cabeçalho */}
-                <div className="bg-white p-8 rounded-2xl shadow-sm border border-[#e5d9c5] flex justify-between items-center">
+                <div className="bg-white p-8 rounded-2xl shadow-sm border border-[#e5d9c5] flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                     <div>
                         <h1 className="text-3xl font-bold text-[#5C4033]">A Minha Agenda</h1>
                         <p className="text-gray-600 mt-1 text-sm tracking-wide">Faça a gestão dos seus atendimentos de forma simples.</p>
                     </div>
-                    <div className="hidden md:block px-4 py-2 bg-[#8B5A2B]/10 text-[#8B5A2B] rounded-lg font-semibold border border-[#8B5A2B]/20">
-                        {new Intl.DateTimeFormat('pt-PT', { weekday: 'long', day: '2-digit', month: 'long' }).format(new Date())}
+
+                    <div className="flex items-center gap-4 w-full md:w-auto">
+                        <div className="hidden md:block px-4 py-2.5 bg-[#8B5A2B]/10 text-[#8B5A2B] rounded-lg font-semibold border border-[#8B5A2B]/20">
+                            {new Intl.DateTimeFormat('pt-PT', { weekday: 'long', day: '2-digit', month: 'long' }).format(new Date())}
+                        </div>
+
+                        {/* Trava Visual 1: Botão de Novo Agendamento */}
+                        {permissaoAgendar && (
+                            <button className="w-full md:w-auto px-6 py-2.5 bg-[#8B5A2B] text-white font-bold rounded-lg hover:bg-[#704620] shadow-sm transition-colors border border-[#5C4033]">
+                                + Nova Reserva
+                            </button>
+                        )}
                     </div>
                 </div>
 
@@ -66,7 +88,7 @@ export default async function AgendaProfissionalPage() {
                         </div>
 
                         {pendentes.length === 0 ? (
-                            <div className="text-center py-16 bg-white rounded-2xl border border-dashed border-[#e5d9c5] text-gray-500">
+                            <div className="text-center py-16 bg-white rounded-2xl border border-dashed border-[#e5d9c5] text-gray-500 font-medium">
                                 Não há agendamentos pendentes. Bom descanso!
                             </div>
                         ) : (
@@ -122,26 +144,36 @@ export default async function AgendaProfissionalPage() {
                             <h2 className="text-xl font-bold text-[#5C4033]">Concluídos</h2>
                         </div>
 
-                        <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
-                            {concluidos.length === 0 ? (
-                                <p className="text-sm text-gray-500 text-center py-4">Nenhum atendimento finalizado ainda.</p>
-                            ) : (
-                                <div className="space-y-4">
-                                    {concluidos.map((agendamento: any) => (
-                                        <div key={agendamento.id} className="flex justify-between items-center border-b border-gray-100 pb-4 last:border-0 last:pb-0">
-                                            <div>
-                                                <p className="font-bold text-gray-800 text-sm">{formatarHora(agendamento.dataHoraInicio)}</p>
-                                                <p className="text-xs text-gray-500 truncate max-w-[120px]">{agendamento.cliente.nome}</p>
+                        {/* Trava Visual 2: Histórico */}
+                        {permissaoHistorico ? (
+                            <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
+                                {concluidos.length === 0 ? (
+                                    <p className="text-sm text-gray-500 text-center py-4">Nenhum atendimento finalizado ainda.</p>
+                                ) : (
+                                    <div className="space-y-4">
+                                        {concluidos.map((agendamento: any) => (
+                                            <div key={agendamento.id} className="flex justify-between items-center border-b border-gray-100 pb-4 last:border-0 last:pb-0">
+                                                <div>
+                                                    <p className="font-bold text-gray-800 text-sm">{formatarHora(agendamento.dataHoraInicio)}</p>
+                                                    <p className="text-xs text-gray-500 truncate max-w-[120px]">{agendamento.cliente.nome}</p>
+                                                </div>
+                                                <div className="text-right">
+                                                    <p className="font-black text-green-700 text-sm">€ {agendamento.valorBruto.toFixed(2)}</p>
+                                                    <p className="text-[0.6rem] font-bold uppercase tracking-wider text-green-500">Faturado</p>
+                                                </div>
                                             </div>
-                                            <div className="text-right">
-                                                <p className="font-black text-green-700 text-sm">€ {agendamento.valorBruto.toFixed(2)}</p>
-                                                <p className="text-[0.6rem] font-bold uppercase tracking-wider text-green-500">Faturado</p>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        ) : (
+                            <div className="bg-gray-50 border border-gray-200 rounded-2xl p-8 shadow-sm flex flex-col items-center justify-center text-center">
+                                <svg className="w-10 h-10 text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+                                </svg>
+                                <p className="text-sm text-gray-600 font-medium">O seu acesso ao histórico de faturamento está restrito pelas configurações da gerência.</p>
+                            </div>
+                        )}
                     </div>
 
                 </div>
