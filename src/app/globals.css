@@ -1,27 +1,73 @@
-/* src/app/globals.css - PURE CSS ONLY */
+@import "tailwindcss";
 @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400;1,600&family=DM+Sans:wght@300;400;500;600&display=swap');
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@theme {
+  /* Nossas Cores Premium */
+  --color-marrom-profundo: #2a1810;
+  --color-marrom-medio: #5C4033;
+  --color-marrom-claro: #8B5A2B;
+  --color-caramelo: #c5a87c;
+  --color-creme: #f7f3ee;
+  --color-creme-escuro: #ede5d8;
+  --color-bege-borda: #ddd0bc;
+  --color-texto-suave: #9c8070;
 
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  /* Nossas Fontes */
+  --font-sans: "DM Sans", sans-serif;
+  --font-serif: "Cormorant Garamond", serif;
 
-:root {
-  --marrom-profundo: #2a1810;
-  --marrom-medio: #5C4033;
-  --marrom-claro: #8B5A2B;
-  --caramelo: #c5a87c;
-  --creme: #f7f3ee;
-  --creme-escuro: #ede5d8;
-  --bege-borda: #ddd0bc;
-  --texto-suave: #9c8070;
+  /* Nossas Animações 3D e de Interface */
+  --animate-floating-logo: floatingLogo 6s ease-in-out infinite;
+  --animate-fade-in: fadeIn 0.25s ease;
+  --animate-slide-up: slideUp 0.35s ease;
+
+  @keyframes floatingLogo {
+
+    0%,
+    100% {
+      transform: translateZ(50px) rotateY(-8deg) rotateX(4deg);
+    }
+
+    50% {
+      transform: translateZ(80px) rotateY(10deg) rotateX(6deg);
+    }
+  }
+
+  @keyframes fadeIn {
+    0% {
+      opacity: 0;
+      transform: translateY(3px);
+    }
+
+    100% {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes slideUp {
+    0% {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+
+    100% {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
 }
 
-html { scroll-behavior: smooth; }
+/* Configurações Globais Básicas */
+html {
+  scroll-behavior: smooth;
+}
 
 body {
-  font-family: 'DM Sans', sans-serif;
-  background: var(--creme);
-  color: var(--marrom-profundo);
+  font-family: var(--font-sans);
+  background-color: var(--color-creme);
+  color: var(--color-marrom-profundo);
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }

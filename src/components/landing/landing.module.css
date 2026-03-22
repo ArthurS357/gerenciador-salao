@@ -28,7 +28,7 @@
 }
 
 .navLogo {
-    font-family: 'Cormorant Garamond', serif;
+    font-family: "Cormorant Garamond", serif;
     font-size: 1.5rem;
     font-weight: 600;
     color: var(--marrom-profundo);
@@ -38,7 +38,7 @@
 
 .navLogo small {
     display: block;
-    font-family: 'DM Sans', sans-serif;
+    font-family: "DM Sans", sans-serif;
     font-size: 0.6rem;
     font-weight: 400;
     letter-spacing: 0.25em;
@@ -72,7 +72,7 @@
     background: transparent;
     border: 1.5px solid var(--marrom-medio);
     border-radius: 2px;
-    font-family: 'DM Sans', sans-serif;
+    font-family: "DM Sans", sans-serif;
     font-size: 0.72rem;
     font-weight: 500;
     letter-spacing: 0.15em;
@@ -131,7 +131,9 @@
     padding: 5rem 4rem;
     opacity: 0;
     transform: translateX(-20px);
-    transition: opacity 0.8s ease, transform 0.8s ease;
+    transition:
+        opacity 0.8s ease,
+        transform 0.8s ease;
 }
 
 .heroConteudo.visivel {
@@ -202,7 +204,7 @@
 }
 
 .heroTag::before {
-    content: '';
+    content: "";
     display: block;
     width: 32px;
     height: 1px;
@@ -210,7 +212,7 @@
 }
 
 .heroTitulo {
-    font-family: 'Cormorant Garamond', serif;
+    font-family: "Cormorant Garamond", serif;
     font-size: clamp(3rem, 5vw, 4.5rem);
     font-weight: 300;
     color: white;
@@ -244,7 +246,7 @@
     color: var(--marrom-profundo);
     border: none;
     border-radius: 2px;
-    font-family: 'DM Sans', sans-serif;
+    font-family: "DM Sans", sans-serif;
     font-size: 0.78rem;
     font-weight: 600;
     letter-spacing: 0.12em;
@@ -265,7 +267,7 @@
     color: rgba(255, 255, 255, 0.7);
     border: 1px solid rgba(255, 255, 255, 0.25);
     border-radius: 2px;
-    font-family: 'DM Sans', sans-serif;
+    font-family: "DM Sans", sans-serif;
     font-size: 0.78rem;
     font-weight: 400;
     letter-spacing: 0.12em;
@@ -286,17 +288,25 @@
 }
 
 .heroVisual::before {
-    content: '';
+    content: "";
     position: absolute;
     inset: 0;
-    background: radial-gradient(ellipse 70% 60% at 40% 50%, rgba(197, 168, 124, 0.2) 0%, transparent 70%), radial-gradient(ellipse 100% 100% at 100% 0%, rgba(139, 90, 43, 0.15) 0%, transparent 50%);
+    background:
+        radial-gradient(ellipse 70% 60% at 40% 50%,
+            rgba(197, 168, 124, 0.2) 0%,
+            transparent 70%),
+        radial-gradient(ellipse 100% 100% at 100% 0%,
+            rgba(139, 90, 43, 0.15) 0%,
+            transparent 50%);
     z-index: 1;
 }
 
 .heroVisualGrade {
     position: absolute;
     inset: 0;
-    background-image: linear-gradient(rgba(197, 168, 124, 0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(197, 168, 124, 0.06) 1px, transparent 1px);
+    background-image:
+        linear-gradient(rgba(197, 168, 124, 0.06) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(197, 168, 124, 0.06) 1px, transparent 1px);
     background-size: 60px 60px;
     z-index: 0;
 }
@@ -324,7 +334,7 @@
 }
 
 .statNum {
-    font-family: 'Cormorant Garamond', serif;
+    font-family: "Cormorant Garamond", serif;
     font-size: 2.5rem;
     font-weight: 300;
     color: var(--caramelo);
@@ -372,7 +382,7 @@
 }
 
 .secaoTitulo {
-    font-family: 'Cormorant Garamond', serif;
+    font-family: "Cormorant Garamond", serif;
     font-size: clamp(2rem, 3vw, 2.75rem);
     font-weight: 400;
     color: var(--marrom-profundo);
@@ -406,7 +416,9 @@
     background: white;
     padding: 2.5rem;
     cursor: pointer;
-    transition: background 0.2s, box-shadow 0.2s;
+    transition:
+        background 0.2s,
+        box-shadow 0.2s;
     position: relative;
     outline: none;
 }
@@ -473,7 +485,7 @@
 }
 
 .servicoNome {
-    font-family: 'Cormorant Garamond', serif;
+    font-family: "Cormorant Garamond", serif;
     font-size: 1.35rem;
     font-weight: 600;
     color: var(--marrom-profundo);
@@ -498,7 +510,7 @@
 }
 
 .servicoPreco {
-    font-family: 'Cormorant Garamond', serif;
+    font-family: "Cormorant Garamond", serif;
     font-size: 1.5rem;
     font-weight: 300;
     color: var(--marrom-claro);
@@ -556,7 +568,7 @@
 }
 
 .barraResumoTotal {
-    font-family: 'Cormorant Garamond', serif;
+    font-family: "Cormorant Garamond", serif;
     font-size: 1.5rem;
     font-weight: 300;
     color: white;
@@ -568,7 +580,7 @@
     color: var(--marrom-profundo);
     border: none;
     border-radius: 2px;
-    font-family: 'DM Sans', sans-serif;
+    font-family: "DM Sans", sans-serif;
     font-size: 0.75rem;
     font-weight: 600;
     letter-spacing: 0.15em;
@@ -607,7 +619,7 @@
 }
 
 .agendamentoTitulo {
-    font-family: 'Cormorant Garamond', serif;
+    font-family: "Cormorant Garamond", serif;
     font-size: clamp(2rem, 3vw, 2.75rem);
     font-weight: 300;
     color: white;
@@ -651,7 +663,7 @@
     background: transparent;
     border: 1px solid rgba(197, 168, 124, 0.35);
     border-radius: 2px;
-    font-family: 'DM Sans', sans-serif;
+    font-family: "DM Sans", sans-serif;
     font-size: 0.7rem;
     font-weight: 500;
     letter-spacing: 0.15em;
@@ -744,11 +756,13 @@
     border: 1px solid rgba(197, 168, 124, 0.2);
     border-radius: 3px;
     color: rgba(255, 255, 255, 0.85);
-    font-family: 'DM Sans', sans-serif;
+    font-family: "DM Sans", sans-serif;
     font-size: 0.875rem;
     font-weight: 300;
     outline: none;
-    transition: border-color 0.2s, background 0.2s;
+    transition:
+        border-color 0.2s,
+        background 0.2s;
     -webkit-appearance: none;
     appearance: none;
 }
@@ -829,7 +843,7 @@
 }
 
 .formTotalValor {
-    font-family: 'Cormorant Garamond', serif;
+    font-family: "Cormorant Garamond", serif;
     font-size: 1.75rem;
     font-weight: 300;
     color: var(--caramelo);
@@ -842,14 +856,16 @@
     color: var(--marrom-profundo);
     border: none;
     border-radius: 3px;
-    font-family: 'DM Sans', sans-serif;
+    font-family: "DM Sans", sans-serif;
     font-size: 0.78rem;
     font-weight: 600;
     letter-spacing: 0.2em;
     text-transform: uppercase;
     cursor: pointer;
     margin-top: 1.25rem;
-    transition: background 0.2s, transform 0.1s;
+    transition:
+        background 0.2s,
+        transform 0.1s;
 }
 
 .btnConfirmar:hover:not(:disabled) {
@@ -886,7 +902,7 @@
 }
 
 .footerLogo {
-    font-family: 'Cormorant Garamond', serif;
+    font-family: "Cormorant Garamond", serif;
     font-size: 1.1rem;
     font-weight: 600;
     color: rgba(255, 255, 255, 0.5);
@@ -941,7 +957,7 @@
 }
 
 .sobreTexto h2 {
-    font-family: 'Cormorant Garamond', serif;
+    font-family: "Cormorant Garamond", serif;
     font-size: clamp(2.5rem, 4vw, 3.5rem);
     font-weight: 300;
     color: var(--marrom-profundo);
@@ -991,7 +1007,7 @@
 }
 
 .localizacaoTitulo {
-    font-family: 'Cormorant Garamond', serif;
+    font-family: "Cormorant Garamond", serif;
     font-size: clamp(2rem, 3vw, 2.75rem);
     font-weight: 600;
     color: var(--marrom-profundo);
@@ -1116,12 +1132,14 @@
     background: #16a34a;
     color: white;
     border-radius: 4px;
-    font-family: 'DM Sans', sans-serif;
+    font-family: "DM Sans", sans-serif;
     font-size: 0.85rem;
     font-weight: 600;
     letter-spacing: 0.04em;
     text-decoration: none;
-    transition: background 0.2s, transform 0.1s;
+    transition:
+        background 0.2s,
+        transform 0.1s;
     touch-action: manipulation;
     /* elimina delay 300ms mobile */
 }
