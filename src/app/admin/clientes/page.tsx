@@ -1,19 +1,24 @@
 'use client'
 
-import { useState, useEffect } from 'react';
-import Link from 'next/link';
-import { listarTodosClientes } from '@/app/actions/cliente';
+import { useState, useEffect, useCallback } from 'react'
+import Link from 'next/link'
+import { listarTodosClientes } from '@/app/actions/cliente'
+import type { Cliente } from '@/types/domain'
 
 export default function BaseClientesPage() {
-    const [clientes, setClientes] = useState<any[]>([]);
+    const [clientes, setClientes] = useState<Cliente[]>([])
+    const [carregando, setCarregando] = useState(true)
+
+    const carregar = useCallback(async () => {
+        setCarregando(true)
+        const res = await listarTodosClientes()
+        if (res.sucesso) setClientes(res.clientes)
+        setCarregando(false)
+    }, [])
 
     useEffect(() => {
-        async function carregar() {
-            const res = await listarTodosClientes();
-            if (res.sucesso) setClientes(res.clientes);
-        }
-        carregar();
-    }, []);
+        void carregar()
+    }, [carregar])
 
     return (
         <div className="min-h-screen bg-[#fdfbf7] p-8 font-sans">
@@ -38,22 +43,40 @@ export default function BaseClientesPage() {
                         </tr>
                     </thead>
                     <tbody>
-                        {clientes.length === 0 ? (
-                            <tr><td colSpan={4} className="p-8 text-center text-gray-500">Nenhum cliente cadastrado.</td></tr>
+                        {carregando ? (
+                            <tr>
+                                <td colSpan={4} className="p-8 text-center text-gray-400">
+                                    Carregando clientes...
+                                </td>
+                            </tr>
+                        ) : clientes.length === 0 ? (
+                            <tr>
+                                <td colSpan={4} className="p-8 text-center text-gray-500">
+                                    Nenhum cliente cadastrado.
+                                </td>
+                            </tr>
                         ) : (
-                            clientes.map(cli => (
+                            clientes.map((cli) => (
                                 <tr key={cli.id} className="border-b border-gray-100 hover:bg-gray-50">
                                     <td className="p-4 font-bold text-gray-800">
                                         {cli.nome}
-                                        {cli.anonimizado && <span className="ml-2 text-xs font-normal text-red-500">(Dados Ocultos)</span>}
+                                        {cli.anonimizado && (
+                                            <span className="ml-2 text-xs font-normal text-red-500">(Dados Ocultos)</span>
+                                        )}
                                     </td>
                                     <td className="p-4 text-center text-gray-600">{cli.telefone}</td>
-                                    <td className="p-4 text-center font-bold text-gray-700">{cli._count.agendamentos}</td>
+                                    <td className="p-4 text-center font-bold text-gray-700">
+                                        {cli._count?.agendamentos ?? 0}
+                                    </td>
                                     <td className="p-4 text-right">
                                         {cli.anonimizado ? (
-                                            <span className="bg-red-100 text-red-700 px-3 py-1 rounded-full text-xs font-bold">Anonimizado</span>
+                                            <span className="bg-red-100 text-red-700 px-3 py-1 rounded-full text-xs font-bold">
+                                                Anonimizado
+                                            </span>
                                         ) : (
-                                            <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-bold">Ativo</span>
+                                            <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-bold">
+                                                Ativo
+                                            </span>
                                         )}
                                     </td>
                                 </tr>
@@ -63,5 +86,5 @@ export default function BaseClientesPage() {
                 </table>
             </section>
         </div>
-    );
+    )
 }

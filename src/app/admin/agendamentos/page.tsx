@@ -1,39 +1,41 @@
 'use client'
 
-import { useState, useEffect } from 'react';
-import Link from 'next/link';
-import { listarAgendamentosGlobais, cancelarAgendamentoPendente } from '@/app/actions/agendamento';
+import { useState, useEffect, useCallback } from 'react'
+import Link from 'next/link'
+import { listarAgendamentosGlobais, cancelarAgendamentoPendente } from '@/app/actions/agendamento'
+import type { AgendamentoGlobal } from '@/types/domain'
 
 export default function AgendamentosGlobaisPage() {
-    const [agendamentos, setAgendamentos] = useState<any[]>([]);
+    const [agendamentos, setAgendamentos] = useState<AgendamentoGlobal[]>([])
+    const [carregando, setCarregando] = useState(true)
+
+    const carregarAgendamentos = useCallback(async () => {
+        setCarregando(true)
+        const res = await listarAgendamentosGlobais()
+        if (res.sucesso) setAgendamentos(res.agendamentos)
+        setCarregando(false)
+    }, [])
 
     useEffect(() => {
-        carregarAgendamentos();
-    }, []);
+        void carregarAgendamentos()
+    }, [carregarAgendamentos])
 
-    const carregarAgendamentos = async () => {
-        const res = await listarAgendamentosGlobais();
-        if (res.sucesso) setAgendamentos(res.agendamentos);
-    };
-
-    const formatarDataHora = (dataString: string) => {
-        return new Intl.DateTimeFormat('pt-BR', {
-            day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'
-        }).format(new Date(dataString));
-    };
+    const formatarDataHora = (dataString: string) =>
+        new Intl.DateTimeFormat('pt-BR', {
+            day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
+        }).format(new Date(dataString))
 
     const handleCancelar = async (id: string) => {
-        const confirmar = confirm("Tem certeza que deseja cancelar e apagar esta reserva da agenda?");
-        if (!confirmar) return;
+        if (!confirm('Tem certeza que deseja cancelar e apagar esta reserva da agenda?')) return
 
-        const res = await cancelarAgendamentoPendente(id);
+        const res = await cancelarAgendamentoPendente(id)
         if (res.sucesso) {
-            alert("Agendamento removido com sucesso.");
-            carregarAgendamentos();
+            alert('Agendamento removido com sucesso.')
+            void carregarAgendamentos()
         } else {
-            alert(res.erro);
+            alert(res.erro)
         }
-    };
+    }
 
     return (
         <div className="min-h-screen bg-[#fdfbf7] p-8 font-sans">
@@ -59,10 +61,20 @@ export default function AgendamentosGlobaisPage() {
                         </tr>
                     </thead>
                     <tbody>
-                        {agendamentos.length === 0 ? (
-                            <tr><td colSpan={5} className="p-8 text-center text-gray-500">A agenda está vazia.</td></tr>
+                        {carregando ? (
+                            <tr>
+                                <td colSpan={5} className="p-8 text-center text-gray-400">
+                                    Carregando agenda...
+                                </td>
+                            </tr>
+                        ) : agendamentos.length === 0 ? (
+                            <tr>
+                                <td colSpan={5} className="p-8 text-center text-gray-500">
+                                    A agenda está vazia.
+                                </td>
+                            </tr>
                         ) : (
-                            agendamentos.map(ag => (
+                            agendamentos.map((ag) => (
                                 <tr key={ag.id} className="border-b border-gray-100 hover:bg-gray-50">
                                     <td className="p-4 font-bold text-gray-800">
                                         {formatarDataHora(ag.dataHoraInicio)}
@@ -74,9 +86,13 @@ export default function AgendamentosGlobaisPage() {
                                     <td className="p-4 font-semibold text-[#8B5A2B]">{ag.funcionario.nome}</td>
                                     <td className="p-4 text-center">
                                         {ag.concluido ? (
-                                            <span className="bg-gray-200 text-gray-600 px-3 py-1 rounded-full text-xs font-bold">Faturado/Caixa</span>
+                                            <span className="bg-gray-200 text-gray-600 px-3 py-1 rounded-full text-xs font-bold">
+                                                Faturado/Caixa
+                                            </span>
                                         ) : (
-                                            <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-bold">Pendente</span>
+                                            <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-bold">
+                                                Pendente
+                                            </span>
                                         )}
                                     </td>
                                     <td className="p-4 text-right">
@@ -96,5 +112,5 @@ export default function AgendamentosGlobaisPage() {
                 </table>
             </section>
         </div>
-    );
+    )
 }

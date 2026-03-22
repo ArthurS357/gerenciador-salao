@@ -1,44 +1,62 @@
 'use server'
 
-import { prisma } from '@/lib/prisma';
+import { prisma } from '@/lib/prisma'
+import type { Servico } from '@/types/domain'
 
-export async function listarServicosPublicos() {
-  try {
-    const servicos = await prisma.servico.findMany({
-      where: { ativo: true },
-      orderBy: { nome: 'asc' }
-    });
-    return { sucesso: true, servicos };
-  } catch (error) {
-    return { sucesso: false, servicos: [] };
-  }
+type ActionResult<T = object> =
+    | ({ sucesso: true } & T)
+    | { sucesso: false; erro: string }
+
+type DadosCriarServico = {
+    nome: string
+    descricao?: string
+    preco?: number | string | null
+    tempoMinutos?: number | string | null
+    imagemUrl?: string | null
 }
 
-export async function listarServicosAdmin() {
+export async function listarServicosPublicos(): Promise<ActionResult<{ servicos: Servico[] }>> {
     try {
         const servicos = await prisma.servico.findMany({
             where: { ativo: true },
-            orderBy: { nome: 'asc' }
-        });
-        return { sucesso: true, servicos };
-    } catch (error) {
-        return { sucesso: false, servicos: [] };
+            orderBy: { nome: 'asc' },
+        })
+        return { sucesso: true, servicos: servicos as Servico[] }
+    } catch {
+        return { sucesso: false, erro: 'Falha ao listar serviços.' }
     }
 }
 
-export async function criarServicoAdmin(dados: any) {
+export async function listarServicosAdmin(): Promise<ActionResult<{ servicos: Servico[] }>> {
+    try {
+        const servicos = await prisma.servico.findMany({
+            where: { ativo: true },
+            orderBy: { nome: 'asc' },
+        })
+        return { sucesso: true, servicos: servicos as Servico[] }
+    } catch {
+        return { sucesso: false, erro: 'Falha ao listar serviços.' }
+    }
+}
+
+export async function criarServicoAdmin(
+    dados: DadosCriarServico
+): Promise<ActionResult<{ servico: Servico }>> {
     try {
         const servico = await prisma.servico.create({
             data: {
                 nome: dados.nome,
-                descricao: dados.descricao || null,
-                preco: dados.preco ? Number(dados.preco) : null, // Opcional (Sob consulta)
-                tempoMinutos: dados.tempoMinutos ? Number(dados.tempoMinutos) : null,
-                imagemUrl: dados.imagemUrl || null, // Opcional (URL de foto do portfólio)
-            }
-        });
-        return { sucesso: true, servico };
-    } catch (error) {
-        return { sucesso: false, erro: 'Falha ao cadastrar o serviço.' };
+                descricao: dados.descricao ?? null,
+                preco: dados.preco != null && dados.preco !== '' ? Number(dados.preco) : null,
+                tempoMinutos:
+                    dados.tempoMinutos != null && dados.tempoMinutos !== ''
+                        ? Number(dados.tempoMinutos)
+                        : null,
+                imagemUrl: dados.imagemUrl ?? null,
+            },
+        })
+        return { sucesso: true, servico: servico as Servico }
+    } catch {
+        return { sucesso: false, erro: 'Falha ao cadastrar o serviço.' }
     }
 }

@@ -1,48 +1,44 @@
 'use server'
 
-import { prisma } from '@/lib/prisma';
-import { randomUUID } from 'crypto';
-import { cookies } from 'next/headers';
+import { prisma } from '@/lib/prisma'
+import { randomUUID } from 'crypto'
+import { cookies } from 'next/headers'
+import type { Cliente } from '@/types/domain'
 
-export async function excluirMinhaContaLGPD(clienteId: string) {
+type ActionResult<T = object> =
+    | ({ sucesso: true } & T)
+    | { sucesso: false; erro: string }
+
+export async function excluirMinhaContaLGPD(clienteId: string): Promise<ActionResult> {
     try {
-        // 1. Gera hashes irreversíveis para destruir a ligação aos dados reais
-        const hashNome = `Anonimizado_${randomUUID().substring(0, 8)}`;
-        const hashTelefone = `0000_${randomUUID().substring(0, 8)}`;
+        const hashNome = `Anonimizado_${randomUUID().substring(0, 8)}`
+        const hashTelefone = `0000_${randomUUID().substring(0, 8)}`
 
-        // 2. Atualiza o registo no banco de dados (Anonimização)
         await prisma.cliente.update({
             where: { id: clienteId },
-            data: {
-                nome: hashNome,
-                telefone: hashTelefone,
-                anonimizado: true,
-            },
-        });
+            data: { nome: hashNome, telefone: hashTelefone, anonimizado: true },
+        })
 
-        // 3. Remove o cookie de sessão para expulsar o utilizador do painel
-        (await cookies()).delete('cliente_session');
+        const cookieStore = await cookies()
+        cookieStore.delete('cliente_session')
 
-        return { sucesso: true };
+        return { sucesso: true }
     } catch (error) {
-        console.error('Erro na exclusão de conta via LGPD:', error);
-        return { sucesso: false, erro: 'Ocorreu uma falha ao processar o seu pedido.' };
+        console.error('Erro na exclusão de conta via LGPD:', error)
+        return { sucesso: false, erro: 'Ocorreu uma falha ao processar o seu pedido.' }
     }
 }
 
-// Lógica para listar todos os clientes e contar quantas vezes já visitaram o salão
-export async function listarTodosClientes() {
+export async function listarTodosClientes(): Promise<ActionResult<{ clientes: Cliente[] }>> {
     try {
         const clientes = await prisma.cliente.findMany({
             orderBy: { nome: 'asc' },
             include: {
-                _count: {
-                    select: { agendamentos: true } // Conta o total de agendamentos por cliente
-                }
-            }
-        });
-        return { sucesso: true, clientes };
-    } catch (error) {
-        return { sucesso: false, clientes: [] };
+                _count: { select: { agendamentos: true } },
+            },
+        })
+        return { sucesso: true, clientes: clientes as unknown as Cliente[] }
+    } catch {
+        return { sucesso: false, erro: 'Falha ao listar clientes.' }
     }
 }

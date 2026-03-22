@@ -1,46 +1,63 @@
 'use server'
 
-import { prisma } from '@/lib/prisma';
+import { prisma } from '@/lib/prisma'
+import type { Produto } from '@/types/domain'
 
-export async function listarProdutos() {
+type ActionResult<T = object> =
+    | ({ sucesso: true } & T)
+    | { sucesso: false; erro: string }
+
+type DadosCriarProduto = {
+    nome: string
+    descricao?: string
+    precoCusto: number | string
+    precoVenda: number | string
+    estoque: number | string
+}
+
+export async function listarProdutos(): Promise<ActionResult<{ produtos: Produto[] }>> {
     try {
         const produtos = await prisma.produto.findMany({
             where: { ativo: true },
-            orderBy: { nome: 'asc' }
-        });
-        return { sucesso: true, produtos };
+            orderBy: { nome: 'asc' },
+        })
+        return { sucesso: true, produtos: produtos as Produto[] }
     } catch (error) {
-        console.error('Erro ao listar produtos:', error);
-        return { sucesso: false, produtos: [] };
+        console.error('Erro ao listar produtos:', error)
+        return { sucesso: false, erro: 'Falha ao listar produtos.' }
     }
 }
 
-export async function criarProduto(dados: any) {
+export async function criarProduto(
+    dados: DadosCriarProduto
+): Promise<ActionResult<{ produto: Produto }>> {
     try {
         const produto = await prisma.produto.create({
             data: {
                 nome: dados.nome,
-                descricao: dados.descricao,
+                descricao: dados.descricao ?? null,
                 precoCusto: Number(dados.precoCusto),
                 precoVenda: Number(dados.precoVenda),
                 estoque: Number(dados.estoque),
-            }
-        });
-        return { sucesso: true, produto };
-    } catch (error) {
-        return { sucesso: false, erro: 'Falha ao cadastrar o produto.' };
+            },
+        })
+        return { sucesso: true, produto: produto as Produto }
+    } catch {
+        return { sucesso: false, erro: 'Falha ao cadastrar o produto.' }
     }
 }
 
-// Permite adicionar ou remover (usando número negativo) itens do estoque rapidamente
-export async function ajustarEstoque(id: string, quantidade: number) {
+export async function ajustarEstoque(
+    id: string,
+    quantidade: number
+): Promise<ActionResult<{ produto: Produto }>> {
     try {
         const produto = await prisma.produto.update({
             where: { id },
-            data: { estoque: { increment: quantidade } }
-        });
-        return { sucesso: true, produto };
-    } catch (error) {
-        return { sucesso: false, erro: 'Erro ao atualizar o estoque.' };
+            data: { estoque: { increment: quantidade } },
+        })
+        return { sucesso: true, produto: produto as Produto }
+    } catch {
+        return { sucesso: false, erro: 'Erro ao atualizar o estoque.' }
     }
 }

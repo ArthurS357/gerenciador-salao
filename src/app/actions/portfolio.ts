@@ -1,34 +1,46 @@
 'use server'
 
-import { prisma } from '@/lib/prisma';
+import { prisma } from '@/lib/prisma'
+import type { ItemPortfolioDb } from '@/types/domain'
 
-export async function listarPortfolioPublico() {
+type ActionResult<T = object> =
+    | ({ sucesso: true } & T)
+    | { sucesso: false; erro: string }
+
+type DadosItemPortfolio = {
+    titulo: string
+    valor?: number | string | null
+    imagemUrl: string
+    linkSocial?: string | null
+}
+
+export async function listarPortfolioPublico(): Promise<ActionResult<{ itens: ItemPortfolioDb[] }>> {
     try {
         const itens = await prisma.itemPortfolio.findMany({
             where: { ativo: true },
             orderBy: { criadoEm: 'desc' },
-            take: 6 // Mostra os 6 trabalhos mais recentes na home
-        });
-        return { sucesso: true, itens };
-    } catch (error) {
-        return { sucesso: false, itens: [] };
+            take: 6,
+        })
+        return { sucesso: true, itens: itens as unknown as ItemPortfolioDb[] }
+    } catch {
+        return { sucesso: false, erro: 'Falha ao carregar portfólio.' }
     }
 }
 
-export async function adicionarItemPortfolio(dados: any) {
+export async function adicionarItemPortfolio(
+    dados: DadosItemPortfolio
+): Promise<ActionResult<{ item: ItemPortfolioDb }>> {
     try {
-        // Aqui no futuro você conectará a SDK do Cloudinary se o upload for via Node.
-        // Por enquanto, recebemos a URL direta gerada pelo Widget do Cloudinary no Frontend.
         const item = await prisma.itemPortfolio.create({
             data: {
                 titulo: dados.titulo,
-                valor: dados.valor ? Number(dados.valor) : null,
+                valor: dados.valor != null ? Number(dados.valor) : null,
                 imagemUrl: dados.imagemUrl,
-                linkSocial: dados.linkSocial || null,
-            }
-        });
-        return { sucesso: true, item };
-    } catch (error) {
-        return { sucesso: false, erro: 'Falha ao salvar no portfólio.' };
+                linkSocial: dados.linkSocial ?? null,
+            },
+        })
+        return { sucesso: true, item: item as unknown as ItemPortfolioDb }
+    } catch {
+        return { sucesso: false, erro: 'Falha ao salvar no portfólio.' }
     }
 }

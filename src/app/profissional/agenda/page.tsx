@@ -1,60 +1,81 @@
 'use client'
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import Link from 'next/link';
-import { obterDadosPainelProfissional } from '@/app/actions/profissional';
+import { useState, useEffect, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
+import Link from 'next/link'
+import { obterDadosPainelProfissional } from '@/app/actions/profissional'
+import { logoutFuncionario } from '@/app/actions/auth'
+import type { AgendamentoProfissional } from '@/types/domain'
+
+type PainelData = {
+    profissional: {
+        nome: string
+        podeVerComissao: boolean
+        taxaComissao: number
+        comissaoMensal: number
+    }
+    agendamentosHoje: AgendamentoProfissional[]
+}
 
 export default function DashboardProfissionalPage() {
-    const router = useRouter();
-    const [dados, setDados] = useState<any>(null);
-    const [erro, setErro] = useState('');
+    const router = useRouter()
+    const [dados, setDados] = useState<PainelData | null>(null)
+    const [erro, setErro] = useState('')
+
+    const carregar = useCallback(async () => {
+        const res = await obterDadosPainelProfissional()
+        if (res.sucesso) {
+            setDados(res as PainelData)
+        } else {
+            setErro(res.erro ?? 'Erro ao carregar os dados.')
+        }
+    }, [])
 
     useEffect(() => {
-        async function carregar() {
-            const res = await obterDadosPainelProfissional();
-            if (res.sucesso) {
-                setDados(res);
-            } else {
-                setErro(res.erro || 'Erro ao carregar os dados.');
-            }
-        }
-        carregar();
-    }, []);
+        void carregar()
+    }, [carregar])
 
-    const formatarHora = (dataString: string) => {
-        return new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' }).format(new Date(dataString));
-    };
+    const formatarHora = (dataString: string) =>
+        new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' }).format(
+            new Date(dataString)
+        )
 
-    const fazerLogout = () => {
-        // Apaga o cookie no navegador e redireciona
-        document.cookie = "funcionario_session=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
-        router.push('/login-profissional');
-    };
+    // ⚠️ CORREÇÃO CRÍTICA: cookies httpOnly NÃO podem ser removidos via document.cookie.
+    // A remoção deve ser feita via Server Action.
+    const fazerLogout = async () => {
+        await logoutFuncionario()
+        router.push('/login-profissional')
+    }
 
-    if (erro) return <div className="p-8 text-center text-red-500 font-bold">{erro}</div>;
-    if (!dados) return <div className="p-8 text-center text-gray-500">A carregar a sua agenda...</div>;
+    if (erro)
+        return (
+            <div className="p-8 text-center text-red-500 font-bold">{erro}</div>
+        )
 
-    const { profissional, agendamentosHoje } = dados;
+    if (!dados)
+        return (
+            <div className="p-8 text-center text-gray-500">A carregar a sua agenda...</div>
+        )
+
+    const { profissional, agendamentosHoje } = dados
 
     return (
         <div className="min-h-screen bg-[#fdfbf7] p-4 md:p-8 font-sans">
-
-            {/* Cabeçalho do Profissional */}
             <header className="mb-8 border-b-2 border-[#5C4033] pb-4 flex justify-between items-center">
                 <div>
-                    <h1 className="text-2xl md:text-3xl font-bold text-[#5C4033]">Olá, {profissional.nome}</h1>
+                    <h1 className="text-2xl md:text-3xl font-bold text-[#5C4033]">
+                        Olá, {profissional.nome}
+                    </h1>
                     <p className="text-gray-500 mt-1">O seu painel de atendimentos de hoje</p>
                 </div>
                 <button
-                    onClick={fazerLogout}
+                    onClick={() => { void fazerLogout() }}
                     className="text-sm font-bold text-red-500 hover:underline"
                 >
                     Sair da Conta
                 </button>
             </header>
 
-            {/* Cartão Financeiro (Só aparece se o Admin permitiu) */}
             {profissional.podeVerComissao && (
                 <div className="bg-[#5C4033] text-white p-6 rounded-lg shadow-lg mb-8 flex justify-between items-center">
                     <div>
@@ -69,7 +90,6 @@ export default function DashboardProfissionalPage() {
                 </div>
             )}
 
-            {/* Lista de Agendamentos do Dia */}
             <section>
                 <h2 className="text-xl font-bold text-[#5C4033] mb-4 flex items-center gap-2">
                     <span>📅</span> Agenda de Hoje
@@ -81,30 +101,40 @@ export default function DashboardProfissionalPage() {
                             Você não possui nenhum agendamento pendente para hoje.
                         </div>
                     ) : (
-                        agendamentosHoje.map((ag: any) => (
-                            <div key={ag.id} className={`bg-white p-5 md:p-6 rounded-lg shadow border-l-4 transition-all ${ag.concluido ? 'border-gray-300 opacity-60' : 'border-[#8B5A2B] hover:shadow-md'}`}>
+                        agendamentosHoje.map((ag) => (
+                            <div
+                                key={ag.id}
+                                className={`bg-white p-5 md:p-6 rounded-lg shadow border-l-4 transition-all ${ag.concluido
+                                        ? 'border-gray-300 opacity-60'
+                                        : 'border-[#8B5A2B] hover:shadow-md'
+                                    }`}
+                            >
                                 <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
-
                                     <div>
                                         <div className="flex items-center gap-3 mb-1">
                                             <span className="bg-gray-100 text-gray-800 font-bold px-3 py-1 rounded text-lg">
                                                 {formatarHora(ag.dataHoraInicio)}
                                             </span>
-                                            {ag.concluido && <span className="text-xs bg-gray-200 text-gray-600 px-2 py-1 rounded font-bold uppercase">Finalizado</span>}
+                                            {ag.concluido && (
+                                                <span className="text-xs bg-gray-200 text-gray-600 px-2 py-1 rounded font-bold uppercase">
+                                                    Finalizado
+                                                </span>
+                                            )}
                                         </div>
                                         <h3 className="text-lg font-bold text-gray-800 mt-2">{ag.cliente.nome}</h3>
                                         <p className="text-sm text-gray-500">{ag.cliente.telefone}</p>
-
                                         <div className="mt-3 flex flex-wrap gap-2">
-                                            {ag.servicos.map((item: any) => (
-                                                <span key={item.id} className="text-xs bg-orange-50 text-orange-800 border border-orange-200 px-2 py-1 rounded-full">
+                                            {ag.servicos.map((item) => (
+                                                <span
+                                                    key={item.id}
+                                                    className="text-xs bg-orange-50 text-orange-800 border border-orange-200 px-2 py-1 rounded-full"
+                                                >
                                                     {item.servico.nome}
                                                 </span>
                                             ))}
                                         </div>
                                     </div>
 
-                                    {/* Botão de Ação: Só permite abrir comanda de itens não concluídos */}
                                     {!ag.concluido && (
                                         <Link
                                             href={`/profissional/comanda/${ag.id}`}
@@ -113,7 +143,6 @@ export default function DashboardProfissionalPage() {
                                             Abrir Comanda
                                         </Link>
                                     )}
-
                                 </div>
                             </div>
                         ))
@@ -121,5 +150,5 @@ export default function DashboardProfissionalPage() {
                 </div>
             </section>
         </div>
-    );
+    )
 }

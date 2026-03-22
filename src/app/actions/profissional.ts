@@ -1,65 +1,83 @@
 'use server'
 
-import { prisma } from '@/lib/prisma';
-import { cookies } from 'next/headers';
-import { jwtVerify } from 'jose';
+import { prisma } from '@/lib/prisma'
+import { cookies } from 'next/headers'
+import { jwtVerify } from 'jose'
+import type { AgendamentoProfissional } from '@/types/domain'
 
-const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || 'chave_secreta_desenvolvimento');
+const JWT_SECRET = new TextEncoder().encode(
+    process.env.JWT_SECRET ?? 'chave_secreta_desenvolvimento'
+)
 
-export async function obterDadosPainelProfissional() {
+type ProfissionalInfo = {
+    nome: string
+    podeVerComissao: boolean
+    taxaComissao: number
+    comissaoMensal: number
+}
+
+type PainelResult =
+    | {
+        sucesso: true
+        profissional: ProfissionalInfo
+        agendamentosHoje: AgendamentoProfissional[]
+    }
+    | { sucesso: false; erro: string }
+
+export async function obterDadosPainelProfissional(): Promise<PainelResult> {
     try {
-        // 1. Identifica o profissional logado através do cookie de segurança
-        const cookieStore = await cookies();
-        const token = cookieStore.get('funcionario_session')?.value;
+        const cookieStore = await cookies()
+        const token = cookieStore.get('funcionario_session')?.value
 
-        if (!token) return { sucesso: false, erro: 'Não autenticado.' };
+        if (!token) return { sucesso: false, erro: 'Não autenticado.' }
 
-        const { payload } = await jwtVerify(token, JWT_SECRET);
-        const funcionarioId = payload.sub as string;
+        const { payload } = await jwtVerify(token, JWT_SECRET)
+        const funcionarioId = payload.sub
+
+        if (!funcionarioId) return { sucesso: false, erro: 'Token inválido.' }
 
         const funcionario = await prisma.funcionario.findUnique({
-            where: { id: funcionarioId }
-        });
+            where: { id: funcionarioId },
+        })
 
-        if (!funcionario) return { sucesso: false, erro: 'Profissional não encontrado.' };
+        if (!funcionario) return { sucesso: false, erro: 'Profissional não encontrado.' }
 
-        // 2. Define o intervalo de "hoje" (00:00 até 23:59)
-        const agora = new Date();
-        const inicioDoDia = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate(), 0, 0, 0);
-        const fimDoDia = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate(), 23, 59, 59);
+        const agora = new Date()
+        const inicioDoDia = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate(), 0, 0, 0)
+        const fimDoDia = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate(), 23, 59, 59)
 
-        // 3. Busca apenas a agenda de HOJE para este profissional
         const agendamentosHoje = await prisma.agendamento.findMany({
             where: {
                 funcionarioId,
-                dataHoraInicio: { gte: inicioDoDia, lte: fimDoDia }
+                dataHoraInicio: { gte: inicioDoDia, lte: fimDoDia },
             },
             orderBy: { dataHoraInicio: 'asc' },
             include: {
                 cliente: { select: { nome: true, telefone: true } },
-                servicos: { include: { servico: true } }
-            }
-        });
+                servicos: {
+                    include: { servico: { select: { id: true, nome: true, preco: true } } },
+                },
+            },
+        })
 
-        // 4. Calcula a comissão acumulada do mês atual (se ele tiver permissão para ver)
-        let comissaoMensal = 0;
+        let comissaoMensal = 0
 
         if (funcionario.podeVerComissao) {
-            const inicioDoMes = new Date(agora.getFullYear(), agora.getMonth(), 1);
+            const inicioDoMes = new Date(agora.getFullYear(), agora.getMonth(), 1)
 
             const agendamentosMes = await prisma.agendamento.findMany({
                 where: {
                     funcionarioId,
-                    concluido: true, // Só recebe comissão do que já foi pago/fechado
-                    dataHoraInicio: { gte: inicioDoMes }
+                    concluido: true,
+                    dataHoraInicio: { gte: inicioDoMes },
                 },
-                include: { servicos: true }
-            });
+                include: { servicos: true },
+            })
 
-            agendamentosMes.forEach(ag => {
-                const valorServicos = ag.servicos.reduce((acc, s) => acc + (s.precoCobrado || 0), 0);
-                comissaoMensal += valorServicos * (funcionario.comissao / 100);
-            });
+            for (const ag of agendamentosMes) {
+                const valorServicos = ag.servicos.reduce((acc, s) => acc + (s.precoCobrado ?? 0), 0)
+                comissaoMensal += valorServicos * (funcionario.comissao / 100)
+            }
         }
 
         return {
@@ -68,12 +86,12 @@ export async function obterDadosPainelProfissional() {
                 nome: funcionario.nome,
                 podeVerComissao: funcionario.podeVerComissao,
                 taxaComissao: funcionario.comissao,
-                comissaoMensal
+                comissaoMensal,
             },
-            agendamentosHoje
-        };
+            agendamentosHoje: agendamentosHoje as unknown as AgendamentoProfissional[],
+        }
     } catch (error) {
-        console.error('Erro ao carregar painel do profissional:', error);
-        return { sucesso: false, erro: 'Falha técnica ao carregar o seu painel.' };
+        console.error('Erro ao carregar painel do profissional:', error)
+        return { sucesso: false, erro: 'Falha técnica ao carregar o seu painel.' }
     }
 }
