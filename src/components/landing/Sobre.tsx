@@ -1,14 +1,19 @@
-export default function Sobre() {
+import { memo } from 'react'
+
+const Sobre = memo(function Sobre() {
     return (
         <section id="sobre" className="py-16 md:py-28 px-6 md:px-16 bg-creme-escuro flex items-center justify-center">
             <div className="max-w-[1000px] w-full grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-16 items-center">
+
                 <div className="relative w-full aspect-[4/5] rounded-lg overflow-hidden shadow-[0_20px_40px_rgba(42,24,16,0.1)]">
                     <img
                         src="https://images.unsplash.com/photo-1560066984-138dadb4c035?q=80&w=1074&auto=format&fit=crop"
                         alt="Interior do Salão LmLu Mattielo"
                         className="w-full h-full object-cover"
+                        loading="lazy"
                     />
                 </div>
+
                 <div className="flex flex-col text-center md:text-left">
                     <p className="text-[0.68rem] font-medium tracking-[0.25em] uppercase text-caramelo mb-3">Nossa Essência</p>
                     <h2 className="font-serif text-[2.5rem] md:text-[3.5rem] font-light text-marrom-profundo mb-6 leading-[1.1]">
@@ -21,7 +26,10 @@ export default function Sobre() {
                         Nossa equipe de especialistas combina técnicas avançadas, produtos de excelência internacional e um atendimento meticulosamente personalizado para garantir resultados impecáveis que respeitam e realçam a sua identidade única.
                     </p>
                 </div>
+
             </div>
         </section>
-    );
-}
+    )
+})
+
+export default Sobre

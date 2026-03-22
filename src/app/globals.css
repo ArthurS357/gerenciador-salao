@@ -1,8 +1,14 @@
-@import "tailwindcss";
+/*
+ * REGRA CSS SPEC: @import deve preceder TODAS as regras.
+ * O PostCSS expande @import "tailwindcss" para ~1400 linhas inline,
+ * por isso as fontes do Google DEVEM vir ANTES.
+ */
 @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400;1,600&family=DM+Sans:wght@300;400;500;600&display=swap');
 
+@import "tailwindcss";
+
+/* ── Tailwind v4: tokens de design ────────────────────────────────────────── */
 @theme {
-  /* Nossas Cores Premium */
   --color-marrom-profundo: #2a1810;
   --color-marrom-medio: #5C4033;
   --color-marrom-claro: #8B5A2B;
@@ -12,11 +18,9 @@
   --color-bege-borda: #ddd0bc;
   --color-texto-suave: #9c8070;
 
-  /* Nossas Fontes */
   --font-sans: "DM Sans", sans-serif;
   --font-serif: "Cormorant Garamond", serif;
 
-  /* Nossas Animações 3D e de Interface */
   --animate-floating-logo: floatingLogo 6s ease-in-out infinite;
   --animate-fade-in: fadeIn 0.25s ease;
   --animate-slide-up: slideUp 0.35s ease;
@@ -58,7 +62,19 @@
   }
 }
 
-/* Configurações Globais Básicas */
+/* ── Compatibilidade CSS Module (legado) ────────────────────────────────── */
+:root {
+  --marrom-profundo: var(--color-marrom-profundo);
+  --marrom-medio: var(--color-marrom-medio);
+  --marrom-claro: var(--color-marrom-claro);
+  --caramelo: var(--color-caramelo);
+  --creme: var(--color-creme);
+  --creme-escuro: var(--color-creme-escuro);
+  --bege-borda: var(--color-bege-borda);
+  --texto-suave: var(--color-texto-suave);
+}
+
+/* ── Reset global ────────────────────────────────────────────────────────── */
 html {
   scroll-behavior: smooth;
 }
@@ -70,4 +86,19 @@ body {
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/*
+ * ── Estilos não expressáveis em Tailwind ─────────────────────────────────
+ * Pseudo-elementos e seletores de <option> não têm classes utilitárias.
+ * Estas 6 linhas substituem ~15 linhas do CSS Module anterior.
+ */
+.dark-select option {
+  background-color: #2a1810;
+  color: white;
+}
+
+.dark-input[type='datetime-local']::-webkit-calendar-picker-indicator {
+  filter: invert(0.6) sepia(1) saturate(0.5) hue-rotate(340deg);
+  cursor: pointer;
 }
