@@ -1,20 +1,18 @@
 'use client'
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import { loginCliente } from '@/app/actions/auth';
 
 export default function LoginPage() {
-    const [nome, setNome] = useState('');
     const [telefone, setTelefone] = useState('');
+    const [nome, setNome] = useState('');
+    const [precisaNome, setPrecisaNome] = useState(false); // Flag de nova conta
     const [erro, setErro] = useState('');
     const [loading, setLoading] = useState(false);
     const [mounted, setMounted] = useState(false);
-    const router = useRouter();
 
     useEffect(() => setMounted(true), []);
 
-    // Função que aplica a máscara (XX) XXXXX-XXXX
     const formatarTelefone = (valor: string) => {
         let v = valor.replace(/\D/g, '');
         if (v.length > 11) v = v.slice(0, 11);
@@ -35,25 +33,19 @@ export default function LoginPage() {
         }
 
         try {
-            // Passo 1: Tenta logar normalmente
-            let res = await loginCliente(telefone, nome);
+            // Se precisaNome for falso, manda o nome undefined (para testar se já existe)
+            const res = await loginCliente(telefone, precisaNome ? nome : undefined);
 
-            // Passo 2: Se o nome não bater exatamente com o do banco, o servidor pede confirmação
-            if (res.requireConfirmation) {
-                const confirmar = window.confirm(`Encontramos um cadastro no nome de "${res.registeredName}" para este número. É você?`);
-
-                if (confirmar) {
-                    // Se confirmou, envia a requisição forçando o login com a flag "true"
-                    res = await loginCliente(telefone, res.registeredName!, true);
-                } else {
-                    setErro('Por favor, verifique o número digitado ou contate o salão.');
-                    setLoading(false);
-                    return;
-                }
+            if (res.requireName) {
+                // É um cliente novo! Abre o campo do nome.
+                setPrecisaNome(true);
+                setErro('');
+                setLoading(false);
+                return;
             }
 
             if (res.success) {
-                window.location.href = '/'; // Redirecionamento nativo para limpar cache de sessão
+                window.location.href = '/'; // Logado com sucesso
             } else {
                 setErro(res.error || 'Ocorreu um erro ao tentar entrar.');
             }
@@ -84,7 +76,6 @@ export default function LoginPage() {
                     .panel-esquerdo { display: none; }
                 }
 
-                /* Painel esquerdo — atmosfera visual */
                 .panel-esquerdo {
                     position: relative;
                     overflow: hidden;
@@ -159,7 +150,6 @@ export default function LoginPage() {
                     background: rgba(197, 168, 124, 0.4);
                 }
 
-                /* Painel direito — formulário */
                 .panel-direito {
                     display: flex;
                     align-items: center;
@@ -181,9 +171,7 @@ export default function LoginPage() {
                     max-width: 400px;
                 }
 
-                .logo-area {
-                    margin-bottom: 2.5rem;
-                }
+                .logo-area { margin-bottom: 2.5rem; }
 
                 .logo {
                     font-family: 'Cormorant Garamond', serif;
@@ -226,9 +214,14 @@ export default function LoginPage() {
                     margin-bottom: 2rem;
                 }
 
-                .campo {
-                    margin-bottom: 1.25rem;
+                .campo { margin-bottom: 1.25rem; }
+
+                @keyframes fadeInTop {
+                    from { opacity: 0; transform: translateY(-10px); }
+                    to { opacity: 1; transform: translateY(0); }
                 }
+
+                .fade-in { animation: fadeInTop 0.4s ease-out forwards; }
 
                 label {
                     display: block;
@@ -261,6 +254,12 @@ export default function LoginPage() {
                     box-shadow: 0 0 0 3px rgba(139, 90, 43, 0.08);
                 }
 
+                input:disabled {
+                    background: #f0e6d8;
+                    color: #9c8070;
+                    cursor: not-allowed;
+                }
+
                 .erro-msg {
                     display: flex;
                     align-items: center;
@@ -272,21 +271,6 @@ export default function LoginPage() {
                     color: #b04040;
                     font-size: 0.8rem;
                     margin-bottom: 1.25rem;
-                }
-
-                .erro-msg::before {
-                    content: '!';
-                    display: inline-flex;
-                    align-items: center;
-                    justify-content: center;
-                    width: 16px;
-                    height: 16px;
-                    min-width: 16px;
-                    border-radius: 50%;
-                    background: #f5c5c0;
-                    color: #b04040;
-                    font-size: 0.65rem;
-                    font-weight: 700;
                 }
 
                 .btn-entrar {
@@ -304,25 +288,15 @@ export default function LoginPage() {
                     cursor: pointer;
                     margin-top: 0.5rem;
                     transition: background 0.2s, transform 0.1s;
-                    position: relative;
-                    overflow: hidden;
                 }
 
                 .btn-entrar:hover:not(:disabled) { background: #5C4033; }
                 .btn-entrar:active:not(:disabled) { transform: scale(0.99); }
                 .btn-entrar:disabled { opacity: 0.6; cursor: not-allowed; }
 
-                .loader {
-                    display: inline-flex;
-                    align-items: center;
-                    gap: 0.4rem;
-                }
-
+                .loader { display: inline-flex; align-items: center; gap: 0.4rem; }
                 .loader-dot {
-                    width: 4px;
-                    height: 4px;
-                    border-radius: 50%;
-                    background: currentColor;
+                    width: 4px; height: 4px; border-radius: 50%; background: currentColor;
                     animation: bounce 1.2s ease-in-out infinite;
                 }
                 .loader-dot:nth-child(2) { animation-delay: 0.15s; }
@@ -344,57 +318,31 @@ export default function LoginPage() {
             `}</style>
 
             <div className="page">
-
-                {/* Painel esquerdo — decorativo */}
                 <div className="panel-esquerdo">
                     <div className="panel-esquerdo-conteudo">
                         <div>
                             <span className="decorativo-linha" />
-                            <p className="citacao">
-                                Beleza que <em>transforma</em>,<br />
-                                cuidado que <em>permanece</em>.
-                            </p>
+                            <p className="citacao">Beleza que <em>transforma</em>,<br />cuidado que <em>permanece</em>.</p>
                         </div>
                         <div className="rodape-esquerdo">
-                            <span>LmLu Mattielo</span>
-                            <span className="dot" />
-                            <span>Studio de Beleza</span>
+                            <span>LmLu Mattielo</span><span className="dot" /><span>Studio de Beleza</span>
                         </div>
                     </div>
                 </div>
 
-                {/* Painel direito — formulário */}
                 <div className={`panel-direito ${mounted ? 'visivel' : ''}`}>
                     <div className="card">
-
                         <div className="logo-area">
-                            <div className="logo">
-                                LmLu Mattielo
-                                <span>Studio de Beleza</span>
-                            </div>
+                            <div className="logo">LmLu Mattielo<span>Studio de Beleza</span></div>
                         </div>
 
-                        <h2 className="titulo-form">Bem-vinda de volta</h2>
-                        <p className="subtitulo-form">Acesse sua conta para realizar agendamentos</p>
+                        <h2 className="titulo-form">Bem-vinda</h2>
+                        <p className="subtitulo-form">Insira o seu número para acessar os agendamentos.</p>
 
                         <div className="divisor" />
-
                         {erro && <div className="erro-msg">{erro}</div>}
 
                         <form onSubmit={handleLogin}>
-                            <div className="campo">
-                                <label htmlFor="nome">Nome completo</label>
-                                <input
-                                    id="nome"
-                                    type="text"
-                                    required
-                                    value={nome}
-                                    onChange={(e) => setNome(e.target.value)}
-                                    placeholder="Ex: Maria Clara"
-                                    autoComplete="name"
-                                />
-                            </div>
-
                             <div className="campo">
                                 <label htmlFor="telefone">WhatsApp</label>
                                 <input
@@ -406,17 +354,32 @@ export default function LoginPage() {
                                     placeholder="(11) 90000-0000"
                                     autoComplete="tel"
                                     maxLength={15}
+                                    disabled={precisaNome} // Trava se já passou dessa fase
                                 />
                             </div>
+
+                            {precisaNome && (
+                                <div className="campo fade-in">
+                                    <label htmlFor="nome">Como podemos te chamar?</label>
+                                    <input
+                                        id="nome"
+                                        type="text"
+                                        required
+                                        value={nome}
+                                        onChange={(e) => setNome(e.target.value)}
+                                        placeholder="Seu primeiro nome"
+                                        autoComplete="name"
+                                        autoFocus // Foca automático quando aparece
+                                    />
+                                </div>
+                            )}
 
                             <button type="submit" disabled={loading} className="btn-entrar">
                                 {loading ? (
                                     <span className="loader">
-                                        <span className="loader-dot" />
-                                        <span className="loader-dot" />
-                                        <span className="loader-dot" />
+                                        <span className="loader-dot" /><span className="loader-dot" /><span className="loader-dot" />
                                     </span>
-                                ) : 'Entrar'}
+                                ) : precisaNome ? 'Concluir Cadastro e Entrar' : 'Continuar'}
                             </button>
                         </form>
 
@@ -424,7 +387,6 @@ export default function LoginPage() {
                             Seus dados são protegidos pela LGPD e utilizados<br />
                             exclusivamente para seus agendamentos.
                         </p>
-
                     </div>
                 </div>
             </div>

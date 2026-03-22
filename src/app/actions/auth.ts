@@ -15,8 +15,7 @@ export type LoginResult = {
     success: boolean;
     clienteId?: string;
     error?: string;
-    requireConfirmation?: boolean;
-    registeredName?: string;
+    requireName?: boolean; // <-- Nova flag para pedir o nome se não existir
 }
 
 type LoginFuncionarioResult =
@@ -24,7 +23,7 @@ type LoginFuncionarioResult =
     | { success: false; error: string }
 
 type SessaoClienteResult =
-    | { logado: true; id: string; nome: string } // <-- Atualizado para exigir o nome
+    | { logado: true; id: string; nome: string }
     | { logado: false }
 
 type SessaoFuncionarioResult =
@@ -35,27 +34,24 @@ type SessaoFuncionarioResult =
 
 export async function loginCliente(
     telefone: string,
-    nome: string,
-    forcarLogin: boolean = false
+    nome?: string // <-- Agora o nome é opcional no primeiro clique
 ): Promise<LoginResult> {
     try {
         let cliente = await prisma.cliente.findFirst({ where: { telefone } })
 
-        if (cliente && !forcarLogin) {
-            const nomeDB = cliente.nome.trim().toLowerCase();
-            const nomeInput = nome.trim().toLowerCase();
-
-            if (nomeDB !== nomeInput) {
-                return { success: false, requireConfirmation: true, registeredName: cliente.nome }
+        if (cliente) {
+            // Se o cliente existe, NÃO atualizamos o nome, apenas fazemos login direto.
+            if (cliente.anonimizado) {
+                return { success: false, error: 'Esta conta foi desativada e anonimizada.' }
             }
-        }
-
-        if (!cliente) {
+        } else {
+            // Se o cliente não existe, verificamos se o nome foi enviado.
+            if (!nome || nome.trim() === '') {
+                // Se não enviou, retorna pedindo o nome para a interface
+                return { success: false, requireName: true }
+            }
+            // Cria o cliente se ele enviou o nome no segundo passo
             cliente = await prisma.cliente.create({ data: { telefone, nome } })
-        }
-
-        if (cliente.anonimizado) {
-            return { success: false, error: 'Esta conta foi desativada e anonimizada.' }
         }
 
         const token = await new SignJWT({ sub: cliente.id, role: 'CLIENTE' })
@@ -133,7 +129,6 @@ export async function verificarSessaoCliente(): Promise<SessaoClienteResult> {
 
         if (payload.role !== 'CLIENTE' || !payload.sub) return { logado: false }
 
-        // <-- NOVA LÓGICA: Buscar o cliente no banco para resgatar o nome
         const cliente = await prisma.cliente.findUnique({
             where: { id: payload.sub },
             select: { nome: true, anonimizado: true }

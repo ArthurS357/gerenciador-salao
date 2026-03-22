@@ -5,7 +5,6 @@ import Link from 'next/link'
 import { cn } from './cn'
 import { logoutCliente, logoutFuncionario } from '@/app/actions/auth'
 
-// ── Tipagem da Sessão ────────────────────────────────────────────────────────
 export type SessaoProps = {
     logado: boolean;
     role?: 'CLIENTE' | 'PROFISSIONAL' | 'ADMIN';
@@ -13,9 +12,7 @@ export type SessaoProps = {
     id?: string;
 }
 
-export type NavbarProps = {
-    sessao: SessaoProps;
-}
+export type NavbarProps = { sessao: SessaoProps; }
 
 const NAV_LINKS = [
     { label: 'Serviços', href: '#servicos' },
@@ -23,39 +20,11 @@ const NAV_LINKS = [
     { label: 'Contato', href: '#contato' },
 ] as const
 
-// ── Ícones ────────────────────────────────────────────────────────────────────
-
-const IconeAgenda = () => (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-        <rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" />
-    </svg>
-)
-
-const IconeHistorico = () => (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-        <path d="M3 3h6l2 3H3z" /><path d="M3 8v13h18V8z" /><path d="M7 13h10M7 17h6" />
-    </svg>
-)
-
-const IconeUser = () => (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-        <circle cx="12" cy="8" r="4" /><path d="M4 20c0-4 3.58-7 8-7s8 3 8 7" />
-    </svg>
-)
-
-const IconeSair = () => (
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" />
-    </svg>
-)
-
-const IconeBriefcase = () => (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-        <rect x="2" y="7" width="20" height="14" rx="2" ry="2" /><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" /><line x1="12" y1="12" x2="12" y2="16" /><line x1="10" y1="14" x2="14" y2="14" />
-    </svg>
-)
-
-// ─────────────────────────────────────────────────────────────────────────────
+const IconeAgenda = () => (<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>)
+const IconeHistorico = () => (<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 3h6l2 3H3z" /><path d="M3 8v13h18V8z" /><path d="M7 13h10M7 17h6" /></svg>)
+const IconeUser = () => (<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4" /><path d="M4 20c0-4 3.58-7 8-7s8 3 8 7" /></svg>)
+const IconeSair = () => (<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></svg>)
+const IconeBriefcase = () => (<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="2" y="7" width="20" height="14" rx="2" ry="2" /><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" /><line x1="12" y1="12" x2="12" y2="16" /><line x1="10" y1="14" x2="14" y2="14" /></svg>)
 
 const Navbar = memo(function Navbar({ sessao }: NavbarProps) {
     const [scrolled, setScrolled] = useState(false)
@@ -65,11 +34,9 @@ const Navbar = memo(function Navbar({ sessao }: NavbarProps) {
 
     useEffect(() => {
         let lastScrollY = window.scrollY
-
         const onScroll = () => {
             const currentScrollY = window.scrollY
             setScrolled(currentScrollY > 24)
-
             if (currentScrollY > lastScrollY && currentScrollY > 50) {
                 setIsVisible(false)
             } else {
@@ -77,7 +44,6 @@ const Navbar = memo(function Navbar({ sessao }: NavbarProps) {
             }
             lastScrollY = currentScrollY
         }
-
         window.addEventListener('scroll', onScroll, { passive: true })
         return () => window.removeEventListener('scroll', onScroll)
     }, [])
@@ -93,7 +59,6 @@ const Navbar = memo(function Navbar({ sessao }: NavbarProps) {
         setLoadingLogout(true)
         await logoutCliente()
         closeMenu()
-        // Redirecionamento nativo força o Next.js a esquecer todo o cache do cliente
         window.location.href = '/'
     }
 
@@ -101,13 +66,15 @@ const Navbar = memo(function Navbar({ sessao }: NavbarProps) {
         setLoadingLogout(true)
         await logoutFuncionario()
         closeMenu()
-        // Redirecionamento nativo força o Next.js a esquecer todo o cache do cliente
         window.location.href = '/login-profissional'
     }
 
     const isCliente = sessao.logado && sessao.role === 'CLIENTE'
     const isFuncionario = sessao.logado && (sessao.role === 'PROFISSIONAL' || sessao.role === 'ADMIN')
     const isAdmin = sessao.logado && sessao.role === 'ADMIN'
+
+    // Extrai o primeiro nome para a saudação
+    const primeiroNome = sessao.nome ? sessao.nome.split(' ')[0] : '';
 
     return (
         <>
@@ -120,7 +87,6 @@ const Navbar = memo(function Navbar({ sessao }: NavbarProps) {
                     isVisible ? 'translate-y-0' : '-translate-y-full'
                 )}
             >
-                {/* ── Logo ── */}
                 <Link
                     href="/"
                     onClick={closeMenu}
@@ -137,25 +103,33 @@ const Navbar = memo(function Navbar({ sessao }: NavbarProps) {
                     </div>
                 </Link>
 
-                {/* ── Direita — contextual por role ── */}
+                {/* Direita — contextual por role */}
                 <div className="flex items-center gap-5 relative z-10">
 
+                    {/* Cliente Logado: Saudação + Painel */}
                     {isCliente && (
-                        <Link
-                            href="/cliente/dashboard"
-                            className="hidden md:flex items-center gap-2 text-[0.65rem] font-medium tracking-[0.2em] uppercase text-[#c5a87c]/70 transition-all duration-500 hover:text-[#c5a87c]"
-                        >
-                            O Meu Painel
-                        </Link>
+                        <div className="hidden md:flex items-center gap-5">
+                            <span className="text-[0.8rem] font-serif italic text-white/60">Olá, {primeiroNome}</span>
+                            <Link
+                                href="/cliente/dashboard"
+                                className="flex items-center gap-2 text-[0.65rem] font-medium tracking-[0.2em] uppercase text-[#c5a87c]/70 transition-all duration-500 hover:text-[#c5a87c]"
+                            >
+                                O Meu Painel
+                            </Link>
+                        </div>
                     )}
 
+                    {/* Funcionário Logado: Saudação + Painel */}
                     {isFuncionario && (
-                        <Link
-                            href="/profissional/agenda"
-                            className="hidden md:flex items-center gap-2 text-[0.65rem] font-medium tracking-[0.2em] uppercase text-[#c5a87c]/70 transition-all duration-500 hover:text-[#c5a87c]"
-                        >
-                            Minha Agenda
-                        </Link>
+                        <div className="hidden md:flex items-center gap-5">
+                            <span className="text-[0.8rem] font-serif italic text-white/60">Olá, {primeiroNome}</span>
+                            <Link
+                                href="/profissional/agenda"
+                                className="flex items-center gap-2 text-[0.65rem] font-medium tracking-[0.2em] uppercase text-[#c5a87c]/70 transition-all duration-500 hover:text-[#c5a87c]"
+                            >
+                                Minha Agenda
+                            </Link>
+                        </div>
                     )}
 
                     {!sessao.logado && (
@@ -171,7 +145,7 @@ const Navbar = memo(function Navbar({ sessao }: NavbarProps) {
                         <div aria-hidden="true" className="hidden md:block w-px h-3 bg-white/10" />
                     )}
 
-                    {/* ── Botão hamburguer ── */}
+                    {/* Botão hamburguer */}
                     <button
                         onClick={() => setMenuOpen(v => !v)}
                         aria-expanded={menuOpen}
@@ -223,7 +197,7 @@ const Navbar = memo(function Navbar({ sessao }: NavbarProps) {
                         </div>
                         {sessao.logado && sessao.nome && (
                             <p className="font-serif text-[0.9rem] font-light text-white/50 mt-1 ml-9">
-                                Olá, {sessao.nome}
+                                Olá, {primeiroNome}
                             </p>
                         )}
                     </div>
@@ -285,7 +259,7 @@ const Navbar = memo(function Navbar({ sessao }: NavbarProps) {
                     {isCliente && (
                         <div className="flex flex-col gap-2.5">
                             <Link
-                                href="/cliente/dashboard"
+                                href="/cliente/dashboard#agendamentos"
                                 onClick={closeMenu}
                                 className="group flex items-center gap-3.5 px-4 py-3.5 border border-[rgba(197,168,124,0.14)] bg-[rgba(197,168,124,0.03)] hover:bg-[rgba(197,168,124,0.07)] hover:border-[rgba(197,168,124,0.28)] transition-all duration-300 active:scale-[0.98]"
                                 style={{ clipPath: 'polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px)' }}
