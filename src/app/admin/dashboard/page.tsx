@@ -170,26 +170,22 @@ export default function TorreControleDashboard() {
                         <h2 className="text-2xl font-bold text-[#5C4033] mb-6">Cadastrar Profissional</h2>
                         <form onSubmit={handleCadastrarEquipe} className="space-y-4">
                             <div className="grid grid-cols-2 gap-4">
-                                {(
-                                    [
-                                        { label: 'Nome Completo', key: 'nome', type: 'text', required: true },
-                                        { label: 'E-mail Corporativo', key: 'email', type: 'email', required: true },
-                                        { label: 'CPF', key: 'cpf', type: 'text', required: true },
-                                        { label: 'Especialidade', key: 'especialidade', type: 'text', required: false, placeholder: 'Ex: Colorimetria' },
-                                    ] as const
-                                ).map(({ label, key, type, required, placeholder }) => (
-                                    <div key={key}>
-                                        <label className="block text-sm font-semibold text-gray-700 mb-1">{label}</label>
-                                        <input
-                                            required={required}
-                                            type={type}
-                                            placeholder={placeholder}
-                                            value={formData[key]}
-                                            className="w-full border rounded px-3 py-2"
-                                            onChange={campo(key)}
-                                        />
-                                    </div>
-                                ))}
+                                <div>
+                                    <label className="block text-sm font-semibold text-gray-700 mb-1">Nome Completo</label>
+                                    <input required type="text" value={formData.nome} className="w-full border rounded px-3 py-2" onChange={campo('nome')} />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-semibold text-gray-700 mb-1">E-mail Corporativo</label>
+                                    <input required type="email" value={formData.email} className="w-full border rounded px-3 py-2" onChange={campo('email')} />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-semibold text-gray-700 mb-1">CPF</label>
+                                    <input required type="text" value={formData.cpf} className="w-full border rounded px-3 py-2" onChange={campo('cpf')} />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-semibold text-gray-700 mb-1">Especialidade</label>
+                                    <input type="text" placeholder="Ex: Colorimetria" value={formData.especialidade} className="w-full border rounded px-3 py-2" onChange={campo('especialidade')} />
+                                </div>
                             </div>
                             <div>
                                 <label className="block text-sm font-semibold text-gray-700 mb-1">Comissão Padrão (%)</label>

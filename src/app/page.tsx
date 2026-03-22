@@ -1,6 +1,5 @@
 'use client'
 // src/app/page.tsx — Orquestrador da landing page
-// Hero gere o seu próprio `mounted` — não recebe essa prop aqui
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 
@@ -28,7 +27,6 @@ export default function LandingPage() {
   const [catalogoServicos, setCatalogoServicos] = useState<Servico[]>([])
   const [itensPortfolio, setItensPortfolio] = useState<ItemPortfolio[]>([])
   const [sessao, setSessao] = useState<Sessao>({ logado: false })
-  // `mounted` é necessário no FormularioReserva para desabilitar inputs antes da hidratação
   const [mounted, setMounted] = useState(false)
 
   const [servicosSelecionados, setServicosSelecionados] = useState<string[]>([])
@@ -50,25 +48,34 @@ export default function LandingPage() {
       if (resProfissionais.sucesso) setProfissionais(resProfissionais.profissionais)
       if (resServicos.sucesso) setCatalogoServicos(resServicos.servicos)
       if (resPortfolio.sucesso) setItensPortfolio(resPortfolio.itens)
-      setSessao({ logado: resSessao.logado, id: resSessao.id ?? '' })
+
+      // Narrowing correto da union discriminada: { logado: true; id: string } | { logado: false }
+      if (resSessao.logado) {
+        setSessao({ logado: true, id: resSessao.id })
+      } else {
+        setSessao({ logado: false })
+      }
     }
 
-    carregarDados()
+    void carregarDados()
   }, [])
 
   const toggleServico = (id: string) =>
-    setServicosSelecionados(prev =>
-      prev.includes(id) ? prev.filter(s => s !== id) : [...prev, id]
+    setServicosSelecionados((prev) =>
+      prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id]
     )
 
   const handleAgendar = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!sessao.logado) {
+    // Adicionamos o `|| !sessao.id` aqui. 
+    // Isso ensina ao TypeScript que, se o código passar daqui, o id é garantidamente uma string.
+    if (!sessao.logado || !sessao.id) {
       setMensagem({ texto: 'Para agendar, faça login com a sua conta. A redirecionar...', tipo: 'erro' })
       setTimeout(() => router.push('/login'), 2500)
       return
     }
+
     if (servicosSelecionados.length === 0) {
       setMensagem({ texto: 'Por favor, selecione pelo menos um serviço.', tipo: 'erro' })
       return
@@ -77,7 +84,7 @@ export default function LandingPage() {
     setMensagem({ texto: 'A processar reserva...', tipo: 'info' })
 
     const res = await criarAgendamentoMultiplo(
-      sessao.id ?? '',
+      sessao.id, // O TypeScript agora sabe que isso é uma string!
       profissionalId,
       new Date(dataHora),
       servicosSelecionados,
@@ -87,18 +94,17 @@ export default function LandingPage() {
       setMensagem({ texto: 'Agendamento confirmado! A redirecionar...', tipo: 'sucesso' })
       setTimeout(() => router.push('/cliente/dashboard'), 2500)
     } else {
-      setMensagem({ texto: res.erro ?? 'Erro ao agendar.', tipo: 'erro' })
+      setMensagem({ texto: res.erro, tipo: 'erro' })
     }
   }
 
   const totalSelecionado = catalogoServicos
-    .filter(s => servicosSelecionados.includes(s.id))
+    .filter((s) => servicosSelecionados.includes(s.id))
     .reduce((acc, s) => acc + (s.preco ?? 0), 0)
 
   return (
     <>
       <Navbar sessao={sessao} />
-      {/* Hero gere internamente o seu próprio estado mounted */}
       <Hero />
       <Sobre />
       <ServicosVitrine
@@ -123,7 +129,7 @@ export default function LandingPage() {
         setDataHora={setDataHora}
         mensagem={mensagem}
         handleAgendar={handleAgendar}
-        profissionalSelecionado={profissionais.find(p => p.id === profissionalId)}
+        profissionalSelecionado={profissionais.find((p) => p.id === profissionalId)}
       />
       <Localizacao />
       <Footer />

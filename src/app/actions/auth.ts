@@ -30,11 +30,16 @@ export async function loginCliente(
     nome: string
 ): Promise<LoginResult> {
     try {
-        const cliente = await prisma.cliente.upsert({
-            where: { telefone },
-            update: { nome },
-            create: { telefone, nome },
-        })
+        let cliente = await prisma.cliente.findFirst({ where: { telefone } })
+
+        if (cliente) {
+            cliente = await prisma.cliente.update({
+                where: { id: cliente.id },
+                data: { nome },
+            })
+        } else {
+            cliente = await prisma.cliente.create({ data: { telefone, nome } })
+        }
 
         if (cliente.anonimizado) {
             return { success: false, error: 'Esta conta foi desativada e anonimizada.' }

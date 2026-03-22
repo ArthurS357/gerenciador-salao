@@ -1,7 +1,6 @@
-// src/middleware.ts
-// ⚠️ CORREÇÃO CRÍTICA: O arquivo anterior (proxy.ts) exportava `proxy` em vez de
-// `middleware` — o Next.js ignorava completamente a proteção de rotas.
-// Renomeado para middleware.ts com export correto.
+// src/proxy.ts
+// Next.js 16.2.0+ usa a convenção "proxy" em vez de "middleware".
+// O arquivo deve se chamar proxy.ts e exportar a função como `middleware`.
 
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
@@ -14,7 +13,7 @@ const JWT_SECRET = new TextEncoder().encode(
 const REDIRECT_PROFISSIONAL = '/login-profissional'
 const REDIRECT_CLIENTE = '/login'
 
-export async function middleware(request: NextRequest): Promise<NextResponse> {
+export async function proxy(request: NextRequest): Promise<NextResponse> {
     const { pathname } = request.nextUrl
 
     // ── 1. Área Corporativa (/admin e /profissional) ────────────────────────────
