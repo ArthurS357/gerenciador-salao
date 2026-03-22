@@ -25,18 +25,25 @@ export async function obterResumoFinanceiro(): Promise<ActionResult<FinanceiroRe
         for (const ag of agendamentos) {
             faturamentoBruto += ag.valorBruto
 
+            // 1. Correção do Custo: Se o produto não existir, tenta assumir o preço cobrado como base (fallback)
             for (const item of ag.produtos) {
-                custoProdutos += item.produto.precoCusto * item.quantidade
+                const custoBase = item.produto?.precoCusto ?? (item.precoCobrado * 0.5); // Fallback caso produto apagado
+                custoProdutos += custoBase * item.quantidade
             }
 
+            // 2. Correção da Comissão: Garante que estamos pegando o preço efetivamente cobrado
             const valorServicos = ag.servicos.reduce(
                 (acc, s) => acc + (s.precoCobrado ?? 0),
                 0
             )
+            // Assumimos que a comissão incide apenas sobre os serviços prestados, e não sobre a venda de produtos físicos
             totalComissoes += valorServicos * (ag.funcionario.comissao / 100)
         }
 
-        const lucroLiquido = faturamentoBruto - custoProdutos - totalComissoes
+        // Subtraímos as deduções (como taxas de cartão) que foram calculadas no fechamento da comanda
+        const totalTaxas = agendamentos.reduce((acc, ag) => acc + (ag.taxas ?? 0), 0)
+
+        const lucroLiquido = faturamentoBruto - custoProdutos - totalComissoes - totalTaxas
 
         const equipe = await prisma.funcionario.findMany({
             where: { role: 'PROFISSIONAL', ativo: true },

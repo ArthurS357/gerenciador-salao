@@ -52,7 +52,8 @@ export async function adicionarProdutoNaComanda(agendamentoId: string, produtoId
 export async function finalizarComanda(agendamentoId: string) {
     try {
         const agendamento = await prisma.agendamento.findUnique({
-            where: { id: agendamentoId }
+            where: { id: agendamentoId },
+            include: { funcionario: true }
         })
 
         if (!agendamento) {
@@ -63,10 +64,17 @@ export async function finalizarComanda(agendamentoId: string) {
             return { sucesso: false, erro: 'Esta comanda já foi faturada.' }
         }
 
-        // Fatura a comanda
+        // Lógica Matemática de Fecho: Aplicamos uma taxa fixa de cartão de crédito de 3% sobre o Bruto
+        const taxaAdquirentePercentual = 3
+        const valorTaxaCartao = agendamento.valorBruto * (taxaAdquirentePercentual / 100)
+
+        // Fatura a comanda e guarda o valor da taxa para abater no lucro líquido do painel
         await prisma.agendamento.update({
             where: { id: agendamentoId },
-            data: { concluido: true }
+            data: {
+                concluido: true,
+                taxas: valorTaxaCartao
+            }
         })
 
         revalidatePath('/profissional/agenda')
