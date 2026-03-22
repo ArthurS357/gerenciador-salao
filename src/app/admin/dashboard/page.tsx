@@ -26,9 +26,17 @@ export default function TorreControleDashboard() {
     const [isModalOpen, setIsModalOpen] = useState(false)
     const [formData, setFormData] = useState<FormData>(FORM_INICIAL)
 
+    // Novos estados de controle de fluxo e UI
+    const [isSubmitting, setIsSubmitting] = useState(false)
+    const [idAcaoLoading, setIdAcaoLoading] = useState<string | null>(null)
+
     const carregarEquipa = useCallback(async () => {
-        const res = await listarEquipaAdmin()
-        if (res.sucesso) setEquipa(res.equipa)
+        try {
+            const res = await listarEquipaAdmin()
+            if (res.sucesso) setEquipa(res.equipa)
+        } catch (error) {
+            console.error("Falha ao carregar a equipa:", error)
+        }
     }, [])
 
     useEffect(() => {
@@ -37,32 +45,57 @@ export default function TorreControleDashboard() {
 
     const handleCadastrarEquipe = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault()
-        setMensagem({ texto: 'A cadastrar...', tipo: 'info' })
 
-        const res = await criarFuncionario(formData)
+        // Bloqueia tentativas extras se já estiver enviando
+        if (isSubmitting) return
 
-        if (res.sucesso) {
-            setMensagem({ texto: 'Profissional cadastrado! Senha temporária: Mudar@123', tipo: 'sucesso' })
-            setIsModalOpen(false)
-            setFormData(FORM_INICIAL)
-            void carregarEquipa()
-        } else {
-            setMensagem({ texto: res.erro, tipo: 'erro' })
+        setIsSubmitting(true)
+        setMensagem({ texto: 'A processar cadastro...', tipo: 'info' })
+
+        try {
+            const res = await criarFuncionario(formData)
+
+            if (res.sucesso) {
+                setMensagem({ texto: 'Profissional cadastrado! Senha temporária: Mudar@123', tipo: 'sucesso' })
+                setIsModalOpen(false)
+                setFormData(FORM_INICIAL)
+                void carregarEquipa()
+            } else {
+                setMensagem({ texto: res.erro || 'Falha ao registrar profissional.', tipo: 'erro' })
+            }
+        } catch (error) {
+            // Captura de erro de rede ou timeout
+            setMensagem({ texto: 'Erro de comunicação com o servidor. Verifique a internet e tente novamente.', tipo: 'erro' })
+        } finally {
+            // Libera o formulário em caso de sucesso ou erro
+            setIsSubmitting(false)
         }
     }
 
     const handleInativar = async (id: string, nome: string) => {
+        // Bloqueia cliques paralelos na tabela
+        if (idAcaoLoading) return
+
         const confirmar = confirm(
             `Tem a certeza que deseja desativar o acesso de ${nome}? O histórico financeiro será mantido.`
         )
         if (!confirmar) return
 
-        const res = await inativarFuncionario(id)
-        if (res.sucesso) {
-            setMensagem({ texto: 'Profissional inativado com sucesso.', tipo: 'sucesso' })
-            void carregarEquipa()
-        } else {
-            setMensagem({ texto: res.erro, tipo: 'erro' })
+        setIdAcaoLoading(id)
+        setMensagem({ texto: '', tipo: '' })
+
+        try {
+            const res = await inativarFuncionario(id)
+            if (res.sucesso) {
+                setMensagem({ texto: 'Profissional inativado com sucesso.', tipo: 'sucesso' })
+                void carregarEquipa()
+            } else {
+                setMensagem({ texto: res.erro || 'Não foi possível inativar.', tipo: 'erro' })
+            }
+        } catch (error) {
+            setMensagem({ texto: 'Erro de comunicação ao tentar inativar.', tipo: 'erro' })
+        } finally {
+            setIdAcaoLoading(null)
         }
     }
 
@@ -151,9 +184,13 @@ export default function TorreControleDashboard() {
                                     <td className="p-4 text-right">
                                         <button
                                             onClick={() => handleInativar(prof.id, prof.nome)}
-                                            className="bg-red-50 text-red-600 px-3 py-1 rounded text-sm font-bold border border-red-200 hover:bg-red-100"
+                                            disabled={idAcaoLoading === prof.id}
+                                            className={`px-3 py-1 rounded text-sm font-bold border transition-colors ${idAcaoLoading === prof.id
+                                                    ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+                                                    : 'bg-red-50 text-red-600 border-red-200 hover:bg-red-100'
+                                                }`}
                                         >
-                                            Desativar
+                                            {idAcaoLoading === prof.id ? 'A processar...' : 'Desativar'}
                                         </button>
                                     </td>
                                 </tr>
@@ -172,46 +209,49 @@ export default function TorreControleDashboard() {
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-sm font-semibold text-gray-700 mb-1">Nome Completo</label>
-                                    <input required type="text" value={formData.nome} className="w-full border rounded px-3 py-2" onChange={campo('nome')} />
+                                    <input required disabled={isSubmitting} type="text" value={formData.nome} className="w-full border rounded px-3 py-2 disabled:bg-gray-100" onChange={campo('nome')} />
                                 </div>
                                 <div>
                                     <label className="block text-sm font-semibold text-gray-700 mb-1">E-mail Corporativo</label>
-                                    <input required type="email" value={formData.email} className="w-full border rounded px-3 py-2" onChange={campo('email')} />
+                                    <input required disabled={isSubmitting} type="email" value={formData.email} className="w-full border rounded px-3 py-2 disabled:bg-gray-100" onChange={campo('email')} />
                                 </div>
                                 <div>
                                     <label className="block text-sm font-semibold text-gray-700 mb-1">CPF</label>
-                                    <input required type="text" value={formData.cpf} className="w-full border rounded px-3 py-2" onChange={campo('cpf')} />
+                                    <input required disabled={isSubmitting} type="text" value={formData.cpf} className="w-full border rounded px-3 py-2 disabled:bg-gray-100" onChange={campo('cpf')} />
                                 </div>
                                 <div>
                                     <label className="block text-sm font-semibold text-gray-700 mb-1">Especialidade</label>
-                                    <input type="text" placeholder="Ex: Colorimetria" value={formData.especialidade} className="w-full border rounded px-3 py-2" onChange={campo('especialidade')} />
+                                    <input type="text" disabled={isSubmitting} placeholder="Ex: Colorimetria" value={formData.especialidade} className="w-full border rounded px-3 py-2 disabled:bg-gray-100" onChange={campo('especialidade')} />
                                 </div>
                             </div>
                             <div>
                                 <label className="block text-sm font-semibold text-gray-700 mb-1">Comissão Padrão (%)</label>
                                 <input
                                     required
+                                    disabled={isSubmitting}
                                     type="number"
                                     min="0"
                                     max="100"
                                     value={formData.comissao}
-                                    className="w-full border rounded px-3 py-2"
+                                    className="w-full border rounded px-3 py-2 disabled:bg-gray-100"
                                     onChange={campo('comissao')}
                                 />
                             </div>
                             <div className="flex justify-end gap-3 mt-6">
                                 <button
                                     type="button"
+                                    disabled={isSubmitting}
                                     onClick={() => { setIsModalOpen(false); setFormData(FORM_INICIAL) }}
-                                    className="px-4 py-2 text-gray-600 font-bold hover:bg-gray-100 rounded"
+                                    className="px-4 py-2 text-gray-600 font-bold hover:bg-gray-100 rounded disabled:opacity-50"
                                 >
                                     Cancelar
                                 </button>
                                 <button
                                     type="submit"
-                                    className="px-4 py-2 bg-[#5C4033] text-white font-bold rounded hover:bg-[#3e2b22]"
+                                    disabled={isSubmitting}
+                                    className="px-4 py-2 bg-[#5C4033] text-white font-bold rounded hover:bg-[#3e2b22] disabled:opacity-70 disabled:cursor-not-allowed"
                                 >
-                                    Salvar Cadastro
+                                    {isSubmitting ? 'Salvando...' : 'Salvar Cadastro'}
                                 </button>
                             </div>
                         </form>
