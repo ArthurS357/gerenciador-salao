@@ -4,6 +4,7 @@ import { jwtVerify } from 'jose';
 import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import { listarAgendaProfissional } from '@/app/actions/agendamento';
+import BotaoCancelarAgendamento from '@/components/BotaoCancelarAgendamento';
 
 const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || 'chave_secreta_desenvolvimento');
 
@@ -27,15 +28,16 @@ export default async function AgendaProfissionalPage() {
         redirect('/login-profissional');
     }
 
-    // 2. Consulta as permissões em tempo real no banco de dados
+    // 2. Consulta as permissões em tempo real no banco de dados (incluindo podeCancelar)
     const usuarioLogado = await prisma.funcionario.findUnique({
         where: { id: funcionarioId },
-        select: { podeAgendar: true, podeVerHistorico: true }
+        select: { podeAgendar: true, podeVerHistorico: true, podeCancelar: true }
     });
 
     // Administradores têm sempre acesso total; Profissionais dependem da flag no banco
     const permissaoAgendar = funcionarioRole === 'ADMIN' || usuarioLogado?.podeAgendar === true;
     const permissaoHistorico = funcionarioRole === 'ADMIN' || usuarioLogado?.podeVerHistorico === true;
+    const permissaoCancelar = funcionarioRole === 'ADMIN' || usuarioLogado?.podeCancelar === true;
 
     // 3. Resgata a agenda do profissional logado
     const res = await listarAgendaProfissional(funcionarioId);
@@ -122,14 +124,19 @@ export default async function AgendaProfissionalPage() {
                                             </div>
                                         </div>
 
-                                        {/* Ação: Abrir Comanda */}
-                                        <div className="w-full md:w-auto">
+                                        {/* Ação: Abrir Comanda e Cancelar (se permitido) */}
+                                        <div className="w-full md:w-auto flex flex-col gap-2">
                                             <Link
                                                 href={`/profissional/comanda/${agendamento.id}`}
                                                 className="block w-full md:w-auto text-center px-6 py-3 bg-[#5C4033] text-white font-bold rounded-xl hover:bg-[#3e2b22] transition-colors shadow-sm"
                                             >
                                                 Abrir Comanda
                                             </Link>
+
+                                            {/* Trava Visual de Cancelamento */}
+                                            {permissaoCancelar && (
+                                                <BotaoCancelarAgendamento id={agendamento.id} />
+                                            )}
                                         </div>
                                     </div>
                                 ))}

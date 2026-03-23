@@ -18,6 +18,7 @@ type DadosCriarFuncionario = {
     comissao?: number
     podeAgendar?: boolean
     podeVerHistorico?: boolean
+    podeCancelar?: boolean
     servicosIds?: string[]
 }
 
@@ -94,6 +95,7 @@ export async function criarFuncionario(
                 comissao: Number(dados.comissao) || 40.0,
                 podeAgendar: dados.podeAgendar ?? false,
                 podeVerHistorico: dados.podeVerHistorico ?? false,
+                podeCancelar: dados.podeCancelar ?? false,
                 // Conecta os serviços se o array existir e não estiver vazio
                 servicos: dados.servicosIds && dados.servicosIds.length > 0
                     ? { connect: dados.servicosIds.map(id => ({ id })) }
@@ -159,7 +161,7 @@ export async function atualizarPermissoesFuncionario(
 
 export async function atualizarFuncionarioCompleto(
     id: string,
-    dados: { comissao: number, podeVerComissao: boolean, podeAgendar: boolean, podeVerHistorico: boolean }
+    dados: { comissao: number, podeVerComissao: boolean, podeAgendar: boolean, podeVerHistorico: boolean, podeCancelar: boolean }
 ): Promise<ActionResult> {
     try {
         await prisma.funcionario.update({

@@ -29,6 +29,7 @@ model Funcionario {
   podeVerComissao   Boolean       @default(true)
   podeAgendar       Boolean       @default(false)
   podeVerHistorico  Boolean       @default(false)
+  podeCancelar      Boolean       @default(false)
   cpf               String?       @unique
   telefone          String?
   descricao         String?

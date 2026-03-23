@@ -8,7 +8,7 @@ import {
     listarEquipaAdmin,
     atualizarFuncionarioCompleto,
     excluirFuncionarioPermanente,
-    editarFuncionarioCompleto // <-- Nova importação para salvar serviços
+    editarFuncionarioCompleto
 } from '@/app/actions/admin'
 import { listarServicosAdmin } from '@/app/actions/servico'
 
@@ -20,12 +20,13 @@ type FormData = {
     especialidade: string
     comissao: number
     servicosIds: string[]
+    podeCancelar: boolean // <-- Nova permissão adicionada
 }
 
 type Mensagem = { texto: string; tipo: 'sucesso' | 'erro' | 'info' | '' }
 
 const FORM_INICIAL: FormData = {
-    nome: '', email: '', cpf: '', telefone: '', especialidade: '', comissao: 40, servicosIds: []
+    nome: '', email: '', cpf: '', telefone: '', especialidade: '', comissao: 40, servicosIds: [], podeCancelar: false
 }
 
 export default function TorreControleDashboard() {
@@ -57,7 +58,8 @@ export default function TorreControleDashboard() {
                         comissao: p.comissao,
                         podeVerComissao: p.podeVerComissao,
                         podeAgendar: p.podeAgendar,
-                        podeVerHistorico: p.podeVerHistorico
+                        podeVerHistorico: p.podeVerHistorico,
+                        podeCancelar: p.podeCancelar // <-- Mapeia o valor do banco de dados
                     }
                 })
                 setEditState(estadoInicial)
@@ -287,13 +289,14 @@ export default function TorreControleDashboard() {
                                 <th className="p-4 text-sm font-semibold text-center">Vê Finanças?</th>
                                 <th className="p-4 text-sm font-semibold text-center">Pode Agendar?</th>
                                 <th className="p-4 text-sm font-semibold text-center">Vê Histórico?</th>
+                                <th className="p-4 text-sm font-semibold text-center">Pode Cancelar?</th>
                                 <th className="p-4 text-sm font-semibold text-right">Ações</th>
                             </tr>
                         </thead>
                         <tbody>
                             {equipa.length === 0 ? (
                                 <tr className="border-b border-gray-100">
-                                    <td colSpan={6} className="p-8 text-center text-gray-500">
+                                    <td colSpan={7} className="p-8 text-center text-gray-500">
                                         Nenhum profissional ativo na equipa. Clique em &quot;+ Novo Profissional&quot;.
                                     </td>
                                 </tr>
@@ -333,6 +336,9 @@ export default function TorreControleDashboard() {
                                             </td>
                                             <td className="p-4 text-center">
                                                 <input type="checkbox" disabled={isLoading} checked={estado.podeVerHistorico} onChange={e => setValorEdit(prof.id, 'podeVerHistorico', e.target.checked)} className="w-4 h-4 accent-[#8B5A2B]" />
+                                            </td>
+                                            <td className="p-4 text-center">
+                                                <input type="checkbox" disabled={isLoading} checked={estado.podeCancelar} onChange={e => setValorEdit(prof.id, 'podeCancelar', e.target.checked)} className="w-4 h-4 accent-[#8B5A2B]" />
                                             </td>
                                             <td className="p-4 text-right">
                                                 <div className="flex flex-col gap-2 items-end justify-center">
