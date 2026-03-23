@@ -73,6 +73,25 @@ export async function criarServicoAdmin(
     }
 }
 
+// ── LÓGICA DE DESTAQUE (Vitrine / Homepage) ───────────────────────────────────
+
+export async function alternarDestaqueServico(id: string, destaque: boolean): Promise<ActionResult> {
+    try {
+        await prisma.servico.update({
+            where: { id },
+            data: { destaque }
+        })
+
+        // Atualizamos tanto o painel admin quanto a landing page (pública)
+        revalidatePath('/admin/servicos')
+        revalidatePath('/')
+
+        return { sucesso: true }
+    } catch {
+        return { sucesso: false, erro: 'Falha ao alterar o status de destaque.' }
+    }
+}
+
 // ── NOVA LÓGICA: GESTÃO DA FICHA TÉCNICA ──────────────────────────────────────
 
 export async function adicionarInsumoFichaTecnica(

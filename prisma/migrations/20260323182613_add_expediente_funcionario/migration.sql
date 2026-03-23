@@ -30,6 +30,17 @@ CREATE TABLE "Funcionario" (
 );
 
 -- CreateTable
+CREATE TABLE "Expediente" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "funcionarioId" TEXT NOT NULL,
+    "diaSemana" INTEGER NOT NULL,
+    "horaInicio" TEXT NOT NULL,
+    "horaFim" TEXT NOT NULL,
+    "ativo" BOOLEAN NOT NULL DEFAULT false,
+    CONSTRAINT "Expediente_funcionarioId_fkey" FOREIGN KEY ("funcionarioId") REFERENCES "Funcionario" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+-- CreateTable
 CREATE TABLE "Servico" (
     "id" TEXT NOT NULL PRIMARY KEY,
     "nome" TEXT NOT NULL,
@@ -37,7 +48,8 @@ CREATE TABLE "Servico" (
     "preco" REAL,
     "tempoMinutos" INTEGER,
     "imagemUrl" TEXT,
-    "ativo" BOOLEAN NOT NULL DEFAULT true
+    "ativo" BOOLEAN NOT NULL DEFAULT true,
+    "destaque" BOOLEAN NOT NULL DEFAULT false
 );
 
 -- CreateTable
@@ -75,6 +87,7 @@ CREATE TABLE "Agendamento" (
     "valorBruto" REAL NOT NULL,
     "taxas" REAL NOT NULL DEFAULT 0,
     "concluido" BOOLEAN NOT NULL DEFAULT false,
+    "custoInsumos" REAL NOT NULL DEFAULT 0,
     CONSTRAINT "Agendamento_clienteId_fkey" FOREIGN KEY ("clienteId") REFERENCES "Cliente" ("id") ON DELETE RESTRICT ON UPDATE CASCADE,
     CONSTRAINT "Agendamento_funcionarioId_fkey" FOREIGN KEY ("funcionarioId") REFERENCES "Funcionario" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
 );
@@ -124,6 +137,9 @@ CREATE UNIQUE INDEX "Funcionario_email_key" ON "Funcionario"("email");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Funcionario_cpf_key" ON "Funcionario"("cpf");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Expediente_funcionarioId_diaSemana_key" ON "Expediente"("funcionarioId", "diaSemana");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "InsumoServico_servicoId_produtoId_key" ON "InsumoServico"("servicoId", "produtoId");

@@ -9,6 +9,11 @@ const JWT_SECRET = new TextEncoder().encode(
     process.env.JWT_SECRET ?? 'chave_secreta_desenvolvimento'
 )
 
+// ── CORREÇÃO: Definição do ActionResult adicionada aqui ──
+type ActionResult<T = object> =
+    | ({ sucesso: true } & T)
+    | { sucesso: false; erro: string }
+
 type ProfissionalInfo = {
     nome: string
     podeVerComissao: boolean
@@ -93,5 +98,100 @@ export async function obterDadosPainelProfissional(): Promise<PainelResult> {
     } catch (error) {
         console.error('Erro ao carregar painel do profissional:', error)
         return { sucesso: false, erro: 'Falha técnica ao carregar o seu painel.' }
+    }
+}
+
+export async function obterPerfilEExpediente(): Promise<ActionResult<{ fotoUrl: string | null, expedientes: any[] }>> {
+    try {
+        const cookieStore = await cookies()
+        const token = cookieStore.get('funcionario_session')?.value
+        if (!token) return { sucesso: false, erro: 'Não autenticado.' }
+
+        const { payload } = await jwtVerify(token, JWT_SECRET)
+        const funcionarioId = payload.sub as string
+
+        const funcionario = await prisma.funcionario.findUnique({
+            where: { id: funcionarioId },
+            include: {
+                expedientes: {
+                    orderBy: { diaSemana: 'asc' }
+                }
+            }
+        })
+
+        if (!funcionario) return { sucesso: false, erro: 'Profissional não encontrado.' }
+
+        // Se o funcionário ainda não tem expediente criado, geramos um padrão (vazio) para a interface
+        let expedientes = funcionario.expedientes;
+        if (expedientes.length === 0) {
+            const diasPadrao = Array.from({ length: 7 }).map((_, index) => ({
+                diaSemana: index,
+                horaInicio: '09:00',
+                horaFim: '18:00',
+                ativo: false
+            }));
+            expedientes = diasPadrao as any;
+        }
+
+        return {
+            sucesso: true,
+            fotoUrl: funcionario.fotoUrl,
+            expedientes
+        }
+    } catch (error) {
+        return { sucesso: false, erro: 'Erro ao carregar perfil.' }
+    }
+}
+
+export async function salvarPerfilEExpediente(
+    fotoUrl: string | null,
+    expedientes: Array<{ diaSemana: number, horaInicio: string, horaFim: string, ativo: boolean }>
+): Promise<ActionResult> {
+    try {
+        const cookieStore = await cookies()
+        const token = cookieStore.get('funcionario_session')?.value
+        if (!token) return { sucesso: false, erro: 'Não autenticado.' }
+
+        const { payload } = await jwtVerify(token, JWT_SECRET)
+        const funcionarioId = payload.sub as string
+
+        // 1. Atualiza a foto do perfil
+        if (fotoUrl !== undefined) {
+            await prisma.funcionario.update({
+                where: { id: funcionarioId },
+                data: { fotoUrl }
+            })
+        }
+
+        // 2. Atualiza ou cria o expediente usando uma transação para segurança
+        const transacoes = expedientes.map(exp => {
+            return prisma.expediente.upsert({
+                where: {
+                    funcionarioId_diaSemana: {
+                        funcionarioId: funcionarioId,
+                        diaSemana: exp.diaSemana
+                    }
+                },
+                update: {
+                    horaInicio: exp.horaInicio,
+                    horaFim: exp.horaFim,
+                    ativo: exp.ativo
+                },
+                create: {
+                    funcionarioId: funcionarioId,
+                    diaSemana: exp.diaSemana,
+                    horaInicio: exp.horaInicio,
+                    horaFim: exp.horaFim,
+                    ativo: exp.ativo
+                }
+            })
+        })
+
+        await prisma.$transaction(transacoes)
+
+        return { sucesso: true }
+    } catch (error) {
+        console.error('Erro ao salvar perfil:', error)
+        return { sucesso: false, erro: 'Erro ao salvar o horário de trabalho.' }
     }
 }

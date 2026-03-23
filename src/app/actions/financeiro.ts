@@ -21,28 +21,35 @@ export async function obterResumoFinanceiro(): Promise<ActionResult<FinanceiroRe
         let faturamentoBruto = 0
         let custoProdutos = 0
         let totalComissoes = 0
+        let totalTaxas = 0
 
         for (const ag of agendamentos) {
             faturamentoBruto += ag.valorBruto
+            totalTaxas += ag.taxas ?? 0
 
-            // 1. Correção do Custo: Se o produto não existir, tenta assumir o preço cobrado como base (fallback)
+            // 1. Custo de Insumos Internos (Salvo diretamente no fechamento da comanda pela Ficha Técnica)
+            // Usamos 'any' aqui temporariamente caso o TypeScript não reconheça o novo campo até compilar
+            const custoInsumosInternos = (ag as any).custoInsumos ?? 0
+
+            // 2. Custo de Revenda (Produtos físicos vendidos diretamente na comanda)
+            let custoRevenda = 0
             for (const item of ag.produtos) {
-                const custoBase = item.produto?.precoCusto ?? (item.precoCobrado * 0.5); // Fallback caso produto apagado
-                custoProdutos += custoBase * item.quantidade
+                const custoBase = item.produto?.precoCusto ?? (item.precoCobrado * 0.5); // Fallback
+                custoRevenda += custoBase * item.quantidade
             }
 
-            // 2. Correção da Comissão: Garante que estamos pegando o preço efetivamente cobrado
+            // Agrupamos os custos de revenda com os custos da ficha técnica
+            custoProdutos += (custoInsumosInternos + custoRevenda)
+
+            // 3. Comissões (Apenas sobre serviços prestados)
             const valorServicos = ag.servicos.reduce(
                 (acc, s) => acc + (s.precoCobrado ?? 0),
                 0
             )
-            // Assumimos que a comissão incide apenas sobre os serviços prestados, e não sobre a venda de produtos físicos
             totalComissoes += valorServicos * (ag.funcionario.comissao / 100)
         }
 
-        // Subtraímos as deduções (como taxas de cartão) que foram calculadas no fechamento da comanda
-        const totalTaxas = agendamentos.reduce((acc, ag) => acc + (ag.taxas ?? 0), 0)
-
+        // Subtraímos todas as despesas reais do salão
         const lucroLiquido = faturamentoBruto - custoProdutos - totalComissoes - totalTaxas
 
         const equipe = await prisma.funcionario.findMany({

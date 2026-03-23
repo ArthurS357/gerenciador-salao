@@ -65,10 +65,10 @@ export async function adicionarProdutoNaComanda(agendamentoId: string, produtoId
     }
 }
 
-// 3. Fatura a comanda e processa os custos da Ficha Técnica
+// 3. Fatura a comanda e processa os custos da Ficha Técnica e Financeiros
 export async function finalizarComanda(agendamentoId: string) {
     try {
-        // Busca a comanda e todos os serviços realizados, incluindo a ficha técnica (insumos)
+        // Busca a comanda com os serviços (e as suas fichas técnicas) e produtos diretos vendidos
         const agendamento = await prisma.agendamento.findUnique({
             where: { id: agendamentoId },
             include: {
@@ -76,9 +76,16 @@ export async function finalizarComanda(agendamentoId: string) {
                 servicos: {
                     include: {
                         servico: {
-                            include: { insumos: true }
+                            include: {
+                                insumos: {
+                                    include: { produto: true } // Traz o produto para sabermos o preço de custo
+                                }
+                            }
                         }
                     }
+                },
+                produtos: {
+                    include: { produto: true } // Traz os produtos de revenda para sabermos o custo
                 }
             }
         });
@@ -91,23 +98,36 @@ export async function finalizarComanda(agendamentoId: string) {
             return { sucesso: false, erro: 'Esta comanda já foi faturada.' };
         }
 
-        // Passo 1: Calcular os insumos gastos (Ficha Técnica)
-        // Agrupamos caso o mesmo produto seja usado em dois serviços diferentes na mesma comanda
+        let custoTotalDespesas = 0; // Guardará o custo monetário total (insumos + revenda)
         const consumoTotalInsumos = new Map<string, number>();
 
+        // 1.1 Calcular os Insumos Fracionados (Ficha Técnica)
         for (const itemServico of agendamento.servicos) {
             for (const insumo of itemServico.servico.insumos) {
+                // Guarda a quantidade física para dar baixa no estoque
                 const atual = consumoTotalInsumos.get(insumo.produtoId) || 0;
                 consumoTotalInsumos.set(insumo.produtoId, atual + insumo.quantidadeUsada);
+
+                // Cálculo Monetário: (Custo do Frasco / Tamanho do Frasco) * Quantidade Usada
+                const precoCusto = insumo.produto.precoCusto || 0;
+                const tamanhoUnidade = insumo.produto.tamanhoUnidade || 1;
+                const custoFracionado = (precoCusto / tamanhoUnidade) * insumo.quantidadeUsada;
+
+                custoTotalDespesas += custoFracionado;
             }
+        }
+
+        // 1.2 Calcular os Custos de Produtos de Revenda Direta
+        for (const itemProduto of agendamento.produtos) {
+            const precoCustoRevenda = itemProduto.produto.precoCusto || 0;
+            // A quantidade vendida ao cliente vezes o que o salão pagou pelo produto
+            custoTotalDespesas += (precoCustoRevenda * itemProduto.quantidade);
         }
 
         // Passo 2: Preparar todas as transações de banco de dados
         const transacoes = [];
 
-        // 2.1 Adiciona a baixa de estoque de cada insumo consumido
-        // Nota: Permitimos que o estoque fique negativo aqui para não travar o faturamento
-        // caso alguém tenha esquecido de dar entrada num frasco físico que já está no salão.
+        // 2.1 Adiciona a baixa física de estoque de cada insumo consumido
         for (const [produtoId, quantidadeTotalGasta] of consumoTotalInsumos.entries()) {
             transacoes.push(
                 prisma.produto.update({
@@ -121,23 +141,25 @@ export async function finalizarComanda(agendamentoId: string) {
         const taxaAdquirentePercentual = 3;
         const valorTaxaCartao = agendamento.valorBruto * (taxaAdquirentePercentual / 100);
 
-        // 2.3 Fatura a comanda
+        // 2.3 Fatura a comanda guardando todas as deduções
         transacoes.push(
             prisma.agendamento.update({
                 where: { id: agendamentoId },
                 data: {
                     concluido: true,
-                    taxas: valorTaxaCartao
+                    taxas: valorTaxaCartao,
+                    custoInsumos: custoTotalDespesas // Guarda o custo monetário que calculámos!
                 }
             })
         );
 
-        // Executa todas as atualizações de forma atômica (ou tudo funciona, ou nada funciona)
+        // Executa todas as atualizações de forma atômica
         await prisma.$transaction(transacoes);
 
         revalidatePath('/profissional/agenda');
         revalidatePath(`/profissional/comanda/${agendamentoId}`);
-        revalidatePath('/admin/estoque'); // Atualiza a tela de estoque do admin
+        revalidatePath('/admin/estoque');
+        revalidatePath('/admin/financeiro'); // Atualiza a tela de relatórios financeiros
 
         return { sucesso: true };
     } catch (error) {

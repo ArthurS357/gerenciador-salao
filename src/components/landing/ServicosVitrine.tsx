@@ -1,5 +1,5 @@
 'use client'
-import { memo } from 'react'
+import { memo, useState } from 'react'
 import { cn } from './cn'
 import type { ServicosVitrineProps, Servico } from './types'
 
@@ -108,6 +108,13 @@ const CardServico = memo(function CardServico({ servico, icone, selecionado, onT
 const ServicosVitrine = memo(function ServicosVitrine({
     catalogoServicos, servicosSelecionados, toggleServico, totalSelecionado,
 }: ServicosVitrineProps) {
+    const [busca, setBusca] = useState("");
+
+    const servicosFiltrados = catalogoServicos.filter(s =>
+        s.nome.toLowerCase().includes(busca.toLowerCase()) ||
+        (s.descricao && s.descricao.toLowerCase().includes(busca.toLowerCase()))
+    );
+
     return (
         <section id="servicos" className="relative bg-[#fdfaf6] py-24 md:py-32">
             {/* Linha de transição do escuro */}
@@ -116,7 +123,7 @@ const ServicosVitrine = memo(function ServicosVitrine({
             <div className="max-w-[1200px] mx-auto px-6 md:px-16">
 
                 {/* Cabeçalho */}
-                <div className="flex flex-col md:flex-row md:items-end justify-between gap-8 mb-14">
+                <div className="flex flex-col md:flex-row md:items-end justify-between gap-8 mb-10">
                     <div>
                         <div className="flex items-center gap-3 mb-5">
                             <div className="h-px w-8 bg-gradient-to-r from-transparent to-[#c5a87c]" />
@@ -135,19 +142,42 @@ const ServicosVitrine = memo(function ServicosVitrine({
                     </p>
                 </div>
 
+                {/* Barra de Busca Elegante */}
+                <div className="mb-10 max-w-md">
+                    <div className="relative">
+                        <input
+                            type="text"
+                            placeholder="Buscar tratamento..."
+                            value={busca}
+                            onChange={e => setBusca(e.target.value)}
+                            className="w-full pl-11 pr-4 py-3 bg-white border border-[rgba(197,168,124,0.3)] rounded-full outline-none focus:border-[#8B5A2B] shadow-sm transition-all text-[#2a1810] placeholder:text-[#9c8070]/60 text-sm"
+                        />
+                        <svg className="absolute left-4 top-1/2 -translate-y-1/2 text-[#9c8070]/60" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <circle cx="11" cy="11" r="8"></circle>
+                            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                        </svg>
+                    </div>
+                </div>
+
                 {/* Grid de cards */}
                 <div className="border border-[rgba(197,168,124,0.15)] overflow-hidden shadow-[0_2px_40px_rgba(42,24,16,0.04)]">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-                        {catalogoServicos.map((s, i) => (
-                            <CardServico
-                                key={s.id}
-                                servico={s}
-                                icone={ICONES_SVG[i % ICONES_SVG.length]}
-                                selecionado={servicosSelecionados.includes(s.id)}
-                                onToggle={() => toggleServico(s.id)}
-                            />
-                        ))}
-                    </div>
+                    {servicosFiltrados.length === 0 ? (
+                        <div className="p-16 text-center text-[#9c8070]">
+                            Nenhum serviço encontrado para "{busca}".
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+                            {servicosFiltrados.map((s, i) => (
+                                <CardServico
+                                    key={s.id}
+                                    servico={s}
+                                    icone={ICONES_SVG[i % ICONES_SVG.length]}
+                                    selecionado={servicosSelecionados.includes(s.id)}
+                                    onToggle={() => toggleServico(s.id)}
+                                />
+                            ))}
+                        </div>
+                    )}
                 </div>
             </div>
 

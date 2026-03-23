@@ -63,7 +63,7 @@ export default function PainelFinanceiroPage() {
 
     const cards = [
         { label: 'Faturamento Bruto', valor: dados.faturamentoBruto, cor: 'border-blue-500', textCor: 'text-gray-800' },
-        { label: 'Custo de Produtos', valor: dados.custoProdutos, cor: 'border-red-500', textCor: 'text-red-600' },
+        { label: 'Custos (Insumos + Revenda)', valor: dados.custoProdutos, cor: 'border-red-500', textCor: 'text-red-600' },
         { label: 'Comissões Pagas', valor: dados.totalComissoes, cor: 'border-orange-500', textCor: 'text-orange-600' },
         { label: 'Lucro Líquido (Real)', valor: dados.lucroLiquido, cor: 'border-green-500', textCor: 'text-green-600' },
     ] as const

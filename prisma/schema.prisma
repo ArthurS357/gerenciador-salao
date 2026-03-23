@@ -39,9 +39,24 @@ model Funcionario {
 
   agendamentos     Agendamento[]
   servicos         Servico[]      // Serviços que o profissional está apto a executar
+  expedientes      Expediente[]
+
 
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt
+}
+
+model Expediente {
+  id             String      @id @default(uuid())
+  funcionarioId  String
+  diaSemana      Int         // 0 = Domingo, 1 = Segunda, 2 = Terça, 3 = Quarta, 4 = Quinta, 5 = Sexta, 6 = Sábado
+  horaInicio     String      // Ex: "09:00"
+  horaFim        String      // Ex: "18:00"
+  ativo          Boolean     @default(false) // Se true, ele trabalha neste dia
+
+  funcionario    Funcionario @relation(fields: [funcionarioId], references: [id], onDelete: Cascade)
+
+  @@unique([funcionarioId, diaSemana]) // Garante que só existe 1 registo por dia da semana para cada funcionário
 }
 
 // 2. CATÁLOGO, PORTFÓLIO E ESTOQUE
@@ -54,6 +69,8 @@ model Servico {
   tempoMinutos     Int?
   imagemUrl        String?
   ativo            Boolean  @default(true)
+
+  destaque         Boolean  @default(false)
 
   itensAgendamento ItemServico[]
   funcionarios     Funcionario[]  // Profissionais aptos a realizar este serviço
@@ -95,14 +112,16 @@ model Produto {
 // 3. MOTOR FINANCEIRO E COMANDAS
 
 model Agendamento {
-  id             String    @id @default(uuid())
+  id             String   @id @default(uuid())
   clienteId      String
   funcionarioId  String
   dataHoraInicio DateTime
   dataHoraFim    DateTime
   valorBruto     Float
-  taxas          Float     @default(0)
-  concluido      Boolean   @default(false)
+  taxas          Float    @default(0)
+  concluido      Boolean  @default(false)
+  
+  custoInsumos   Float    @default(0) 
 
   cliente        Cliente     @relation(fields: [clienteId], references: [id])
   funcionario    Funcionario @relation(fields: [funcionarioId], references: [id])
