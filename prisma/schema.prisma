@@ -57,19 +57,39 @@ model Servico {
 
   itensAgendamento ItemServico[]
   funcionarios     Funcionario[]  // Profissionais aptos a realizar este serviço
+  insumos          InsumoServico[]
+}
+
+model InsumoServico {
+  id               String   @id @default(uuid())
+  servicoId        String
+  produtoId        String
+  quantidadeUsada  Int      // Quantidade gasta por atendimento (ex: 25)
+
+  servico          Servico  @relation(fields: [servicoId], references: [id], onDelete: Cascade)
+  produto          Produto  @relation(fields: [produtoId], references: [id], onDelete: Cascade)
+
+  @@unique([servicoId, produtoId]) // Evita que o mesmo produto seja cadastrado duas vezes no mesmo serviço
 }
 
 model Produto {
-  id            String   @id @default(uuid())
-  nome          String
-  descricao     String?
-  precoCusto    Float    @default(0.0)
-  precoVenda    Float
-  estoque       Int      @default(0)
-  estoqueMinimo Int      @default(5)
-  ativo         Boolean  @default(true)
+  id               String   @id @default(uuid())
+  nome             String
+  descricao        String?
+  precoCusto       Float?   // Preço pago por 1 frasco inteiro
+  precoVenda       Float    // Preço se for vendido inteiro (revenda)
+  
+  estoque          Int      @default(0)    // Total absoluto (em ml, g ou unidades)
+  unidadeMedida    String   @default("un") // "ml", "g", "un"
+  tamanhoUnidade   Int      @default(1)    // Capacidade de 1 frasco (ex: 700 para 700ml)
+  
+  ativo            Boolean  @default(true)
+  
+  itensAgendamento ItemProduto[]   // <-- CORREÇÃO: alterado de ItemServico para ItemProduto
+  insumos          InsumoServico[] // <-- RELAÇÃO COM A FICHA TÉCNICA
 
-  itensAgendamento ItemProduto[]
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 }
 
 // 3. MOTOR FINANCEIRO E COMANDAS

@@ -2,29 +2,47 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { listarServicosAdmin, criarServicoAdmin } from "@/app/actions/servico";
+import { listarServicosAdmin, criarServicoAdmin, adicionarInsumoFichaTecnica, removerInsumoFichaTecnica } from "@/app/actions/servico";
+import { listarProdutosAdmin } from "@/app/actions/produto";
 
 export default function PainelServicosPage() {
     const [servicos, setServicos] = useState<any[]>([]);
+    const [produtos, setProdutos] = useState<any[]>([]);
+
+    // Modais
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [modalFichaTecnica, setModalFichaTecnica] = useState<any | null>(null);
+
     const [imagemArquivo, setImagemArquivo] = useState<File | null>(null);
     const [uploading, setUploading] = useState(false);
+    const [loadingAcao, setLoadingAcao] = useState(false);
 
     const [formData, setFormData] = useState({
-        nome: "",
-        descricao: "",
-        preco: "",
-        tempoMinutos: "",
-        imagemUrl: "",
+        nome: "", descricao: "", preco: "", tempoMinutos: "", imagemUrl: "",
     });
+
+    const [novoInsumo, setNovoInsumo] = useState({ produtoId: "", quantidadeUsada: "" });
 
     useEffect(() => {
         carregarServicos();
+        carregarProdutos();
     }, []);
 
     const carregarServicos = async () => {
         const res = await listarServicosAdmin();
-        if (res.sucesso) setServicos(res.servicos);
+        if (res.sucesso) {
+            setServicos(res.servicos);
+            // Atualiza o estado do modal se ele estiver aberto
+            if (modalFichaTecnica) {
+                const atualizado = res.servicos.find(s => s.id === modalFichaTecnica.id);
+                if (atualizado) setModalFichaTecnica(atualizado);
+            }
+        }
+    };
+
+    const carregarProdutos = async () => {
+        const res = await listarProdutosAdmin();
+        if (res.sucesso) setProdutos(res.produtos);
     };
 
     const handleSalvarServico = async (e: React.FormEvent) => {
@@ -32,17 +50,11 @@ export default function PainelServicosPage() {
         setUploading(true);
 
         let urlFinal = "";
-
-        // Upload da imagem (se existir)
         if (imagemArquivo) {
             const data = new FormData();
             data.append("file", imagemArquivo);
 
-            const resUpload = await fetch("/api/upload", {
-                method: "POST",
-                body: data,
-            });
-
+            const resUpload = await fetch("/api/upload", { method: "POST", body: data });
             const uploadResult = await resUpload.json();
 
             if (uploadResult.sucesso) {
@@ -54,45 +66,58 @@ export default function PainelServicosPage() {
             }
         }
 
-        const res = await criarServicoAdmin({
-            ...formData,
-            imagemUrl: urlFinal,
-        });
+        const res = await criarServicoAdmin({ ...formData, imagemUrl: urlFinal });
 
         if (res.sucesso) {
             setIsModalOpen(false);
             setImagemArquivo(null);
-
-            // Reset do formulário
-            setFormData({
-                nome: "",
-                descricao: "",
-                preco: "",
-                tempoMinutos: "",
-                imagemUrl: "",
-            });
-
+            setFormData({ nome: "", descricao: "", preco: "", tempoMinutos: "", imagemUrl: "" });
             carregarServicos();
         } else {
             alert(res.erro);
         }
-
         setUploading(false);
     };
 
-    // Placeholder seguro caso não tenha foto
+    const handleSalvarInsumo = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!modalFichaTecnica || !novoInsumo.produtoId) return;
+        setLoadingAcao(true);
+
+        const res = await adicionarInsumoFichaTecnica(
+            modalFichaTecnica.id,
+            novoInsumo.produtoId,
+            Number(novoInsumo.quantidadeUsada)
+        );
+
+        if (res.sucesso) {
+            setNovoInsumo({ produtoId: "", quantidadeUsada: "" });
+            carregarServicos(); // Atualiza a tabela por trás e o modal
+        } else {
+            alert(res.erro);
+        }
+        setLoadingAcao(false);
+    };
+
+    const handleRemoverInsumo = async (idInsumo: string) => {
+        setLoadingAcao(true);
+        const res = await removerInsumoFichaTecnica(idInsumo);
+        if (res.sucesso) carregarServicos();
+        else alert(res.erro);
+        setLoadingAcao(false);
+    };
+
     const imagePlaceholder = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100%25' height='100%25'%3E%3Crect width='100%25' height='100%25' fill='%23f3f4f6'/%3E%3Ctext x='50%25' y='50%25' fill='%239ca3af' font-family='sans-serif' font-size='14' font-weight='bold' text-anchor='middle' dy='.3em'%3ESem Foto%3C/text%3E%3C/svg%3E";
+
+    // Pega a unidade de medida do produto selecionado para exibir no input do novo insumo
+    const produtoSelecionado = produtos.find(p => p.id === novoInsumo.produtoId);
 
     return (
         <div className="min-h-screen bg-[#fdfbf7] p-8 font-sans">
             <header className="mb-6 border-b-2 border-[#5C4033] pb-4 flex justify-between items-center">
                 <div>
-                    <h1 className="text-3xl font-bold text-[#5C4033]">
-                        Portfólio de Serviços
-                    </h1>
-                    <p className="text-gray-500 mt-1">
-                        Catálogo da Vitrine (Visível para Clientes)
-                    </p>
+                    <h1 className="text-3xl font-bold text-[#5C4033]">Portfólio de Serviços</h1>
+                    <p className="text-gray-500 mt-1">Catálogo e Fichas Técnicas (Custos Internos)</p>
                 </div>
                 <button
                     onClick={() => setIsModalOpen(true)}
@@ -102,7 +127,6 @@ export default function PainelServicosPage() {
                 </button>
             </header>
 
-            {/* Navegação Horizontal Uniforme do Admin */}
             <nav className="flex flex-wrap gap-3 mb-8">
                 {[
                     { href: '/admin/dashboard', label: 'Equipa (Atual)' },
@@ -126,7 +150,6 @@ export default function PainelServicosPage() {
                 ))}
             </nav>
 
-            {/* Grid de Serviços */}
             <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
                 {servicos.length === 0 ? (
                     <div className="col-span-full p-12 bg-white rounded-lg border border-dashed border-[#e5d9c5] text-center">
@@ -137,10 +160,7 @@ export default function PainelServicosPage() {
                     </div>
                 ) : (
                     servicos.map((s) => (
-                        <div
-                            key={s.id}
-                            className="bg-white rounded-xl shadow-sm border border-[#e5d9c5] overflow-hidden hover:shadow-md transition-shadow group flex flex-col"
-                        >
+                        <div key={s.id} className="bg-white rounded-xl shadow-sm border border-[#e5d9c5] overflow-hidden hover:shadow-md transition-shadow group flex flex-col">
                             <div className="relative h-48 w-full bg-gray-100 overflow-hidden">
                                 <img
                                     src={s.imagemUrl || imagePlaceholder}
@@ -150,9 +170,7 @@ export default function PainelServicosPage() {
                             </div>
 
                             <div className="p-5 flex flex-col flex-1">
-                                <h3 className="text-lg font-bold text-gray-800 leading-tight">
-                                    {s.nome}
-                                </h3>
+                                <h3 className="text-lg font-bold text-gray-800 leading-tight">{s.nome}</h3>
                                 <p className="text-sm text-gray-500 line-clamp-2 mt-2 flex-1">
                                     {s.descricao || <span className="italic opacity-50">Sem descrição.</span>}
                                 </p>
@@ -167,123 +185,155 @@ export default function PainelServicosPage() {
                                         </span>
                                     )}
                                 </div>
+                                <button
+                                    onClick={() => setModalFichaTecnica(s)}
+                                    className="mt-4 w-full py-2 bg-gray-50 text-gray-700 text-sm font-bold border border-gray-200 rounded-lg hover:bg-gray-100 transition-colors"
+                                >
+                                    Ficha Técnica ({s.insumos?.length || 0})
+                                </button>
                             </div>
                         </div>
                     ))
                 )}
             </div>
 
-            {/* Modal de Criação */}
+            {/* Modal de Criação de Serviço (Mantido igual) */}
             {isModalOpen && (
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 transition-opacity">
                     <div className="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-lg border-t-4 border-[#5C4033] transform transition-transform">
-                        <h2 className="text-2xl font-bold text-[#5C4033] mb-6">
-                            Cadastrar Novo Serviço
-                        </h2>
-
+                        <h2 className="text-2xl font-bold text-[#5C4033] mb-6">Cadastrar Novo Serviço</h2>
                         <form onSubmit={handleSalvarServico} className="space-y-5">
+                            {/* Inputs mantidos da sua versão */}
                             <div>
                                 <label className="block text-sm font-semibold text-gray-700 mb-1">Nome do Serviço *</label>
-                                <input
-                                    required
-                                    type="text"
-                                    placeholder="Ex: Corte Degrade"
-                                    className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-[#8B5A2B]/20 focus:border-[#8B5A2B] outline-none transition-all"
-                                    value={formData.nome}
-                                    onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
-                                />
+                                <input required type="text" className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:border-[#8B5A2B] outline-none" value={formData.nome} onChange={(e) => setFormData({ ...formData, nome: e.target.value })} />
                             </div>
-
                             <div>
                                 <label className="block text-sm font-semibold text-gray-700 mb-1">Descrição</label>
-                                <textarea
-                                    placeholder="Detalhes sobre como é feito o serviço..."
-                                    className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-[#8B5A2B]/20 focus:border-[#8B5A2B] outline-none transition-all resize-none"
-                                    rows={3}
-                                    value={formData.descricao}
-                                    onChange={(e) => setFormData({ ...formData, descricao: e.target.value })}
-                                />
+                                <textarea className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:border-[#8B5A2B] outline-none resize-none" rows={3} value={formData.descricao} onChange={(e) => setFormData({ ...formData, descricao: e.target.value })} />
                             </div>
-
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-sm font-semibold text-gray-700 mb-1">Preço (R$) *</label>
-                                    <input
-                                        required
-                                        type="number"
-                                        step="0.01"
-                                        min="0"
-                                        placeholder="0.00"
-                                        className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-[#8B5A2B]/20 focus:border-[#8B5A2B] outline-none transition-all"
-                                        value={formData.preco}
-                                        onChange={(e) => setFormData({ ...formData, preco: e.target.value })}
-                                    />
+                                    <input required type="number" step="0.01" min="0" className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:border-[#8B5A2B] outline-none" value={formData.preco} onChange={(e) => setFormData({ ...formData, preco: e.target.value })} />
                                 </div>
                                 <div>
                                     <label className="block text-sm font-semibold text-gray-700 mb-1">Tempo (Min) *</label>
-                                    <input
-                                        required
-                                        type="number"
-                                        min="1"
-                                        placeholder="Ex: 45"
-                                        className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-[#8B5A2B]/20 focus:border-[#8B5A2B] outline-none transition-all"
-                                        value={formData.tempoMinutos}
-                                        onChange={(e) => setFormData({ ...formData, tempoMinutos: e.target.value })}
-                                    />
+                                    <input required type="number" min="1" className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:border-[#8B5A2B] outline-none" value={formData.tempoMinutos} onChange={(e) => setFormData({ ...formData, tempoMinutos: e.target.value })} />
                                 </div>
                             </div>
-
                             <div className="p-4 bg-gray-50 border border-gray-200 rounded-xl">
-                                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                                    Foto de Vitrine (Opcional)
-                                </label>
-                                <input
-                                    type="file"
-                                    accept="image/*"
-                                    className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-bold file:bg-[#8B5A2B]/10 file:text-[#8B5A2B] hover:file:bg-[#8B5A2B]/20 transition-all cursor-pointer"
-                                    onChange={(e) => {
-                                        if (e.target.files?.[0]) {
-                                            setImagemArquivo(e.target.files[0]);
-                                        }
-                                    }}
-                                />
-
-                                {imagemArquivo && (
-                                    <div className="mt-4 relative rounded-lg overflow-hidden border border-gray-300">
-                                        <img
-                                            src={URL.createObjectURL(imagemArquivo)}
-                                            alt="Preview"
-                                            className="h-32 w-full object-cover"
-                                        />
-                                    </div>
-                                )}
+                                <label className="block text-sm font-semibold text-gray-700 mb-2">Foto de Vitrine</label>
+                                <input type="file" accept="image/*" className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-bold file:bg-[#8B5A2B]/10 file:text-[#8B5A2B] hover:file:bg-[#8B5A2B]/20 transition-all cursor-pointer" onChange={(e) => { if (e.target.files?.[0]) setImagemArquivo(e.target.files[0]); }} />
                             </div>
-
                             <div className="flex justify-end gap-3 mt-8 pt-4 border-t border-gray-100">
-                                <button
-                                    type="button"
-                                    onClick={() => setIsModalOpen(false)}
-                                    disabled={uploading}
-                                    className="px-5 py-2.5 text-gray-600 font-bold hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
-                                >
-                                    Cancelar
-                                </button>
-                                <button
-                                    type="submit"
-                                    disabled={uploading}
-                                    className="px-6 py-2.5 bg-[#5C4033] text-white font-bold rounded-lg hover:bg-[#3e2b22] shadow-md transition-all disabled:opacity-70 flex items-center gap-2"
-                                >
-                                    {uploading ? (
-                                        <>
-                                            <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
-                                            A Salvar...
-                                        </>
-                                    ) : (
-                                        "Gravar no Catálogo"
-                                    )}
+                                <button type="button" onClick={() => setIsModalOpen(false)} disabled={uploading} className="px-5 py-2.5 text-gray-600 font-bold hover:bg-gray-100 rounded-lg transition-colors">Cancelar</button>
+                                <button type="submit" disabled={uploading} className="px-6 py-2.5 bg-[#5C4033] text-white font-bold rounded-lg hover:bg-[#3e2b22] transition-all flex items-center gap-2">
+                                    {uploading ? "A Salvar..." : "Gravar no Catálogo"}
                                 </button>
                             </div>
                         </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal da Ficha Técnica */}
+            {modalFichaTecnica && (
+                <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg border-t-4 border-[#8B5A2B] overflow-hidden flex flex-col max-h-[90vh]">
+                        <div className="px-8 pt-8 pb-4 border-b border-gray-100">
+                            <p className="text-xs font-semibold text-[#8B5A2B] uppercase tracking-wider mb-1">Ficha Técnica</p>
+                            <h2 className="text-xl font-bold text-gray-800">{modalFichaTecnica.nome}</h2>
+                            <p className="text-sm text-gray-500 mt-1">Configure os insumos que são descontados automaticamente do estoque ao realizar este serviço.</p>
+                        </div>
+
+                        <div className="p-8 overflow-y-auto flex-1 space-y-6">
+
+                            {/* Formulário de adição de insumo */}
+                            <form onSubmit={handleSalvarInsumo} className="flex flex-col gap-3 p-4 bg-orange-50/50 border border-orange-100 rounded-xl">
+                                <h4 className="font-bold text-[#5C4033] text-sm">Adicionar Insumo</h4>
+                                <div className="flex items-end gap-2">
+                                    <div className="flex-1">
+                                        <label className="block text-[10px] font-bold text-gray-600 uppercase tracking-wider mb-1">Produto</label>
+                                        <select
+                                            required
+                                            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#8B5A2B]"
+                                            value={novoInsumo.produtoId}
+                                            onChange={e => setNovoInsumo({ ...novoInsumo, produtoId: e.target.value })}
+                                        >
+                                            <option value="">Selecione do estoque...</option>
+                                            {produtos.map(p => (
+                                                <option key={p.id} value={p.id}>{p.nome}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div className="w-24">
+                                        <label className="block text-[10px] font-bold text-gray-600 uppercase tracking-wider mb-1">Consumo</label>
+                                        <div className="flex items-center gap-2">
+                                            <input
+                                                required
+                                                type="number"
+                                                min="1"
+                                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-[#8B5A2B]"
+                                                value={novoInsumo.quantidadeUsada}
+                                                onChange={e => setNovoInsumo({ ...novoInsumo, quantidadeUsada: e.target.value })}
+                                            />
+                                        </div>
+                                    </div>
+                                    <span className="text-xs font-bold text-gray-500 mb-2.5 min-w-[20px]">
+                                        {produtoSelecionado ? produtoSelecionado.unidadeMedida : '-'}
+                                    </span>
+                                    <button
+                                        type="submit"
+                                        disabled={loadingAcao || !novoInsumo.produtoId}
+                                        className="bg-[#8B5A2B] text-white px-4 py-2 rounded-lg font-bold hover:bg-[#704620] disabled:opacity-50 text-sm"
+                                    >
+                                        +
+                                    </button>
+                                </div>
+                            </form>
+
+                            {/* Lista de insumos já cadastrados */}
+                            <div>
+                                <h4 className="font-bold text-gray-800 mb-3 border-b pb-2">Insumos Configurados</h4>
+                                {(!modalFichaTecnica.insumos || modalFichaTecnica.insumos.length === 0) ? (
+                                    <p className="text-sm text-gray-500 italic text-center py-4 bg-gray-50 rounded-lg">Nenhum custo interno atrelado.</p>
+                                ) : (
+                                    <div className="space-y-2">
+                                        {modalFichaTecnica.insumos.map((insumo: any) => (
+                                            <div key={insumo.id} className="flex justify-between items-center p-3 bg-white border border-gray-200 rounded-lg shadow-sm">
+                                                <span className="font-semibold text-sm text-gray-700">
+                                                    {insumo.produto.nome}
+                                                </span>
+                                                <div className="flex items-center gap-4">
+                                                    <span className="text-sm font-black text-[#8B5A2B]">
+                                                        {insumo.quantidadeUsada} <span className="text-xs text-gray-500 font-bold">{insumo.produto.unidadeMedida}</span>
+                                                    </span>
+                                                    <button
+                                                        onClick={() => handleRemoverInsumo(insumo.id)}
+                                                        disabled={loadingAcao}
+                                                        className="text-red-500 hover:bg-red-50 p-1.5 rounded transition-colors disabled:opacity-50"
+                                                        title="Remover insumo"
+                                                    >
+                                                        ✕
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="px-8 py-4 bg-gray-50 border-t border-gray-100 flex justify-end">
+                            <button
+                                type="button"
+                                onClick={() => setModalFichaTecnica(null)}
+                                className="px-6 py-2.5 text-gray-700 bg-white border border-gray-300 font-bold hover:bg-gray-100 rounded-lg transition-colors"
+                            >
+                                Fechar
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}

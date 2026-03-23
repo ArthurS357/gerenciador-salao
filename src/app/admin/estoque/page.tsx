@@ -3,11 +3,11 @@
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import {
-    listarProdutos,
-    criarProduto,
-    ajustarEstoque,
-    registrarEntradaEstoque,
-    inativarProduto,
+    listarProdutosAdmin,
+    criarProdutoAdmin,
+    baixarEstoqueAbsoluto, // Antigo ajustarEstoque
+    adicionarEstoqueFrascos, // Antigo registrarEntradaEstoque
+    excluirProdutoLogico,
 } from '@/app/actions/produto'
 import type { Produto } from '@/types/domain'
 
@@ -15,23 +15,25 @@ import type { Produto } from '@/types/domain'
 
 type StatusEstoque = 'esgotado' | 'critico' | 'baixo' | 'ok'
 
+// Atualizado para contemplar a ficha técnica
 type FormCriar = {
     nome: string
     descricao: string
     precoCusto: number
     precoVenda: number
-    estoque: number
-    estoqueMinimo: number
+    unidadeMedida: string // 'ml', 'g', 'un'
+    tamanhoUnidade: number
+    estoqueInicialEmFrascos: number
 }
 
 type Mensagem = { texto: string; tipo: 'sucesso' | 'erro' | 'info' }
 
-type ModalEntrada = { produtoId: string; nomeProduto: string; quantidade: number } | null
+type ModalEntrada = { produtoId: string; nomeProduto: string; quantidadeFrascos: number; tamanhoUnidade: number; unidadeMedida: string } | null
 
 // ── Constantes ────────────────────────────────────────────────────────────────
 
 const FORM_INICIAL: FormCriar = {
-    nome: '', descricao: '', precoCusto: 0, precoVenda: 0, estoque: 0, estoqueMinimo: 5,
+    nome: '', descricao: '', precoCusto: 0, precoVenda: 0, unidadeMedida: 'un', tamanhoUnidade: 1, estoqueInicialEmFrascos: 0
 }
 
 const NAV_LINKS = [
@@ -46,10 +48,12 @@ const NAV_LINKS = [
 // ── Utilitários ───────────────────────────────────────────────────────────────
 
 function statusEstoque(produto: Produto): StatusEstoque {
-    const min = (produto as Produto & { estoqueMinimo?: number }).estoqueMinimo ?? 5
+    // Calcula o mínimo baseado no tamanho do frasco. Ex: Se o mínimo é 2 frascos, o alerta dispara.
+    const minAbsoluto = 2 * produto.tamanhoUnidade
+
     if (produto.estoque === 0) return 'esgotado'
-    if (produto.estoque <= Math.floor(min * 0.5)) return 'critico'
-    if (produto.estoque <= min) return 'baixo'
+    if (produto.estoque <= Math.floor(minAbsoluto * 0.5)) return 'critico'
+    if (produto.estoque <= minAbsoluto) return 'baixo'
     return 'ok'
 }
 
@@ -77,8 +81,9 @@ const STATUS_CONFIG: Record<StatusEstoque, { label: string; badge: string; row: 
 }
 
 function margem(produto: Produto): number {
-    if (produto.precoCusto === 0) return 100
-    return ((produto.precoVenda - produto.precoCusto) / produto.precoCusto) * 100
+    const custo = produto.precoCusto || 0
+    if (custo === 0) return 100
+    return ((produto.precoVenda - custo) / custo) * 100
 }
 
 // ── Componente principal ──────────────────────────────────────────────────────
@@ -105,12 +110,27 @@ export default function PainelEstoquePage() {
 
     const carregar = useCallback(async () => {
         setCarregando(true)
-        const res = await listarProdutos()
-        if (res.sucesso) setProdutos(res.produtos)
+        const res = await listarProdutosAdmin()
+        if (res.sucesso && res.produtos) {
+            setProdutos(res.produtos as Produto[])
+        }
         setCarregando(false)
     }, [])
 
     useEffect(() => { void carregar() }, [carregar])
+
+    // Lógica inteligente de formatação visual do estoque
+    const formatarEstoqueVisivel = (quantidade: number, unidade: string) => {
+        if (unidade === 'ml') {
+            if (quantidade >= 1000) return `${(quantidade / 1000).toFixed(1)} L`
+            return `${quantidade} ml`
+        }
+        if (unidade === 'g') {
+            if (quantidade >= 1000) return `${(quantidade / 1000).toFixed(2)} kg`
+            return `${quantidade} g`
+        }
+        return `${quantidade} un`
+    }
 
     // ── Criar produto ─────────────────────────────────────────────────────────
 
@@ -121,7 +141,7 @@ export default function PainelEstoquePage() {
         setCriando(true)
         setMensagem({ texto: 'A cadastrar produto...', tipo: 'info' })
 
-        const res = await criarProduto(formData)
+        const res = await criarProdutoAdmin(formData)
 
         if (res.sucesso) {
             setMensagem({ texto: `"${formData.nome}" adicionado ao catálogo com sucesso.`, tipo: 'sucesso' })
@@ -134,32 +154,36 @@ export default function PainelEstoquePage() {
         setCriando(false)
     }
 
-    // ── Ajuste rápido ─/+1 ───────────────────────────────────────────────────
+    // ── Baixa Rápida de Estoque (Retira 1 Frasco Inteiro) ────────────────────
 
-    const handleAjuste = async (id: string, delta: number) => {
+    const handleAjusteBaixa = async (id: string, tamanhoUnidade: number) => {
         if (loadingId) return
         setLoadingId(id)
-        const res = await ajustarEstoque(id, delta)
+
+        // Remove 1 frasco inteiro (ex: se o frasco tem 700ml, remove 700ml)
+        const res = await baixarEstoqueAbsoluto(id, tamanhoUnidade)
+
         if (!res.sucesso) setMensagem({ texto: res.erro, tipo: 'erro' })
         await carregar()
         setLoadingId(null)
     }
 
-    // ── Entrada em lote ───────────────────────────────────────────────────────
+    // ── Entrada em lote (Frascos) ─────────────────────────────────────────────
 
     const handleEntrada = async () => {
         if (!modalEntrada || entradando) return
-        if (modalEntrada.quantidade <= 0) {
+        if (modalEntrada.quantidadeFrascos <= 0) {
             setMensagem({ texto: 'Informe uma quantidade maior que zero.', tipo: 'erro' })
             return
         }
 
         setEntradando(true)
-        const res = await registrarEntradaEstoque(modalEntrada.produtoId, modalEntrada.quantidade)
+        const res = await adicionarEstoqueFrascos(modalEntrada.produtoId, modalEntrada.quantidadeFrascos)
 
         if (res.sucesso) {
+            const adicionado = formatarEstoqueVisivel(modalEntrada.quantidadeFrascos * modalEntrada.tamanhoUnidade, modalEntrada.unidadeMedida)
             setMensagem({
-                texto: `+${modalEntrada.quantidade} un. adicionadas ao estoque de "${modalEntrada.nomeProduto}".`,
+                texto: `+ ${adicionado} adicionados ao estoque de "${modalEntrada.nomeProduto}".`,
                 tipo: 'sucesso',
             })
             setModalEntrada(null)
@@ -180,7 +204,7 @@ export default function PainelEstoquePage() {
         if (!ok) return
 
         setLoadingId(id)
-        const res = await inativarProduto(id)
+        const res = await excluirProdutoLogico(id)
 
         if (res.sucesso) {
             setMensagem({ texto: res.mensagem, tipo: 'sucesso' })
@@ -198,15 +222,22 @@ export default function PainelEstoquePage() {
         : produtos
 
     const alertas = produtos.filter(p => statusEstoque(p) !== 'ok').length
-    const valorTotalEstoque = produtos.reduce((acc, p) => acc + p.precoCusto * p.estoque, 0)
+
+    // Cálculo financeiro (Calcula quantos frascos completos tens no total)
+    const valorTotalEstoque = produtos.reduce((acc, p) => {
+        const frascosEmEstoque = Math.floor(p.estoque / p.tamanhoUnidade)
+        const custoFrasco = p.precoCusto || 0
+        return acc + (custoFrasco * frascosEmEstoque)
+    }, 0)
+
     const margemMedia = produtos.length
         ? produtos.reduce((acc, p) => acc + margem(p), 0) / produtos.length
         : 0
 
     const campo = <K extends keyof FormCriar>(key: K) =>
-        (e: React.ChangeEvent<HTMLInputElement>) => {
-            const numKeys: Array<keyof FormCriar> = ['precoCusto', 'precoVenda', 'estoque', 'estoqueMinimo']
-            const val = numKeys.includes(key)
+        (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+            const numKeys: Array<keyof FormCriar> = ['precoCusto', 'precoVenda', 'tamanhoUnidade', 'estoqueInicialEmFrascos']
+            const val = numKeys.includes(key as any)
                 ? (Number(e.target.value) as FormCriar[K])
                 : (e.target.value as FormCriar[K])
             setFormData(prev => ({ ...prev, [key]: val }))
@@ -223,7 +254,7 @@ export default function PainelEstoquePage() {
                     <div className="flex justify-between items-start mb-6">
                         <div>
                             <h1 className="text-3xl font-bold text-[#5C4033]">Gestão de Estoque</h1>
-                            <p className="text-gray-500 mt-1 text-sm">Produtos, custos, margens e controle de inventário</p>
+                            <p className="text-gray-500 mt-1 text-sm">Produtos, custos, margens e ficha técnica</p>
                         </div>
                         <button
                             onClick={() => setModalCriar(true)}
@@ -243,8 +274,8 @@ export default function PainelEstoquePage() {
                                 key={link.href}
                                 href={link.href}
                                 className={`px-4 py-2.5 text-sm font-semibold whitespace-nowrap border-b-2 transition-colors ${'ativo' in link
-                                        ? 'border-[#8B5A2B] text-[#5C4033]'
-                                        : 'border-transparent text-gray-500 hover:text-[#5C4033] hover:border-[#e5d9c5]'
+                                    ? 'border-[#8B5A2B] text-[#5C4033]'
+                                    : 'border-transparent text-gray-500 hover:text-[#5C4033] hover:border-[#e5d9c5]'
                                     }`}
                             >
                                 {link.label}
@@ -260,10 +291,10 @@ export default function PainelEstoquePage() {
                 {mensagem && (
                     <div
                         className={`flex items-center gap-3 p-4 rounded-lg text-sm font-medium border ${mensagem.tipo === 'sucesso'
-                                ? 'bg-green-50 text-green-800 border-green-200'
-                                : mensagem.tipo === 'erro'
-                                    ? 'bg-red-50 text-red-800 border-red-200'
-                                    : 'bg-blue-50 text-blue-800 border-blue-200'
+                            ? 'bg-green-50 text-green-800 border-green-200'
+                            : mensagem.tipo === 'erro'
+                                ? 'bg-red-50 text-red-800 border-red-200'
+                                : 'bg-blue-50 text-blue-800 border-blue-200'
                             }`}
                     >
                         <span className="text-lg">
@@ -329,8 +360,8 @@ export default function PainelEstoquePage() {
                             <button
                                 onClick={() => setFiltro('todos')}
                                 className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${filtro === 'todos'
-                                        ? 'bg-[#5C4033] text-white'
-                                        : 'bg-white text-gray-600 border border-gray-200 hover:border-[#8B5A2B]'
+                                    ? 'bg-[#5C4033] text-white'
+                                    : 'bg-white text-gray-600 border border-gray-200 hover:border-[#8B5A2B]'
                                     }`}
                             >
                                 Todos ({produtos.length})
@@ -338,8 +369,8 @@ export default function PainelEstoquePage() {
                             <button
                                 onClick={() => setFiltro('alerta')}
                                 className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${filtro === 'alerta'
-                                        ? 'bg-orange-600 text-white'
-                                        : 'bg-white text-gray-600 border border-gray-200 hover:border-orange-400'
+                                    ? 'bg-orange-600 text-white'
+                                    : 'bg-white text-gray-600 border border-gray-200 hover:border-orange-400'
                                     }`}
                             >
                                 Alertas ({alertas})
@@ -352,10 +383,9 @@ export default function PainelEstoquePage() {
                             <thead>
                                 <tr className="bg-[#5C4033] text-white text-xs uppercase tracking-wider">
                                     <th className="px-5 py-3.5 font-semibold">Produto</th>
-                                    <th className="px-5 py-3.5 font-semibold text-center">Custo</th>
-                                    <th className="px-5 py-3.5 font-semibold text-center">Venda</th>
-                                    <th className="px-5 py-3.5 font-semibold text-center">Margem</th>
-                                    <th className="px-5 py-3.5 font-semibold text-center">Estoque</th>
+                                    <th className="px-5 py-3.5 font-semibold text-center">Tamanho Un.</th>
+                                    <th className="px-5 py-3.5 font-semibold text-center">Custo/Venda</th>
+                                    <th className="px-5 py-3.5 font-semibold text-center">Estoque Visível</th>
                                     <th className="px-5 py-3.5 font-semibold text-center">Status</th>
                                     <th className="px-5 py-3.5 font-semibold text-right">Ações</th>
                                 </tr>
@@ -363,7 +393,7 @@ export default function PainelEstoquePage() {
                             <tbody>
                                 {carregando ? (
                                     <tr>
-                                        <td colSpan={7} className="px-5 py-16 text-center text-gray-400">
+                                        <td colSpan={6} className="px-5 py-16 text-center text-gray-400">
                                             <div className="flex flex-col items-center gap-3">
                                                 <div className="w-6 h-6 border-2 border-[#8B5A2B] border-t-transparent rounded-full animate-spin" />
                                                 <span className="text-sm">Carregando inventário...</span>
@@ -372,7 +402,7 @@ export default function PainelEstoquePage() {
                                     </tr>
                                 ) : produtosFiltrados.length === 0 ? (
                                     <tr>
-                                        <td colSpan={7} className="px-5 py-16 text-center text-gray-500">
+                                        <td colSpan={6} className="px-5 py-16 text-center text-gray-500">
                                             {filtro === 'alerta'
                                                 ? '✅ Nenhum produto com alerta de estoque. Tudo em ordem!'
                                                 : 'Nenhum produto cadastrado. Clique em "Novo Produto" para começar.'}
@@ -383,7 +413,6 @@ export default function PainelEstoquePage() {
                                         const status = statusEstoque(p)
                                         const cfg = STATUS_CONFIG[status]
                                         const isLoading = loadingId === p.id
-                                        const margemProduto = margem(p)
 
                                         return (
                                             <tr
@@ -398,40 +427,29 @@ export default function PainelEstoquePage() {
                                                     </p>
                                                 </td>
 
-                                                {/* Custo */}
+                                                {/* Tamanho Un. */}
                                                 <td className="px-5 py-4 text-center">
-                                                    <span className="text-sm text-gray-600 font-medium">
-                                                        R$ {p.precoCusto.toFixed(2)}
+                                                    <span className="text-sm font-semibold text-gray-600 bg-gray-100 px-2 py-1 rounded">
+                                                        {p.tamanhoUnidade} {p.unidadeMedida}
                                                     </span>
                                                 </td>
 
-                                                {/* Venda */}
+                                                {/* Custo / Venda */}
                                                 <td className="px-5 py-4 text-center">
-                                                    <span className="text-sm font-bold text-[#5C4033]">
-                                                        R$ {p.precoVenda.toFixed(2)}
-                                                    </span>
-                                                </td>
-
-                                                {/* Margem */}
-                                                <td className="px-5 py-4 text-center">
-                                                    <span className={`text-sm font-bold ${margemProduto >= 50 ? 'text-green-600' :
-                                                            margemProduto >= 25 ? 'text-yellow-600' : 'text-red-600'
-                                                        }`}>
-                                                        {margemProduto.toFixed(0)}%
-                                                    </span>
-                                                </td>
-
-                                                {/* Estoque com barra visual */}
-                                                <td className="px-5 py-4 text-center">
-                                                    <div className="flex flex-col items-center gap-1">
-                                                        <span className={`text-lg font-black leading-none ${status === 'esgotado' ? 'text-red-600' :
-                                                                status === 'critico' ? 'text-orange-600' :
-                                                                    status === 'baixo' ? 'text-yellow-600' : 'text-gray-800'
-                                                            }`}>
-                                                            {p.estoque}
-                                                        </span>
-                                                        <span className="text-[10px] text-gray-400 uppercase tracking-wider">un.</span>
+                                                    <div className="flex flex-col items-center">
+                                                        <span className="text-xs text-gray-500">C: R$ {p.precoCusto?.toFixed(2) || '0.00'}</span>
+                                                        <span className="text-sm font-bold text-[#8B5A2B]">V: R$ {p.precoVenda.toFixed(2)}</span>
                                                     </div>
+                                                </td>
+
+                                                {/* Estoque Visível Inteligente */}
+                                                <td className="px-5 py-4 text-center">
+                                                    <span className={`text-lg font-black leading-none ${status === 'esgotado' ? 'text-red-600' :
+                                                        status === 'critico' ? 'text-orange-600' :
+                                                            status === 'baixo' ? 'text-yellow-600' : 'text-gray-800'
+                                                        }`}>
+                                                        {formatarEstoqueVisivel(p.estoque, p.unidadeMedida)}
+                                                    </span>
                                                 </td>
 
                                                 {/* Badge de status */}
@@ -443,41 +461,33 @@ export default function PainelEstoquePage() {
                                                 </td>
 
                                                 {/* Ações */}
-                                                <td className="px-5 py-4">
+                                                <td className="px-5 py-4 text-right">
                                                     <div className="flex items-center justify-end gap-2">
-                                                        {/* Ajuste rápido */}
-                                                        <div className="flex items-center border border-gray-200 rounded-lg overflow-hidden">
-                                                            <button
-                                                                onClick={() => handleAjuste(p.id, -1)}
-                                                                disabled={isLoading || p.estoque === 0}
-                                                                className="px-2.5 py-1.5 text-gray-600 hover:bg-red-50 hover:text-red-600 transition-colors disabled:opacity-30 disabled:cursor-not-allowed font-bold text-sm"
-                                                                title="Retirar 1 unidade"
-                                                            >
-                                                                −
-                                                            </button>
-                                                            <div className="w-px h-5 bg-gray-200" />
-                                                            <button
-                                                                onClick={() => handleAjuste(p.id, 1)}
-                                                                disabled={isLoading}
-                                                                className="px-2.5 py-1.5 text-gray-600 hover:bg-green-50 hover:text-green-600 transition-colors disabled:opacity-30 font-bold text-sm"
-                                                                title="Adicionar 1 unidade"
-                                                            >
-                                                                +
-                                                            </button>
-                                                        </div>
 
-                                                        {/* Entrada em lote */}
+                                                        {/* Botão de Retirar Frasco */}
+                                                        <button
+                                                            onClick={() => handleAjusteBaixa(p.id, p.tamanhoUnidade)}
+                                                            disabled={isLoading || p.estoque < p.tamanhoUnidade}
+                                                            title={`Retirar 1 Frasco (${p.tamanhoUnidade} ${p.unidadeMedida})`}
+                                                            className="px-2 py-1.5 border border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 transition-colors disabled:opacity-30 rounded-lg font-bold text-xs"
+                                                        >
+                                                            - 1 Frasco
+                                                        </button>
+
+                                                        {/* Botão de Entrada */}
                                                         <button
                                                             onClick={() => setModalEntrada({
                                                                 produtoId: p.id,
                                                                 nomeProduto: p.nome,
-                                                                quantidade: 1,
+                                                                quantidadeFrascos: 1,
+                                                                tamanhoUnidade: p.tamanhoUnidade,
+                                                                unidadeMedida: p.unidadeMedida
                                                             })}
                                                             disabled={isLoading}
-                                                            title="Registrar entrada de mercadoria"
-                                                            className="px-3 py-1.5 text-xs font-semibold bg-[#8B5A2B]/10 text-[#5C4033] rounded-lg hover:bg-[#8B5A2B]/20 transition-colors disabled:opacity-30 whitespace-nowrap"
+                                                            title="Dar entrada em estoque (Frascos)"
+                                                            className="px-3 py-1.5 text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-30 whitespace-nowrap"
                                                         >
-                                                            Entrada
+                                                            + Dar Entrada
                                                         </button>
 
                                                         {/* Inativar */}
@@ -503,13 +513,13 @@ export default function PainelEstoquePage() {
                 </div>
             </div>
 
-            {/* ── MODAL: Criar Produto ──────────────────────────────────────── */}
+            {/* ── MODAL: Criar Produto/Insumo ──────────────────────────────────────── */}
             {modalCriar && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
+                <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
                     <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg border-t-4 border-[#5C4033] animate-in fade-in slide-in-from-bottom-4 duration-300">
                         <div className="px-8 pt-8 pb-4 border-b border-gray-100">
                             <h2 className="text-xl font-bold text-[#5C4033]">Cadastrar Novo Produto</h2>
-                            <p className="text-sm text-gray-500 mt-1">Preencha os dados para adicionar ao catálogo.</p>
+                            <p className="text-sm text-gray-500 mt-1">Insira os dados da ficha técnica e financeiro.</p>
                         </div>
 
                         <form onSubmit={handleCriar} className="p-8 space-y-5">
@@ -530,12 +540,12 @@ export default function PainelEstoquePage() {
                                 </div>
                                 <div>
                                     <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1.5">
-                                        Descrição
+                                        Descriçãão (Opcional)
                                     </label>
                                     <input
                                         disabled={criando}
                                         type="text"
-                                        placeholder="Descrição opcional"
+                                        placeholder="Uso interno no salão"
                                         value={formData.descricao}
                                         onChange={campo('descricao')}
                                         className="w-full border border-gray-200 rounded-lg px-3.5 py-2.5 text-sm outline-none focus:border-[#8B5A2B] focus:ring-2 focus:ring-[#8B5A2B]/10 transition-all disabled:bg-gray-50"
@@ -577,52 +587,48 @@ export default function PainelEstoquePage() {
                                 </div>
                             </div>
 
-                            {/* Preview de margem */}
-                            {formData.precoCusto > 0 && formData.precoVenda > 0 && (
-                                <div className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm ${formData.precoVenda < formData.precoCusto
-                                        ? 'bg-red-50 text-red-700 border border-red-200'
-                                        : 'bg-green-50 text-green-700 border border-green-200'
-                                    }`}>
-                                    {formData.precoVenda < formData.precoCusto ? (
-                                        <>⚠️ Preço de venda está abaixo do custo — reveja os valores.</>
-                                    ) : (
-                                        <>✓ Margem de lucro: <strong>{(((formData.precoVenda - formData.precoCusto) / formData.precoCusto) * 100).toFixed(1)}%</strong></>
-                                    )}
+                            {/* Configuração de Medidas */}
+                            <div className="grid grid-cols-3 gap-4 p-4 bg-orange-50/50 border border-orange-100 rounded-xl">
+                                <div className="col-span-3">
+                                    <h4 className="font-bold text-[#8B5A2B] text-sm">Ficha Técnica (Medidas)</h4>
+                                    <p className="text-[11px] text-gray-500">Como este produto é consumido nos serviços?</p>
                                 </div>
-                            )}
-
-                            {/* Estoque */}
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1.5">
-                                        Qtd. Inicial *
-                                    </label>
+                                <div className="col-span-1">
+                                    <label className="block text-[10px] font-bold text-gray-600 uppercase tracking-wider mb-1.5">Medida</label>
+                                    <select
+                                        className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm font-semibold outline-none focus:border-[#8B5A2B]"
+                                        value={formData.unidadeMedida}
+                                        onChange={campo('unidadeMedida')}
+                                    >
+                                        <option value="ml">Volume (ml)</option>
+                                        <option value="g">Peso (g)</option>
+                                        <option value="un">Inteiro (un)</option>
+                                    </select>
+                                </div>
+                                <div className="col-span-2">
+                                    <label className="block text-[10px] font-bold text-gray-600 uppercase tracking-wider mb-1.5">Tamanho de 1 Frasco</label>
+                                    <div className="flex items-center gap-2">
+                                        <input
+                                            required
+                                            type="number"
+                                            min="1"
+                                            className="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-[#8B5A2B]"
+                                            value={formData.tamanhoUnidade}
+                                            onChange={campo('tamanhoUnidade')}
+                                        />
+                                        <span className="text-sm font-bold text-[#8B5A2B] w-6">{formData.unidadeMedida}</span>
+                                    </div>
+                                </div>
+                                <div className="col-span-3 mt-2 border-t border-orange-100 pt-3">
+                                    <label className="block text-xs font-semibold text-gray-800 mb-1">Quantos frascos tens em estoque agora?</label>
                                     <input
                                         required
-                                        disabled={criando}
                                         type="number"
-                                        step="1"
                                         min="0"
-                                        value={formData.estoque}
-                                        onChange={campo('estoque')}
-                                        className="w-full border border-gray-200 rounded-lg px-3.5 py-2.5 text-sm outline-none focus:border-[#8B5A2B] focus:ring-2 focus:ring-[#8B5A2B]/10 transition-all disabled:bg-gray-50"
+                                        className="w-full border border-gray-300 rounded-lg px-4 py-2.5 outline-none focus:border-[#8B5A2B] font-bold"
+                                        value={formData.estoqueInicialEmFrascos}
+                                        onChange={campo('estoqueInicialEmFrascos')}
                                     />
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1.5">
-                                        Estoque Mínimo *
-                                    </label>
-                                    <input
-                                        required
-                                        disabled={criando}
-                                        type="number"
-                                        step="1"
-                                        min="1"
-                                        value={formData.estoqueMinimo}
-                                        onChange={campo('estoqueMinimo')}
-                                        className="w-full border border-gray-200 rounded-lg px-3.5 py-2.5 text-sm outline-none focus:border-[#8B5A2B] focus:ring-2 focus:ring-[#8B5A2B]/10 transition-all disabled:bg-gray-50"
-                                    />
-                                    <p className="text-[11px] text-gray-400 mt-1">Dispara alerta de reposição</p>
                                 </div>
                             </div>
 
@@ -637,12 +643,9 @@ export default function PainelEstoquePage() {
                                 </button>
                                 <button
                                     type="submit"
-                                    disabled={criando || formData.precoVenda < formData.precoCusto}
+                                    disabled={criando}
                                     className="px-5 py-2.5 text-sm bg-[#5C4033] text-white font-semibold rounded-lg hover:bg-[#3e2b22] transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                                 >
-                                    {criando && (
-                                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                    )}
                                     {criando ? 'Salvando...' : 'Adicionar ao Catálogo'}
                                 </button>
                             </div>
@@ -651,37 +654,45 @@ export default function PainelEstoquePage() {
                 </div>
             )}
 
-            {/* ── MODAL: Entrada de Mercadoria ─────────────────────────────── */}
+            {/* ── MODAL: Entrada de Mercadoria (Frascos) ─────────────────────────────── */}
             {modalEntrada && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm border-t-4 border-[#8B5A2B]">
+                <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm border-t-4 border-[#8B5A2B] animate-in zoom-in-95 duration-200">
                         <div className="px-8 pt-8 pb-4 border-b border-gray-100">
-                            <p className="text-xs font-semibold text-[#8B5A2B] uppercase tracking-wider mb-1">Recebimento de Mercadoria</p>
+                            <p className="text-xs font-semibold text-[#8B5A2B] uppercase tracking-wider mb-1">Entrada de Mercadoria</p>
                             <h2 className="text-lg font-bold text-gray-800">{modalEntrada.nomeProduto}</h2>
                         </div>
 
-                        <div className="p-8 space-y-5">
+                        <form onSubmit={(e) => { e.preventDefault(); void handleEntrada() }} className="p-8 space-y-6">
                             <div>
-                                <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1.5">
-                                    Quantidade Recebida *
+                                <label className="block text-sm font-semibold text-gray-700 mb-3 text-center">
+                                    Quantos frascos completos chegaram?
                                 </label>
-                                <input
-                                    type="number"
-                                    min="1"
-                                    step="1"
-                                    autoFocus
-                                    value={modalEntrada.quantidade}
-                                    onChange={e => setModalEntrada(prev => prev
-                                        ? { ...prev, quantidade: Math.max(1, Number(e.target.value)) }
-                                        : null
-                                    )}
-                                    className="w-full border-2 border-[#8B5A2B]/30 rounded-lg px-4 py-3 text-2xl font-bold text-center outline-none focus:border-[#8B5A2B] transition-all"
-                                />
-                                <p className="text-xs text-gray-400 text-center mt-2">unidades a adicionar ao estoque</p>
+                                <div className="flex items-center justify-center gap-3">
+                                    <input
+                                        required
+                                        type="number"
+                                        min="1"
+                                        step="1"
+                                        autoFocus
+                                        value={modalEntrada.quantidadeFrascos}
+                                        onChange={e => setModalEntrada(prev => prev ? { ...prev, quantidadeFrascos: Math.max(1, Number(e.target.value)) } : null)}
+                                        className="w-24 border-2 border-[#8B5A2B]/30 rounded-xl px-4 py-3 text-3xl font-black text-center text-[#5C4033] outline-none focus:border-[#8B5A2B] transition-all"
+                                    />
+                                    <span className="font-bold text-gray-500">un.</span>
+                                </div>
+
+                                <div className="bg-orange-50 border border-orange-100 rounded-lg p-3 mt-6 text-center">
+                                    <p className="text-[10px] text-orange-600 font-bold uppercase tracking-wider mb-1">Conversão Automática no Banco</p>
+                                    <p className="text-lg font-black text-[#8B5A2B]">
+                                        + {modalEntrada.quantidadeFrascos * modalEntrada.tamanhoUnidade} {modalEntrada.unidadeMedida}
+                                    </p>
+                                </div>
                             </div>
 
-                            <div className="flex justify-end gap-3">
+                            <div className="flex justify-end gap-3 pt-2 border-t border-gray-100">
                                 <button
+                                    type="button"
                                     disabled={entradando}
                                     onClick={() => setModalEntrada(null)}
                                     className="px-5 py-2.5 text-sm text-gray-600 font-semibold hover:bg-gray-100 rounded-lg transition-colors"
@@ -689,17 +700,14 @@ export default function PainelEstoquePage() {
                                     Cancelar
                                 </button>
                                 <button
-                                    disabled={entradando || modalEntrada.quantidade <= 0}
-                                    onClick={() => { void handleEntrada() }}
-                                    className="px-5 py-2.5 text-sm bg-[#8B5A2B] text-white font-semibold rounded-lg hover:bg-[#704620] transition-colors shadow-sm disabled:opacity-50 flex items-center gap-2"
+                                    type="submit"
+                                    disabled={entradando || modalEntrada.quantidadeFrascos <= 0}
+                                    className="px-5 py-2.5 text-sm bg-[#8B5A2B] text-white font-semibold rounded-lg hover:bg-[#704620] transition-colors shadow-sm disabled:opacity-50"
                                 >
-                                    {entradando && (
-                                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                    )}
-                                    {entradando ? 'Registrando...' : `+ ${modalEntrada.quantidade} un. ao Estoque`}
+                                    {entradando ? 'A Processar...' : 'Confirmar'}
                                 </button>
                             </div>
-                        </div>
+                        </form>
                     </div>
                 </div>
             )}

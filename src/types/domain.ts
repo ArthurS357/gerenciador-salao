@@ -42,12 +42,20 @@ export interface Produto {
     id: string
     nome: string
     descricao: string | null
-    precoCusto: number
+    precoCusto: number | null // Agora pode ser nulo segundo o Prisma
     precoVenda: number
     estoque: number
-    /** Limiar mínimo de estoque — dispara alertas visuais na interface */
-    estoqueMinimo: number
+
+    // Novos campos adicionados na modelagem de ficha técnica
+    unidadeMedida: string
+    tamanhoUnidade: number
+
+    // Opcional, pois pode não existir no banco de dados antigo
+    estoqueMinimo?: number
+
     ativo: boolean
+    createdAt?: Date
+    updatedAt?: Date
 }
 
 export interface AgendamentoServico {

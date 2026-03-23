@@ -18,6 +18,7 @@ CREATE TABLE "Funcionario" (
     "podeVerComissao" BOOLEAN NOT NULL DEFAULT true,
     "podeAgendar" BOOLEAN NOT NULL DEFAULT false,
     "podeVerHistorico" BOOLEAN NOT NULL DEFAULT false,
+    "podeCancelar" BOOLEAN NOT NULL DEFAULT false,
     "cpf" TEXT,
     "telefone" TEXT,
     "descricao" TEXT,
@@ -40,15 +41,28 @@ CREATE TABLE "Servico" (
 );
 
 -- CreateTable
+CREATE TABLE "InsumoServico" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "servicoId" TEXT NOT NULL,
+    "produtoId" TEXT NOT NULL,
+    "quantidadeUsada" INTEGER NOT NULL,
+    CONSTRAINT "InsumoServico_servicoId_fkey" FOREIGN KEY ("servicoId") REFERENCES "Servico" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT "InsumoServico_produtoId_fkey" FOREIGN KEY ("produtoId") REFERENCES "Produto" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+-- CreateTable
 CREATE TABLE "Produto" (
     "id" TEXT NOT NULL PRIMARY KEY,
     "nome" TEXT NOT NULL,
     "descricao" TEXT,
-    "precoCusto" REAL NOT NULL DEFAULT 0.0,
+    "precoCusto" REAL,
     "precoVenda" REAL NOT NULL,
     "estoque" INTEGER NOT NULL DEFAULT 0,
-    "estoqueMinimo" INTEGER NOT NULL DEFAULT 5,
-    "ativo" BOOLEAN NOT NULL DEFAULT true
+    "unidadeMedida" TEXT NOT NULL DEFAULT 'un',
+    "tamanhoUnidade" INTEGER NOT NULL DEFAULT 1,
+    "ativo" BOOLEAN NOT NULL DEFAULT true,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" DATETIME NOT NULL
 );
 
 -- CreateTable
@@ -110,6 +124,9 @@ CREATE UNIQUE INDEX "Funcionario_email_key" ON "Funcionario"("email");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Funcionario_cpf_key" ON "Funcionario"("cpf");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "InsumoServico_servicoId_produtoId_key" ON "InsumoServico"("servicoId", "produtoId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "_FuncionarioToServico_AB_unique" ON "_FuncionarioToServico"("A", "B");
