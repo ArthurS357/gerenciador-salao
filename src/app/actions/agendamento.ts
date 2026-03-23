@@ -7,6 +7,52 @@ type ActionResult<T = object> =
     | ({ sucesso: true } & T)
     | { sucesso: false; erro: string }
 
+// ── FUNÇÃO AUXILIAR: Validador de Expediente ──────────────────────────────────
+// Garante que o agendamento respeita os horários definidos pelo profissional
+async function validarHorarioExpediente(funcionarioId: string, dataHoraInicio: Date, dataHoraFim: Date): Promise<string | null> {
+    // Usamos o timezone do Brasil para garantir que o cálculo do dia da semana não falha de madrugada
+    const inicioLocal = new Date(dataHoraInicio.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }))
+    const fimLocal = new Date(dataHoraFim.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }))
+
+    const diaSemana = inicioLocal.getDay() // 0 = Domingo, 1 = Segunda...
+    const diasNomes = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado']
+
+    const expediente = await prisma.expediente.findUnique({
+        where: {
+            funcionarioId_diaSemana: {
+                funcionarioId,
+                diaSemana
+            }
+        }
+    })
+
+    if (!expediente || !expediente.ativo) {
+        return `O profissional selecionado não atende ao(à) ${diasNomes[diaSemana]}. Por favor, escolha outro dia.`
+    }
+
+    // Converter strings "09:00" para minutos para facilitar a matemática
+    const [expHoraIn, expMinIn] = expediente.horaInicio.split(':').map(Number)
+    const [expHoraFim, expMinFim] = expediente.horaFim.split(':').map(Number)
+    const expInicioMinutos = expHoraIn * 60 + expMinIn
+    const expFimMinutos = expHoraFim * 60 + expMinFim
+
+    // Converter o horário agendado para minutos
+    const agendamentoInicioMinutos = inicioLocal.getHours() * 60 + inicioLocal.getMinutes()
+    const agendamentoFimMinutos = fimLocal.getHours() * 60 + fimLocal.getMinutes()
+
+    if (fimLocal.getDay() !== diaSemana) {
+        return 'A duração dos serviços ultrapassa a meia-noite.'
+    }
+
+    if (agendamentoInicioMinutos < expInicioMinutos || agendamentoFimMinutos > expFimMinutos) {
+        return `Horário indisponível. O turno de trabalho deste profissional é das ${expediente.horaInicio} às ${expediente.horaFim}.`
+    }
+
+    return null // Tudo certo, o horário é válido!
+}
+
+// ── FUNÇÕES PRINCIPAIS ────────────────────────────────────────────────────────
+
 export async function criarAgendamentoMultiplo(
     clienteId: string,
     funcionarioId: string,
@@ -40,6 +86,13 @@ export async function criarAgendamentoMultiplo(
         const tempoTotalBloqueio = tempoTotalMinutos + TEMPO_BUFFER_MINUTOS
         const dataHoraFim = new Date(dataHoraInicio.getTime() + tempoTotalBloqueio * 60_000)
 
+        // 1. Validar a Escala de Trabalho (Expediente)
+        const erroExpediente = await validarHorarioExpediente(funcionarioId, dataHoraInicio, dataHoraFim)
+        if (erroExpediente) {
+            return { sucesso: false, erro: erroExpediente }
+        }
+
+        // 2. Validar Choque de Horários (Conflitos na Agenda)
         const conflito = await prisma.agendamento.findFirst({
             where: {
                 funcionarioId,
@@ -54,7 +107,7 @@ export async function criarAgendamentoMultiplo(
         if (conflito) {
             return {
                 sucesso: false,
-                erro: 'Choque de horários. O profissional não tem agenda disponível para este intervalo total.',
+                erro: 'Choque de horários. O profissional já tem marcações neste intervalo de tempo.',
             }
         }
 
@@ -120,6 +173,7 @@ export async function cancelarAgendamentoPendente(id: string): Promise<ActionRes
         }
 
         await prisma.$transaction(async (tx) => {
+            // Devolve os produtos de revenda ao estoque
             for (const item of agendamento.produtos) {
                 await tx.produto.update({
                     where: { id: item.produtoId },
@@ -177,7 +231,13 @@ export async function editarAgendamentoPendente(
         })
         const dataHoraFim = new Date(dataHoraInicio.getTime() + (tempoTotalMinutos + TEMPO_BUFFER_MINUTOS) * 60_000)
 
-        // 3. Verifica choque de horários (ignorando o próprio agendamento sendo editado)
+        // 3. Validar a Escala de Trabalho (Expediente)
+        const erroExpediente = await validarHorarioExpediente(funcionarioId, dataHoraInicio, dataHoraFim)
+        if (erroExpediente) {
+            return { sucesso: false, erro: erroExpediente }
+        }
+
+        // 4. Verifica choque de horários (ignorando o próprio agendamento sendo editado)
         const conflito = await prisma.agendamento.findFirst({
             where: {
                 funcionarioId,
@@ -194,7 +254,7 @@ export async function editarAgendamentoPendente(
             return { sucesso: false, erro: 'Choque de horários. Profissional indisponível neste novo horário.' }
         }
 
-        // 4. Salva no banco de dados
+        // 5. Salva no banco de dados
         await prisma.agendamento.update({
             where: { id },
             data: { funcionarioId, dataHoraInicio, dataHoraFim }

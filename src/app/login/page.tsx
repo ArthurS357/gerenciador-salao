@@ -6,7 +6,12 @@ import { loginCliente } from '@/app/actions/auth';
 export default function LoginPage() {
     const [telefone, setTelefone] = useState('');
     const [nome, setNome] = useState('');
-    const [precisaNome, setPrecisaNome] = useState(false); // Flag de nova conta
+
+    // Flags de fluxo de login
+    const [precisaNovoNome, setPrecisaNovoNome] = useState(false);
+    const [precisaConfirmarNome, setPrecisaConfirmarNome] = useState(false);
+    const [nomeMascarado, setNomeMascarado] = useState('');
+
     const [erro, setErro] = useState('');
     const [loading, setLoading] = useState(false);
     const [mounted, setMounted] = useState(false);
@@ -33,12 +38,19 @@ export default function LoginPage() {
         }
 
         try {
-            // Se precisaNome for falso, manda o nome undefined (para testar se já existe)
-            const res = await loginCliente(telefone, precisaNome ? nome : undefined);
+            const envioNome = (precisaNovoNome || precisaConfirmarNome) ? nome : undefined;
+            const res = await loginCliente(telefone, envioNome);
 
-            if (res.requireName) {
-                // É um cliente novo! Abre o campo do nome.
-                setPrecisaNome(true);
+            if (res.requireNewName) {
+                setPrecisaNovoNome(true);
+                setErro('');
+                setLoading(false);
+                return;
+            }
+
+            if (res.requireNameConfirmation) {
+                setPrecisaConfirmarNome(true);
+                setNomeMascarado(res.maskedName || '');
                 setErro('');
                 setLoading(false);
                 return;
@@ -354,11 +366,12 @@ export default function LoginPage() {
                                     placeholder="(11) 90000-0000"
                                     autoComplete="tel"
                                     maxLength={15}
-                                    disabled={precisaNome} // Trava se já passou dessa fase
+                                    disabled={precisaNovoNome || precisaConfirmarNome}
                                 />
                             </div>
 
-                            {precisaNome && (
+                            {/* Fluxo: Novo Cadastro */}
+                            {precisaNovoNome && (
                                 <div className="campo fade-in">
                                     <label htmlFor="nome">Como podemos te chamar?</label>
                                     <input
@@ -369,7 +382,32 @@ export default function LoginPage() {
                                         onChange={(e) => setNome(e.target.value)}
                                         placeholder="Seu primeiro nome"
                                         autoComplete="name"
-                                        autoFocus // Foca automático quando aparece
+                                        autoFocus
+                                    />
+                                </div>
+                            )}
+
+                            {/* Fluxo: Confirmação de Segurança (Máscara) */}
+                            {precisaConfirmarNome && (
+                                <div className="campo fade-in p-4 bg-orange-50 border border-orange-200 rounded text-center">
+                                    <p className="text-xs text-[#8B5A2B] font-bold mb-2 uppercase tracking-wider">
+                                        🔒 Verificação de Segurança
+                                    </p>
+                                    <p className="text-sm text-gray-700 mb-4">
+                                        Para confirmar que é você, digite o seu primeiro nome.<br />
+                                        <span className="block mt-1 font-mono text-[#5C4033] bg-white p-1 rounded font-bold border border-orange-100">
+                                            {nomeMascarado}
+                                        </span>
+                                    </p>
+                                    <input
+                                        id="nomeConfirmacao"
+                                        type="text"
+                                        required
+                                        value={nome}
+                                        onChange={(e) => setNome(e.target.value)}
+                                        placeholder="Digite o seu primeiro nome"
+                                        autoFocus
+                                        className="text-center"
                                     />
                                 </div>
                             )}
@@ -379,7 +417,7 @@ export default function LoginPage() {
                                     <span className="loader">
                                         <span className="loader-dot" /><span className="loader-dot" /><span className="loader-dot" />
                                     </span>
-                                ) : precisaNome ? 'Concluir Cadastro e Entrar' : 'Continuar'}
+                                ) : (precisaNovoNome || precisaConfirmarNome) ? 'Confirmar e Entrar' : 'Continuar'}
                             </button>
                         </form>
 

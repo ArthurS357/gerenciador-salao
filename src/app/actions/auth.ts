@@ -15,7 +15,9 @@ export type LoginResult = {
     success: boolean;
     clienteId?: string;
     error?: string;
-    requireName?: boolean; // <-- Nova flag para pedir o nome se não existir
+    requireNewName?: boolean;          // Para novos cadastros
+    requireNameConfirmation?: boolean; // Para clientes existentes (Segurança)
+    maskedName?: string;               // O nome mascarado (ex: A***** S*****)
 }
 
 type LoginFuncionarioResult =
@@ -30,30 +32,61 @@ type SessaoFuncionarioResult =
     | { logado: true; id: string; nome: string; role: 'ADMIN' | 'PROFISSIONAL' }
     | { logado: false }
 
+// ── Utilitário de Segurança ───────────────────────────────────────────────────
+
+function mascararNome(nomeCompleto: string): string {
+    return nomeCompleto
+        .split(' ')
+        .map(palavra => {
+            if (palavra.length <= 2) return palavra; // Não mascara "da", "de"
+            return palavra.charAt(0).toUpperCase() + '*'.repeat(palavra.length - 1);
+        })
+        .join(' ');
+}
+
 // ── Login do cliente ──────────────────────────────────────────────────────────
 
 export async function loginCliente(
     telefone: string,
-    nome?: string // <-- Agora o nome é opcional no primeiro clique
+    nome?: string // Opcional no primeiro passo
 ): Promise<LoginResult> {
     try {
         let cliente = await prisma.cliente.findFirst({ where: { telefone } })
 
         if (cliente) {
-            // Se o cliente existe, NÃO atualizamos o nome, apenas fazemos login direto.
             if (cliente.anonimizado) {
                 return { success: false, error: 'Esta conta foi desativada e anonimizada.' }
             }
-        } else {
-            // Se o cliente não existe, verificamos se o nome foi enviado.
+
+            // SEGREDO DE SEGURANÇA: Se não enviou o nome, pedimos a confirmação mascarada
             if (!nome || nome.trim() === '') {
-                // Se não enviou, retorna pedindo o nome para a interface
-                return { success: false, requireName: true }
+                return {
+                    success: false,
+                    requireNameConfirmation: true,
+                    maskedName: mascararNome(cliente.nome)
+                }
             }
-            // Cria o cliente se ele enviou o nome no segundo passo
-            cliente = await prisma.cliente.create({ data: { telefone, nome } })
+
+            // Validação: Verifica se o primeiro nome digitado bate com o registado
+            const primeiroNomeBanco = cliente.nome.trim().split(' ')[0].toLowerCase();
+            const primeiroNomeInput = nome.trim().split(' ')[0].toLowerCase();
+
+            if (primeiroNomeBanco !== primeiroNomeInput) {
+                return {
+                    success: false,
+                    error: 'O nome inserido não corresponde ao titular deste número. Tente novamente.'
+                }
+            }
+
+        } else {
+            // Cliente não existe, é um cadastro novo
+            if (!nome || nome.trim() === '') {
+                return { success: false, requireNewName: true }
+            }
+            cliente = await prisma.cliente.create({ data: { telefone, nome: nome.trim() } })
         }
 
+        // Gera o Token de Sessão Seguro
         const token = await new SignJWT({ sub: cliente.id, role: 'CLIENTE' })
             .setProtectedHeader({ alg: 'HS256' })
             .setIssuedAt()
@@ -72,7 +105,7 @@ export async function loginCliente(
         return { success: true, clienteId: cliente.id }
     } catch (error) {
         console.error('Erro no login do cliente:', error)
-        return { success: false, error: 'Falha ao autenticar.' }
+        return { success: false, error: 'Falha técnica ao autenticar.' }
     }
 }
 
