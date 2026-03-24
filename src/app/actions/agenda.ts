@@ -17,19 +17,21 @@ function formatarMinutos(minutosTotais: number): string {
 export async function obterHorariosDisponiveis(
     funcionarioId: string,
     dataString: string, // Esperado no formato "YYYY-MM-DD"
-    servicoId: string
+    servicoIds: string[] // Modificado para receber array de IDs
 ) {
-    // Passo B: Obter a duração do serviço que o cliente deseja agendar
-    const servico = await prisma.servico.findUnique({
-        where: { id: servicoId },
+    if (!servicoIds || servicoIds.length === 0) return [];
+
+    // Passo B: Obter a duração total dos serviços que o cliente deseja agendar
+    const servicos = await prisma.servico.findMany({
+        where: { id: { in: servicoIds } },
         select: { tempoMinutos: true }
     });
 
-    if (!servico || !servico.tempoMinutos) {
-        throw new Error("Serviço não encontrado ou sem tempo definido na base de dados.");
-    }
+    const duracaoServico = servicos.reduce((acc, s) => acc + (s.tempoMinutos || 0), 0);
 
-    const duracaoServico = servico.tempoMinutos;
+    if (duracaoServico === 0) {
+        throw new Error("Serviços não encontrados ou sem tempo definido na base de dados.");
+    }
 
     // Passo C: Determinar o dia da semana utilizando UTC para evitar falhas de fuso horário
     const dataAlvo = new Date(`${dataString}T00:00:00Z`);
@@ -79,15 +81,13 @@ export async function obterHorariosDisponiveis(
 
     let tempoAtual = inicioExpediente;
 
-    // Enquanto a hora avaliada mais o tempo do serviço não ultrapassarem o fim do turno
+    // Enquanto a hora avaliada mais o tempo total dos serviços não ultrapassar o fim do turno
     while (tempoAtual + duracaoServico <= fimExpediente) {
         const slotInicio = tempoAtual;
         const slotFim = tempoAtual + duracaoServico;
 
         // Verificar se a vaga testada colide com algum agendamento já guardado
         const temConflito = bloqueios.some(bloqueio => {
-            // Existe sobreposição SE: O início da vaga desejada for antes do fim do bloqueio 
-            // E o fim da vaga desejada ultrapassar o início do bloqueio
             return slotInicio < bloqueio.fim && slotFim > bloqueio.inicio;
         });
 

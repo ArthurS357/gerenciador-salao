@@ -1,12 +1,10 @@
 'use client'
-// src/components/landing/FormularioReserva.tsx
-// CORRIGIDO: useEffect agora usa `sessao.nome` diretamente (sem cast `as any`)
-// porque FormularioReservaProps.sessao já é do tipo completo Sessao.
 
 import { memo, useState, useEffect } from 'react'
 import Link from 'next/link'
 import { cn } from './cn'
 import type { FormularioReservaProps, TipoMensagem } from './types'
+import { obterHorariosDisponiveis } from '@/app/actions/agenda' // Importação da Server Action
 
 const FEEDBACK: Record<Exclude<TipoMensagem, ''>, string> = {
     sucesso: 'bg-[rgba(52,199,89,0.08)] border border-[rgba(52,199,89,0.2)] text-[#6fcf97]',
@@ -62,12 +60,51 @@ const FormularioReserva = memo(function FormularioReserva({
     const [nome, setNome] = useState('')
     const [telefone, setTelefone] = useState('')
 
-    // CORRIGIDO: sem cast `as any` — sessao.nome está disponível diretamente
+    // Novos estados para gerenciar o calendário e horários
+    const [dataCalendario, setDataCalendario] = useState('')
+    const [horaSelecionada, setHoraSelecionada] = useState('')
+    const [horariosDisponiveis, setHorariosDisponiveis] = useState<string[]>([])
+    const [buscandoHorarios, setBuscandoHorarios] = useState(false)
+
     useEffect(() => {
         if (sessao.logado && sessao.nome) {
             setNome(sessao.nome)
         }
     }, [sessao.logado, sessao.nome])
+
+    // Dispara a busca de slots sempre que os pré-requisitos forem atendidos
+    useEffect(() => {
+        async function buscarVagas() {
+            if (!profissionalId || !dataCalendario || servicosSelecionados.length === 0) {
+                setHorariosDisponiveis([])
+                setHoraSelecionada('')
+                setDataHora('')
+                return
+            }
+
+            setBuscandoHorarios(true)
+            setHoraSelecionada('')
+            setDataHora('')
+
+            try {
+                const vagas = await obterHorariosDisponiveis(profissionalId, dataCalendario, servicosSelecionados)
+                setHorariosDisponiveis(vagas)
+            } catch (error) {
+                console.error("Erro ao buscar vagas", error)
+                setHorariosDisponiveis([])
+            } finally {
+                setBuscandoHorarios(false)
+            }
+        }
+
+        buscarVagas()
+    }, [profissionalId, dataCalendario, servicosSelecionados, setDataHora])
+
+    const handleSelecionarHora = (hora: string) => {
+        setHoraSelecionada(hora)
+        // Monta o formato esperado pelo componente pai 'LandingInterativo'
+        setDataHora(`${dataCalendario}T${hora}:00`)
+    }
 
     const inicial = (n?: string) => n?.charAt(0).toUpperCase() ?? '?'
 
@@ -84,11 +121,11 @@ const FormularioReserva = memo(function FormularioReserva({
         nome.length > 2 &&
         telefone.length >= 14 &&
         profissionalId &&
-        dataHora
+        dataHora // Exige que a Data e a Hora tenham sido combinadas
 
     return (
         <section id="agendamento" className="relative bg-[#0e0905] py-24 md:py-32 overflow-hidden">
-            {/* Atmosfera */}
+            {/* Atmosfera (mantida) */}
             <div aria-hidden="true" className="pointer-events-none absolute inset-0">
                 <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-[rgba(197,168,124,0.15)] to-transparent" />
                 <div className="absolute top-[20%] right-[-5%] w-[40%] h-[60%] rounded-full bg-[radial-gradient(ellipse,rgba(139,90,43,0.1)_0%,transparent_65%)] blur-3xl" />
@@ -103,8 +140,6 @@ const FormularioReserva = memo(function FormularioReserva({
             </div>
 
             <div className="relative z-10 max-w-[760px] mx-auto px-6 md:px-16">
-
-                {/* Cabeçalho */}
                 <div className="text-center mb-14">
                     <div className="flex items-center justify-center gap-4 mb-6">
                         <div className="h-px w-12 bg-gradient-to-r from-transparent to-[#c5a87c]/50" />
@@ -121,12 +156,10 @@ const FormularioReserva = memo(function FormularioReserva({
                     </p>
                 </div>
 
-                {/* Card do formulário */}
                 <div
                     className="bg-white/[0.03] border border-[rgba(197,168,124,0.1)] p-8 md:p-12 backdrop-blur-sm"
                     style={{ clipPath: 'polygon(12px 0,100% 0,100% calc(100% - 12px),calc(100% - 12px) 100%,0 100%,0 12px)' }}
                 >
-                    {/* Aviso de login suave */}
                     {mounted && !sessao.logado && (
                         <div
                             className="flex items-center justify-between gap-4 flex-wrap p-5 mb-8 bg-[rgba(197,168,124,0.05)] border border-[rgba(197,168,124,0.15)]"
@@ -145,7 +178,6 @@ const FormularioReserva = memo(function FormularioReserva({
                         </div>
                     )}
 
-                    {/* Feedback */}
                     {mensagem.texto && mensagem.tipo && (
                         <div className={cn('flex items-center gap-2 py-3.5 px-5 mb-7 text-[0.8rem] font-light', FEEDBACK[mensagem.tipo])}>
                             <span>{mensagem.tipo === 'sucesso' ? '✓' : mensagem.tipo === 'erro' ? '✕' : '·'}</span>
@@ -153,7 +185,6 @@ const FormularioReserva = memo(function FormularioReserva({
                         </div>
                     )}
 
-                    {/* Serviços selecionados */}
                     {servicosSelecionados.length > 0 && (
                         <div className="flex flex-wrap gap-2 mb-7">
                             {catalogoServicos
@@ -170,7 +201,6 @@ const FormularioReserva = memo(function FormularioReserva({
                     )}
 
                     <form onSubmit={handleAgendar}>
-
                         {/* 1. Dados do Cliente */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-5">
                             <div>
@@ -236,20 +266,56 @@ const FormularioReserva = memo(function FormularioReserva({
                             </div>
 
                             <div>
-                                <label htmlFor="dataHora" className="block font-sans text-[0.62rem] font-medium tracking-[0.2em] uppercase text-[rgba(197,168,124,0.75)] mb-2.5">
-                                    Data e Horário
+                                <label htmlFor="dataCalendario" className="block font-sans text-[0.62rem] font-medium tracking-[0.2em] uppercase text-[rgba(197,168,124,0.75)] mb-2.5">
+                                    Selecione a Data *
                                 </label>
                                 <DarkInput
-                                    id="dataHora"
-                                    type="datetime-local"
+                                    id="dataCalendario"
+                                    type="date"
                                     required
-                                    value={dataHora}
-                                    onChange={e => setDataHora(e.target.value)}
+                                    min={new Date().toISOString().split('T')[0]}
+                                    value={dataCalendario}
+                                    onChange={e => setDataCalendario(e.target.value)}
+                                    disabled={!profissionalId || servicosSelecionados.length === 0}
                                 />
                             </div>
+
+                            {/* Renderização dinâmica dos Slots de Horário */}
+                            {dataCalendario && profissionalId && servicosSelecionados.length > 0 && (
+                                <div className="col-span-1 md:col-span-2 mt-2 p-5 bg-white/[0.02] border border-[rgba(197,168,124,0.08)]">
+                                    <label className="block font-sans text-[0.62rem] font-medium tracking-[0.2em] uppercase text-[rgba(197,168,124,0.75)] mb-4 text-center">
+                                        Horários Disponíveis
+                                    </label>
+
+                                    {buscandoHorarios ? (
+                                        <p className="text-sm text-[#c5a87c]/60 font-light text-center animate-pulse">Consultando agenda do profissional...</p>
+                                    ) : horariosDisponiveis.length > 0 ? (
+                                        <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 gap-2.5">
+                                            {horariosDisponiveis.map(h => (
+                                                <button
+                                                    key={h}
+                                                    type="button"
+                                                    onClick={() => handleSelecionarHora(h)}
+                                                    className={cn(
+                                                        "py-2.5 px-2 rounded-md text-[0.8rem] font-medium transition-all duration-200 border",
+                                                        horaSelecionada === h
+                                                            ? "bg-[#c5a87c] text-[#0e0905] border-[#c5a87c] shadow-[0_0_12px_rgba(197,168,124,0.3)]"
+                                                            : "bg-white/[0.04] text-[#c5a87c]/80 border-[rgba(197,168,124,0.15)] hover:border-[#c5a87c]/50 hover:bg-white/[0.08]"
+                                                    )}
+                                                >
+                                                    {h}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <p className="text-sm text-[#f08080] font-light bg-[rgba(235,87,87,0.08)] border border-[rgba(235,87,87,0.2)] py-2.5 px-3 rounded text-center">
+                                            Nenhum horário disponível nesta data.
+                                        </p>
+                                    )}
+                                </div>
+                            )}
                         </div>
 
-                        {/* Total */}
                         {servicosSelecionados.length > 0 && totalSelecionado > 0 && (
                             <div className="flex items-center justify-between py-4 mt-2 mb-2 border-t border-[rgba(197,168,124,0.1)]">
                                 <span className="font-sans text-[0.65rem] font-medium tracking-[0.2em] uppercase text-[rgba(197,168,124,0.6)]">
@@ -261,7 +327,6 @@ const FormularioReserva = memo(function FormularioReserva({
                             </div>
                         )}
 
-                        {/* Botão */}
                         <button
                             type="submit"
                             disabled={!prontoParaAgendar}
@@ -270,7 +335,7 @@ const FormularioReserva = memo(function FormularioReserva({
                             {servicosSelecionados.length === 0
                                 ? 'Selecione os serviços acima'
                                 : !prontoParaAgendar
-                                    ? 'Preencha todos os dados'
+                                    ? 'Preencha todos os dados e o horário'
                                     : sessao.logado
                                         ? `Confirmar ${servicosSelecionados.length} Serviço${servicosSelecionados.length > 1 ? 's' : ''}`
                                         : 'Registrar e Agendar'}
