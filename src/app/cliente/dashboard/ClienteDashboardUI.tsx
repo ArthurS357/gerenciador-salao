@@ -1,13 +1,10 @@
 'use client'
-// src/app/cliente/dashboard/ClienteDashboardUI.tsx
-// Client Component: contém toda a interatividade (logout, exclusão de conta, lista de agendamentos).
-// Recebe dados já buscados pelo Server Component pai (page.tsx).
-// CORRIGIDO: tipos estritos, sem `any`, histórico de agendamentos exibido.
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { logoutCliente } from '@/app/actions/auth'
 import { excluirContaCliente } from '@/app/actions/cliente'
+import { criarAvaliacao } from '@/app/actions/avaliacao'
 import type { HistoricoAgendamentoItem } from '@/app/actions/cliente'
 
 interface ClienteDashboardUIProps {
@@ -41,6 +38,13 @@ export default function ClienteDashboardUI({
     const router = useRouter()
     const [isProcessing, setIsProcessing] = useState(false)
 
+    // Estados do Modal de Avaliação
+    const [avaliandoId, setAvaliandoId] = useState<string | null>(null)
+    const [nota, setNota] = useState<number>(5)
+    const [comentario, setComentario] = useState('')
+    const [avaliadosLocalmente, setAvaliadosLocalmente] = useState<string[]>([])
+    const [loadingAvaliacao, setLoadingAvaliacao] = useState(false)
+
     const handleLogout = async () => {
         await logoutCliente()
         router.push('/')
@@ -68,11 +72,30 @@ export default function ClienteDashboardUI({
         }
     }
 
+    const handleSalvarAvaliacao = async (e: React.FormEvent) => {
+        e.preventDefault()
+        if (!avaliandoId) return
+
+        setLoadingAvaliacao(true)
+        const res = await criarAvaliacao(avaliandoId, nota, comentario)
+
+        if (res.sucesso) {
+            alert('Muito obrigado pelo seu feedback!')
+            setAvaliadosLocalmente([...avaliadosLocalmente, avaliandoId])
+            setAvaliandoId(null)
+            setNota(5)
+            setComentario('')
+        } else {
+            alert(res.erro)
+        }
+        setLoadingAvaliacao(false)
+    }
+
     const pendentes = agendamentos.filter(a => !a.concluido)
     const concluidos = agendamentos.filter(a => a.concluido)
 
     return (
-        <div className="min-h-screen bg-[#fdfbf7] p-4 md:p-8 pt-24">
+        <div className="min-h-screen bg-[#fdfbf7] p-4 md:p-8 pt-24 relative">
             <div className="max-w-4xl mx-auto space-y-6">
 
                 {/* Header */}
@@ -166,32 +189,57 @@ export default function ClienteDashboardUI({
                             Histórico de Visitas
                         </h2>
                         <div className="space-y-3">
-                            {concluidos.map(ag => (
-                                <div key={ag.id} className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm flex flex-col md:flex-row gap-4 items-start md:items-center">
-                                    <div className="flex-1">
-                                        <p className="text-xs text-gray-400">{formatarData(ag.dataHoraInicio)}</p>
-                                        <p className="font-semibold text-gray-700 text-sm mt-0.5">
-                                            Com: {ag.funcionario.nome}
-                                        </p>
-                                        <div className="flex flex-wrap gap-1.5 mt-2">
-                                            {ag.servicos.map(s => (
-                                                <span key={s.servico.nome} className="text-[10px] font-bold uppercase tracking-wider bg-gray-100 text-gray-500 px-2 py-0.5 rounded">
-                                                    {s.servico.nome}
-                                                </span>
-                                            ))}
+                            {concluidos.map(ag => {
+                                // Fallback inteligente: se já tiver avaliação no payload ou estiver no estado local
+                                const jaAvaliado = (ag as any).avaliacao != null || avaliadosLocalmente.includes(ag.id);
+
+                                return (
+                                    <div key={ag.id} className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm flex flex-col md:flex-row gap-4 items-start md:items-center">
+                                        <div className="flex-1 w-full">
+                                            <div className="flex justify-between items-start w-full">
+                                                <div>
+                                                    <p className="text-xs text-gray-400">{formatarData(ag.dataHoraInicio)}</p>
+                                                    <p className="font-semibold text-gray-700 text-sm mt-0.5">
+                                                        Com: {ag.funcionario.nome}
+                                                    </p>
+                                                </div>
+                                                <div className="text-right flex flex-col items-end gap-1">
+                                                    <span className="font-black text-[#8B5A2B]">
+                                                        R$ {ag.valorBruto.toFixed(2)}
+                                                    </span>
+                                                    <span className={`px-2.5 py-1 text-[10px] font-bold rounded uppercase tracking-wider ${STATUS_BADGE.concluido}`}>
+                                                        Faturado
+                                                    </span>
+                                                </div>
+                                            </div>
+
+                                            <div className="flex flex-wrap items-center justify-between gap-4 mt-3 pt-3 border-t border-gray-50">
+                                                <div className="flex flex-wrap gap-1.5">
+                                                    {ag.servicos.map(s => (
+                                                        <span key={s.servico.nome} className="text-[10px] font-bold uppercase tracking-wider bg-gray-100 text-gray-500 px-2 py-0.5 rounded">
+                                                            {s.servico.nome}
+                                                        </span>
+                                                    ))}
+                                                </div>
+
+                                                {/* Botão de Avaliação Dinâmico */}
+                                                {!jaAvaliado ? (
+                                                    <button
+                                                        onClick={() => setAvaliandoId(ag.id)}
+                                                        className="px-3 py-1.5 bg-orange-50 text-[#8B5A2B] border border-orange-200 rounded text-xs font-bold hover:bg-[#8B5A2B] hover:text-white transition-colors flex items-center gap-1 shadow-sm"
+                                                    >
+                                                        <span>⭐</span> Avaliar Atendimento
+                                                    </button>
+                                                ) : (
+                                                    <span className="text-xs font-medium text-green-600 flex items-center gap-1">
+                                                        <span>✓</span> Avaliado
+                                                    </span>
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
-
-                                    <div className="text-right flex flex-col items-end gap-1">
-                                        <span className="font-black text-[#8B5A2B]">
-                                            R$ {ag.valorBruto.toFixed(2)}
-                                        </span>
-                                        <span className={`px-2.5 py-1 text-[10px] font-bold rounded uppercase tracking-wider ${STATUS_BADGE.concluido}`}>
-                                            Faturado
-                                        </span>
-                                    </div>
-                                </div>
-                            ))}
+                                )
+                            })}
                         </div>
                     </section>
                 )}
@@ -211,8 +259,65 @@ export default function ClienteDashboardUI({
                         {isProcessing ? 'Excluindo...' : 'Excluir Meus Dados'}
                     </button>
                 </section>
-
             </div>
+
+            {/* Modal de Avaliação (Sobreposto) */}
+            {avaliandoId && (
+                <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
+                    <div className="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-sm border-t-4 border-[#8B5A2B] animate-in fade-in zoom-in duration-200">
+                        <div className="text-center mb-6">
+                            <h2 className="text-2xl font-bold text-[#5C4033]">Como foi sua experiência?</h2>
+                            <p className="text-gray-500 text-sm mt-1">Sua opinião nos ajuda a melhorar.</p>
+                        </div>
+
+                        <form onSubmit={handleSalvarAvaliacao} className="space-y-6">
+                            {/* Estrelas Interativas */}
+                            <div className="flex justify-center gap-2">
+                                {[1, 2, 3, 4, 5].map((star) => (
+                                    <button
+                                        key={star}
+                                        type="button"
+                                        onClick={() => setNota(star)}
+                                        className={`text-4xl transition-all hover:scale-110 ${nota >= star ? 'text-yellow-400 drop-shadow-sm' : 'text-gray-200'}`}
+                                    >
+                                        ★
+                                    </button>
+                                ))}
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 text-center">
+                                    Deixe um comentário (Opcional)
+                                </label>
+                                <textarea
+                                    className="w-full border border-gray-300 rounded-lg p-3 text-sm outline-none focus:border-[#8B5A2B] resize-none h-24 bg-gray-50"
+                                    placeholder="Conte-nos o que achou do atendimento..."
+                                    value={comentario}
+                                    onChange={(e) => setComentario(e.target.value)}
+                                    maxLength={300}
+                                />
+                            </div>
+
+                            <div className="flex gap-3 pt-2">
+                                <button
+                                    type="button"
+                                    onClick={() => { setAvaliandoId(null); setNota(5); setComentario(''); }}
+                                    className="flex-1 py-3 text-gray-600 font-bold bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors text-sm"
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={loadingAvaliacao}
+                                    className="flex-1 py-3 bg-[#5C4033] text-white font-bold rounded-xl hover:bg-[#3e2b22] disabled:opacity-70 transition-colors shadow-sm text-sm"
+                                >
+                                    {loadingAvaliacao ? 'Enviando...' : 'Enviar Avaliação'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
         </div>
     )
 }

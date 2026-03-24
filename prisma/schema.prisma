@@ -12,7 +12,7 @@ datasource db {
 model Cliente {
   id           String        @id @default(uuid())
   nome         String
-  telefone     String        @unique  // <-- ADICIONE O @unique AQUI
+  telefone     String        @unique
   senhaHash    String?
   anonimizado  Boolean       @default(false)
   
@@ -41,7 +41,6 @@ model Funcionario {
   servicos         Servico[]      // Serviços que o profissional está apto a executar
   expedientes      Expediente[]
 
-
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt
 }
@@ -69,7 +68,6 @@ model Servico {
   tempoMinutos     Int?
   imagemUrl        String?
   ativo            Boolean  @default(true)
-
   destaque         Boolean  @default(false)
 
   itensAgendamento ItemServico[]
@@ -102,8 +100,8 @@ model Produto {
   
   ativo            Boolean  @default(true)
   
-  itensAgendamento ItemProduto[]   // <-- CORREÇÃO: alterado de ItemServico para ItemProduto
-  insumos          InsumoServico[] // <-- RELAÇÃO COM A FICHA TÉCNICA
+  itensAgendamento ItemProduto[]   
+  insumos          InsumoServico[] 
 
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
@@ -128,6 +126,7 @@ model Agendamento {
 
   servicos       ItemServico[]
   produtos       ItemProduto[]
+  avaliacao      Avaliacao?    // <-- NOVA RELAÇÃO (1 para 1)
 }
 
 model ItemServico {
@@ -135,7 +134,6 @@ model ItemServico {
   servicoId     String
   agendamentoId String
   precoCobrado  Float?
-
   servico       Servico     @relation(fields: [servicoId], references: [id])
   agendamento   Agendamento @relation(fields: [agendamentoId], references: [id], onDelete: Cascade)
 }
@@ -159,7 +157,7 @@ model ItemPortfolio {
   imagemUrl   String
   linkSocial  String?
   ativo       Boolean  @default(true)
-  criadoEm   DateTime @default(now())
+  criadoEm    DateTime @default(now())
 }
 
 // 5. SISTEMA DE ALERTAS
@@ -168,4 +166,15 @@ model Notificacao {
   mensagem  String
   lida      Boolean  @default(false)
   criadoEm  DateTime @default(now())
+}
+
+// 6. AVALIAÇÕES (NPS)
+model Avaliacao {
+  id            String      @id @default(uuid())
+  agendamentoId String      @unique
+  nota          Int         // De 1 a 5
+  comentario    String?
+  criadoEm      DateTime    @default(now())
+
+  agendamento   Agendamento @relation(fields: [agendamentoId], references: [id], onDelete: Cascade)
 }
