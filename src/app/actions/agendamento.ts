@@ -1,11 +1,73 @@
 'use server'
 
 import { prisma } from '@/lib/prisma'
-import type { AgendamentoGlobal } from '@/types/domain'
+
+// ── Tipagens Estritas (Substituindo o uso de 'any') ──────────────────────────
 
 type ActionResult<T = object> =
     | ({ sucesso: true } & T)
     | { sucesso: false; erro: string }
+
+export type AgendaProfissionalItem = {
+    id: string
+    clienteId: string
+    funcionarioId: string
+    dataHoraInicio: Date
+    dataHoraFim: Date
+    valorBruto: number
+    taxas: number
+    concluido: boolean
+    cliente: {
+        nome: string
+        telefone: string
+    }
+    servicos: {
+        servico: {
+            nome: string
+            preco: number | null
+            tempoMinutos: number | null
+        }
+    }[]
+    produtos: {
+        produto: {
+            nome: string
+            precoVenda: number
+        }
+    }[]
+}
+
+export type AgendamentoGlobalItem = {
+    id: string
+    clienteId: string
+    funcionarioId: string
+    dataHoraInicio: Date
+    dataHoraFim: Date
+    valorBruto: number
+    taxas: number
+    concluido: boolean
+    cliente: {
+        nome: string
+        telefone: string
+    }
+    funcionario: {
+        nome: string
+    }
+}
+
+export type FuncionarioComExpedienteItem = {
+    id: string
+    nome: string
+    email: string
+    role: string
+    ativo: boolean
+    expedientes: {
+        id: string
+        diaSemana: number
+        horaInicio: string
+        horaFim: string
+        ativo: boolean
+    }[]
+}
 
 // ── FUNÇÃO AUXILIAR: Validador de Expediente ──────────────────────────────────
 // Garante que o agendamento respeita os horários definidos pelo profissional
@@ -131,9 +193,9 @@ export async function criarAgendamentoMultiplo(
     }
 }
 
-export async function listarAgendaProfissional(funcionarioId: string): Promise<
-    ActionResult<{ agendamentos: any[] }>
-> {
+export async function listarAgendaProfissional(
+    funcionarioId: string
+): Promise<ActionResult<{ agendamentos: AgendaProfissionalItem[] }>> {
     try {
         const agendamentos = await prisma.agendamento.findMany({
             where: {
@@ -190,7 +252,7 @@ export async function cancelarAgendamentoPendente(id: string): Promise<ActionRes
     }
 }
 
-export async function listarAgendamentosGlobais() {
+export async function listarAgendamentosGlobais(): Promise<ActionResult<{ agendamentos: AgendamentoGlobalItem[] }>> {
     try {
         const agendamentos = await prisma.agendamento.findMany({
             orderBy: { dataHoraInicio: 'desc' },
@@ -207,7 +269,6 @@ export async function listarAgendamentosGlobais() {
     }
 }
 
-// ── NOVA FUNÇÃO: Editar agendamento existente ─────────────────────────────────
 export async function editarAgendamentoPendente(
     id: string,
     funcionarioId: string,
@@ -264,5 +325,20 @@ export async function editarAgendamentoPendente(
     } catch (error) {
         console.error('Erro ao editar agendamento:', error)
         return { sucesso: false, erro: 'Falha técnica ao atualizar o agendamento.' }
+    }
+}
+
+// ── FUNÇÃO PARA O CALENDÁRIO: Carregar Equipa e Horários ──────────────────────
+export async function listarEquipaComExpediente(): Promise<ActionResult<{ equipa: FuncionarioComExpedienteItem[] }>> {
+    try {
+        const equipa = await prisma.funcionario.findMany({
+            where: { ativo: true, role: 'PROFISSIONAL' },
+            include: { expedientes: true },
+            orderBy: { nome: 'asc' }
+        })
+        return { sucesso: true, equipa: equipa as FuncionarioComExpedienteItem[] }
+    } catch (error) {
+        console.error('Erro ao listar equipa com expediente:', error)
+        return { sucesso: false, erro: 'Falha ao carregar a equipa.' }
     }
 }
