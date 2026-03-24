@@ -1,6 +1,7 @@
-// src/proxy.ts
-// Next.js 16.2.0+ usa a convenção "proxy" em vez de "middleware".
-// O arquivo deve se chamar proxy.ts e exportar a função como `middleware`.
+// src/middleware.ts
+// Next.js exige este nome exato na raiz de /src (ou raiz do projeto).
+// O arquivo anterior chamava-se proxy.ts e exportava `proxy` — ambos erros que
+// impediam o middleware de ser executado, deixando /admin, /profissional e /cliente desprotegidos.
 
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
@@ -13,10 +14,10 @@ const JWT_SECRET = new TextEncoder().encode(
 const REDIRECT_PROFISSIONAL = '/login-profissional'
 const REDIRECT_CLIENTE = '/login'
 
-export async function proxy(request: NextRequest): Promise<NextResponse> {
+export async function middleware(request: NextRequest): Promise<NextResponse> {
     const { pathname } = request.nextUrl
 
-    // ── 1. Área Corporativa (/admin e /profissional) ────────────────────────────
+    // ── 1. Área Corporativa (/admin e /profissional) ──────────────────────────
     if (pathname.startsWith('/admin') || pathname.startsWith('/profissional')) {
         const token = request.cookies.get('funcionario_session')?.value
 
@@ -27,8 +28,6 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
         try {
             const { payload } = await jwtVerify(token, JWT_SECRET)
 
-            // Garante que o token pertence a um funcionário,
-            // bloqueando tokens de cliente mesmo que sejam JWT válidos
             const roleValida = payload.role === 'ADMIN' || payload.role === 'PROFISSIONAL'
             if (!roleValida) {
                 return NextResponse.redirect(new URL(REDIRECT_PROFISSIONAL, request.url))
@@ -38,9 +37,18 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
             if (pathname.startsWith('/admin') && payload.role !== 'ADMIN') {
                 return NextResponse.redirect(new URL(REDIRECT_PROFISSIONAL, request.url))
             }
+
+            // Propaga os dados do payload como headers para Server Components downstream
+            const requestHeaders = new Headers(request.headers)
+            requestHeaders.set('x-user-id', payload.sub ?? '')
+            requestHeaders.set('x-user-role', String(payload.role))
+
+            return NextResponse.next({ request: { headers: requestHeaders } })
         } catch {
             // Token expirado, malformado ou assinatura inválida
-            return NextResponse.redirect(new URL(REDIRECT_PROFISSIONAL, request.url))
+            const response = NextResponse.redirect(new URL(REDIRECT_PROFISSIONAL, request.url))
+            response.cookies.delete('funcionario_session')
+            return response
         }
     }
 
@@ -55,12 +63,19 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
         try {
             const { payload } = await jwtVerify(token, JWT_SECRET)
 
-            // Valida que o token é genuinamente de um cliente
             if (payload.role !== 'CLIENTE') {
                 return NextResponse.redirect(new URL(REDIRECT_CLIENTE, request.url))
             }
+
+            const requestHeaders = new Headers(request.headers)
+            requestHeaders.set('x-user-id', payload.sub ?? '')
+            requestHeaders.set('x-user-role', 'CLIENTE')
+
+            return NextResponse.next({ request: { headers: requestHeaders } })
         } catch {
-            return NextResponse.redirect(new URL(REDIRECT_CLIENTE, request.url))
+            const response = NextResponse.redirect(new URL(REDIRECT_CLIENTE, request.url))
+            response.cookies.delete('cliente_session')
+            return response
         }
     }
 

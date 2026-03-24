@@ -1,4 +1,8 @@
 'use client'
+// src/components/landing/FormularioReserva.tsx
+// CORRIGIDO: useEffect agora usa `sessao.nome` diretamente (sem cast `as any`)
+// porque FormularioReservaProps.sessao já é do tipo completo Sessao.
+
 import { memo, useState, useEffect } from 'react'
 import Link from 'next/link'
 import { cn } from './cn'
@@ -10,7 +14,8 @@ const FEEDBACK: Record<Exclude<TipoMensagem, ''>, string> = {
     info: 'bg-[rgba(197,168,124,0.08)] border border-[rgba(197,168,124,0.18)] text-[#c5a87c]',
 }
 
-const INPUT_BASE = 'w-full py-[0.85rem] px-4 bg-white/[0.04] border border-[rgba(197,168,124,0.15)] text-white/80 font-sans text-[0.875rem] font-light outline-none transition-all duration-300 disabled:opacity-30 disabled:cursor-not-allowed focus:border-[rgba(197,168,124,0.5)] focus:bg-white/[0.07] placeholder:text-white/20'
+const INPUT_BASE =
+    'w-full py-[0.85rem] px-4 bg-white/[0.04] border border-[rgba(197,168,124,0.15)] text-white/80 font-sans text-[0.875rem] font-light outline-none transition-all duration-300 disabled:opacity-30 disabled:cursor-not-allowed focus:border-[rgba(197,168,124,0.5)] focus:bg-white/[0.07] placeholder:text-white/20'
 
 const DarkInput = memo(function DarkInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
     return <input {...props} className={cn('dark-input', INPUT_BASE, props.className)} />
@@ -40,28 +45,32 @@ const DarkSelect = memo(function DarkSelect({ children, ...props }: DarkSelectPr
 })
 
 const FormularioReserva = memo(function FormularioReserva({
-    sessao, mounted, profissionais, catalogoServicos, servicosSelecionados,
-    totalSelecionado, profissionalId, setProfissionalId, dataHora, setDataHora,
-    mensagem, handleAgendar, profissionalSelecionado,
+    sessao,
+    mounted,
+    profissionais,
+    catalogoServicos,
+    servicosSelecionados,
+    totalSelecionado,
+    profissionalId,
+    setProfissionalId,
+    dataHora,
+    setDataHora,
+    mensagem,
+    handleAgendar,
+    profissionalSelecionado,
 }: FormularioReservaProps) {
-
-    // Estados locais para os dados do cliente
     const [nome, setNome] = useState('')
     const [telefone, setTelefone] = useState('')
 
-    // Preenche automaticamente se o usuário já estiver logado
+    // CORRIGIDO: sem cast `as any` — sessao.nome está disponível diretamente
     useEffect(() => {
-        // Passo 1 e 2: Asserção de tipo para evitar o erro do Pick<Sessao, "logado">
-        const sessaoAtual = sessao as { logado: boolean; nome?: string }
-
-        if (sessaoAtual?.logado && sessaoAtual?.nome) {
-            setNome(sessaoAtual.nome)
+        if (sessao.logado && sessao.nome) {
+            setNome(sessao.nome)
         }
-    }, [sessao])
+    }, [sessao.logado, sessao.nome])
 
-    const inicial = (nome?: string) => nome?.charAt(0).toUpperCase() ?? '?'
+    const inicial = (n?: string) => n?.charAt(0).toUpperCase() ?? '?'
 
-    // Máscara robusta para telefone (BR)
     const formatarTelefone = (valor: string) => {
         let v = valor.replace(/\D/g, '')
         if (v.length > 11) v = v.slice(0, 11)
@@ -70,7 +79,12 @@ const FormularioReserva = memo(function FormularioReserva({
         return v
     }
 
-    const prontoParaAgendar = servicosSelecionados.length > 0 && nome.length > 2 && telefone.length >= 14 && profissionalId && dataHora
+    const prontoParaAgendar =
+        servicosSelecionados.length > 0 &&
+        nome.length > 2 &&
+        telefone.length >= 14 &&
+        profissionalId &&
+        dataHora
 
     return (
         <section id="agendamento" className="relative bg-[#0e0905] py-24 md:py-32 overflow-hidden">
@@ -114,11 +128,13 @@ const FormularioReserva = memo(function FormularioReserva({
                 >
                     {/* Aviso de login suave */}
                     {mounted && !sessao.logado && (
-                        <div className="flex items-center justify-between gap-4 flex-wrap p-5 mb-8 bg-[rgba(197,168,124,0.05)] border border-[rgba(197,168,124,0.15)]"
+                        <div
+                            className="flex items-center justify-between gap-4 flex-wrap p-5 mb-8 bg-[rgba(197,168,124,0.05)] border border-[rgba(197,168,124,0.15)]"
                             style={{ clipPath: 'polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px)' }}
                         >
                             <p className="text-[0.75rem] text-white/40 font-light">
-                                Já possui cadastro no salão? <strong className="text-[#c5a87c] font-medium">Faça login para agilizar.</strong>
+                                Já possui cadastro no salão?{' '}
+                                <strong className="text-[#c5a87c] font-medium">Faça login para agilizar.</strong>
                             </p>
                             <Link
                                 href="/login"
@@ -140,11 +156,16 @@ const FormularioReserva = memo(function FormularioReserva({
                     {/* Serviços selecionados */}
                     {servicosSelecionados.length > 0 && (
                         <div className="flex flex-wrap gap-2 mb-7">
-                            {catalogoServicos.filter(s => servicosSelecionados.includes(s.id)).map(s => (
-                                <span key={s.id} className="py-1.5 px-3 bg-[rgba(197,168,124,0.1)] border border-[rgba(197,168,124,0.2)] text-[0.68rem] font-medium text-[#c5a87c] tracking-[0.06em]">
-                                    {s.nome}
-                                </span>
-                            ))}
+                            {catalogoServicos
+                                .filter(s => servicosSelecionados.includes(s.id))
+                                .map(s => (
+                                    <span
+                                        key={s.id}
+                                        className="py-1.5 px-3 bg-[rgba(197,168,124,0.1)] border border-[rgba(197,168,124,0.2)] text-[0.68rem] font-medium text-[#c5a87c] tracking-[0.06em]"
+                                    >
+                                        {s.nome}
+                                    </span>
+                                ))}
                         </div>
                     )}
 
@@ -164,7 +185,7 @@ const FormularioReserva = memo(function FormularioReserva({
                                     placeholder="Ex: Ana Silva"
                                     value={nome}
                                     onChange={(e) => setNome(e.target.value)}
-                                    disabled={sessao?.logado}
+                                    disabled={sessao.logado}
                                 />
                             </div>
                             <div>
@@ -179,14 +200,13 @@ const FormularioReserva = memo(function FormularioReserva({
                                     placeholder="(11) 90000-0000"
                                     value={telefone}
                                     onChange={(e) => setTelefone(formatarTelefone(e.target.value))}
-                                    disabled={sessao?.logado}
+                                    disabled={sessao.logado}
                                 />
                             </div>
                         </div>
 
                         {/* 2. Seleção de Profissional e Data */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-5">
-                            {/* Profissional */}
                             <div>
                                 <label htmlFor="profissional" className="block font-sans text-[0.62rem] font-medium tracking-[0.2em] uppercase text-[rgba(197,168,124,0.75)] mb-2.5">
                                     Profissional
@@ -194,24 +214,38 @@ const FormularioReserva = memo(function FormularioReserva({
                                 <div className="flex gap-3 items-center">
                                     {profissionalId && profissionalSelecionado && (
                                         <div className="w-10 h-10 rounded-full flex-shrink-0 bg-[#8B5A2B] text-white flex items-center justify-center font-bold text-sm overflow-hidden border border-[rgba(197,168,124,0.4)]">
-                                            {profissionalSelecionado?.fotoUrl
+                                            {profissionalSelecionado.fotoUrl
                                                 ? <img src={profissionalSelecionado.fotoUrl} alt={`Foto de ${profissionalSelecionado.nome}`} className="w-full h-full object-cover" />
-                                                : inicial(profissionalSelecionado?.nome)}
+                                                : inicial(profissionalSelecionado.nome)
+                                            }
                                         </div>
                                     )}
-                                    <DarkSelect id="profissional" required value={profissionalId} onChange={e => setProfissionalId(e.target.value)} style={{ flex: 1 }}>
+                                    <DarkSelect
+                                        id="profissional"
+                                        required
+                                        value={profissionalId}
+                                        onChange={e => setProfissionalId(e.target.value)}
+                                        style={{ flex: 1 }}
+                                    >
                                         <option value="">Selecione quem fará o serviço</option>
-                                        {profissionais.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
+                                        {profissionais.map(p => (
+                                            <option key={p.id} value={p.id}>{p.nome}</option>
+                                        ))}
                                     </DarkSelect>
                                 </div>
                             </div>
 
-                            {/* Data e Horário */}
                             <div>
                                 <label htmlFor="dataHora" className="block font-sans text-[0.62rem] font-medium tracking-[0.2em] uppercase text-[rgba(197,168,124,0.75)] mb-2.5">
                                     Data e Horário
                                 </label>
-                                <DarkInput id="dataHora" type="datetime-local" required value={dataHora} onChange={e => setDataHora(e.target.value)} />
+                                <DarkInput
+                                    id="dataHora"
+                                    type="datetime-local"
+                                    required
+                                    value={dataHora}
+                                    onChange={e => setDataHora(e.target.value)}
+                                />
                             </div>
                         </div>
 
@@ -227,7 +261,7 @@ const FormularioReserva = memo(function FormularioReserva({
                             </div>
                         )}
 
-                        {/* Botão Dinâmico Inteligente */}
+                        {/* Botão */}
                         <button
                             type="submit"
                             disabled={!prontoParaAgendar}
@@ -237,7 +271,7 @@ const FormularioReserva = memo(function FormularioReserva({
                                 ? 'Selecione os serviços acima'
                                 : !prontoParaAgendar
                                     ? 'Preencha todos os dados'
-                                    : sessao?.logado
+                                    : sessao.logado
                                         ? `Confirmar ${servicosSelecionados.length} Serviço${servicosSelecionados.length > 1 ? 's' : ''}`
                                         : 'Registrar e Agendar'}
                         </button>

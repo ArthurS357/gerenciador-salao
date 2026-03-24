@@ -1,150 +1,88 @@
-'use client'
-import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+// src/app/page.tsx
+// CORRIGIDO: Server Component puro — sem 'use client', sem useEffect, sem waterfall de requests.
+// Todos os dados são buscados em paralelo no servidor antes do primeiro byte ser enviado ao browser.
+// Somente a interatividade (seleção de serviços, formulário) fica no client island <LandingInterativo>.
 
-// Importamos a tipagem correta diretamente da Navbar
-import Navbar, { type SessaoProps } from '@/components/landing/Navbar'
+import Navbar from '@/components/landing/Navbar'
 import Hero from '@/components/landing/Hero'
 import Sobre from '@/components/landing/Sobre'
-import ServicosVitrine from '@/components/landing/ServicosVitrine'
-import PortfolioGaleria from '@/components/landing/PortfolioGaleria'
-import FormularioReserva from '@/components/landing/FormularioReserva'
 import Localizacao from '@/components/landing/Localizacao'
 import Footer from '@/components/landing/Footer'
+import LandingInterativo from './_components/LandingInterativo'
 
 import { buscarProfissionais } from '@/app/actions/profissionais'
-import { criarAgendamentoMultiplo } from '@/app/actions/agendamento'
-import { verificarSessaoCliente, verificarSessaoFuncionario } from '@/app/actions/auth'
 import { listarServicosPublicos } from '@/app/actions/servico'
 import { listarPortfolioPublico } from '@/app/actions/portfolio'
+import { verificarSessaoCliente, verificarSessaoFuncionario } from '@/app/actions/auth'
+import type { SessaoProps } from '@/components/landing/Navbar'
+import type { Metadata } from 'next'
 
-// Removemos "Sessao" daqui para evitar conflito com o tipo antigo
-import type { Profissional, Servico, ItemPortfolio, Mensagem } from '@/components/landing/types'
+export const metadata: Metadata = {
+  title: 'LmLu Matiello — Studio de Beleza',
+  description: 'Onde a beleza encontra a excelência. Agende online seu horário.',
+}
 
-export default function LandingPage() {
-  const router = useRouter()
+export default async function LandingPage() {
+  // Todos os fetches em paralelo — sem waterfall
+  const [
+    resProfissionais,
+    resSessaoCliente,
+    resSessaoFunc,
+    resServicos,
+    resPortfolio,
+  ] = await Promise.all([
+    buscarProfissionais(),
+    verificarSessaoCliente(),
+    verificarSessaoFuncionario(),
+    listarServicosPublicos(),
+    listarPortfolioPublico(),
+  ])
 
-  const [profissionais, setProfissionais] = useState<Profissional[]>([])
-  const [catalogoServicos, setCatalogoServicos] = useState<Servico[]>([])
-  const [itensPortfolio, setItensPortfolio] = useState<ItemPortfolio[]>([])
+  const profissionais = resProfissionais.sucesso ? resProfissionais.profissionais : []
+  const catalogoServicos = resServicos.sucesso ? resServicos.servicos : []
+  const itensPortfolio = resPortfolio.sucesso ? resPortfolio.itens : []
 
-  // O estado agora obedece à tipagem rigorosa da Navbar
-  const [sessao, setSessao] = useState<SessaoProps>({ logado: false })
-  const [mounted, setMounted] = useState(false)
+  // Resolve a sessão com precedência: funcionário > cliente > anônimo
+  let sessao: SessaoProps = { logado: false }
 
-  const [servicosSelecionados, setServicosSelecionados] = useState<string[]>([])
-  const [profissionalId, setProfissionalId] = useState('')
-  const [dataHora, setDataHora] = useState('')
-  const [mensagem, setMensagem] = useState<Mensagem>({ texto: '', tipo: '' })
-
-  useEffect(() => {
-    setMounted(true)
-
-    async function carregarDados() {
-      const [resProfissionais, resSessaoCliente, resSessaoFunc, resServicos, resPortfolio] =
-        await Promise.all([
-          buscarProfissionais(),
-          verificarSessaoCliente(),
-          verificarSessaoFuncionario(),
-          listarServicosPublicos(),
-          listarPortfolioPublico(),
-        ])
-
-      if (resProfissionais.sucesso) setProfissionais(resProfissionais.profissionais)
-      if (resServicos.sucesso) setCatalogoServicos(resServicos.servicos)
-      if (resPortfolio.sucesso) setItensPortfolio(resPortfolio.itens)
-
-      if (resSessaoFunc.logado) {
-        setSessao({
-          logado: true,
-          id: resSessaoFunc.id,
-          role: resSessaoFunc.role, // <-- AGORA USA 'ADMIN' ou 'PROFISSIONAL' VINDOS DO BACKEND
-          nome: resSessaoFunc.nome,
-        })
-      } else if (resSessaoCliente.logado) {
-        setSessao({
-          logado: true,
-          id: resSessaoCliente.id,
-          role: 'CLIENTE',
-          nome: resSessaoCliente.nome,
-        })
-      } else {
-        setSessao({ logado: false })
-      }
+  if (resSessaoFunc.logado) {
+    sessao = {
+      logado: true,
+      id: resSessaoFunc.id,
+      role: resSessaoFunc.role,   // 'ADMIN' | 'PROFISSIONAL'
+      nome: resSessaoFunc.nome,
     }
-
-    void carregarDados()
-  }, [])
-
-  const toggleServico = (id: string) =>
-    setServicosSelecionados((prev) =>
-      prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id]
-    )
-
-  const handleAgendar = async (e: React.FormEvent) => {
-    e.preventDefault()
-
-    if (!sessao.logado || !sessao.id || sessao.role !== 'CLIENTE') {
-      setMensagem({ texto: 'Para agendar, faça login com a sua conta. A redirecionar...', tipo: 'erro' })
-      setTimeout(() => router.push('/login'), 2500)
-      return
-    }
-
-    if (servicosSelecionados.length === 0) {
-      setMensagem({ texto: 'Por favor, selecione pelo menos um serviço.', tipo: 'erro' })
-      return
-    }
-
-    setMensagem({ texto: 'A processar reserva...', tipo: 'info' })
-
-    const res = await criarAgendamentoMultiplo(
-      sessao.id,
-      profissionalId,
-      new Date(dataHora),
-      servicosSelecionados,
-    )
-
-    if (res.sucesso) {
-      setMensagem({ texto: 'Agendamento confirmado! A redirecionar...', tipo: 'sucesso' })
-      setTimeout(() => router.push('/cliente/dashboard'), 2500)
-    } else {
-      setMensagem({ texto: res.erro, tipo: 'erro' })
+  } else if (resSessaoCliente.logado) {
+    sessao = {
+      logado: true,
+      id: resSessaoCliente.id,
+      role: 'CLIENTE',
+      nome: resSessaoCliente.nome,
     }
   }
 
-  const totalSelecionado = catalogoServicos
-    .filter((s) => servicosSelecionados.includes(s.id))
-    .reduce((acc, s) => acc + (s.preco ?? 0), 0)
-
   return (
     <>
+      {/* Navbar é 'use client' internamente (scroll, menu) — recebe dados via props */}
       <Navbar sessao={sessao} />
+
+      {/* Seções estáticas renderizadas no servidor */}
       <Hero />
       <Sobre />
-      <ServicosVitrine
-        catalogoServicos={catalogoServicos}
-        servicosSelecionados={servicosSelecionados}
-        toggleServico={toggleServico}
-        totalSelecionado={totalSelecionado}
-      />
-      {itensPortfolio.length > 0 && (
-        <PortfolioGaleria itensPortfolio={itensPortfolio} />
-      )}
-      <FormularioReserva
-        sessao={sessao as any} // Cast simples para ignorar a validação obsoleta do types.ts
-        mounted={mounted}
+
+      {/**
+             * Client island: contém ServicosVitrine, PortfolioGaleria e FormularioReserva.
+             * Tudo que precisa de useState/useRouter fica aqui.
+             * Os dados já chegam prontos do servidor — sem fetch no browser.
+             */}
+      <LandingInterativo
         profissionais={profissionais}
         catalogoServicos={catalogoServicos}
-        servicosSelecionados={servicosSelecionados}
-        totalSelecionado={totalSelecionado}
-        profissionalId={profissionalId}
-        setProfissionalId={setProfissionalId}
-        dataHora={dataHora}
-        setDataHora={setDataHora}
-        mensagem={mensagem}
-        handleAgendar={handleAgendar}
-        profissionalSelecionado={profissionais.find((p) => p.id === profissionalId)}
+        itensPortfolio={itensPortfolio}
+        sessao={sessao}
       />
+
+      {/* Seções estáticas renderizadas no servidor */}
       <Localizacao />
       <Footer />
     </>

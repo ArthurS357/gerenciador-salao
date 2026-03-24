@@ -1,5 +1,10 @@
+// src/components/landing/types.ts
 // ─────────────────────────────────────────────────────────────────────────────
-// types.ts — Contratos centralizados para todos os componentes da landing
+// Contratos centralizados para todos os componentes da landing.
+// CORRIGIDO:
+//   1. SessaoRole expandida para incluir 'PROFISSIONAL' | 'ADMIN' (antes só tinha 'FUNCIONARIO')
+//   2. FormularioReservaProps.sessao usa o tipo completo em vez de Pick<Sessao, 'logado'>
+//      que causava o cast `sessao as any` em page.tsx
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface Profissional {
@@ -25,19 +30,21 @@ export interface ItemPortfolio {
     linkSocial: string | null
 }
 
-/** Papel do utilizador logado — discrimina o menu exibido na Navbar */
-export type SessaoRole = 'CLIENTE' | 'FUNCIONARIO'
+/**
+ * Todos os roles possíveis no sistema.
+ * Antes era 'CLIENTE' | 'FUNCIONARIO' — mas o backend emite 'PROFISSIONAL' e 'ADMIN'.
+ * Isso causava incompatibilidade silenciosa em toda a landing.
+ */
+export type SessaoRole = 'CLIENTE' | 'PROFISSIONAL' | 'ADMIN'
 
 export interface Sessao {
     logado: boolean
     id?: string
-    /** Definido quando logado: controla qual menu a Navbar exibe */
     role?: SessaoRole
-    /** Nome para saudação personalizada no drawer */
     nome?: string
 }
 
-/** Tipo discriminado — o campo `tipo` garante narrowing seguro na UI */
+/** Tipo discriminado para mensagens de feedback */
 export type TipoMensagem = 'erro' | 'sucesso' | 'info' | ''
 
 export interface Mensagem {
@@ -62,8 +69,12 @@ export interface PortfolioGaleriaProps {
     itensPortfolio: ItemPortfolio[]
 }
 
+/**
+ * CORRIGIDO: sessao agora recebe o tipo completo Sessao em vez de Pick<Sessao, 'logado'>.
+ * O componente já usava .nome internamente com um cast `as any` — agora está tipado corretamente.
+ */
 export interface FormularioReservaProps {
-    sessao: Pick<Sessao, 'logado'>
+    sessao: Sessao
     mounted: boolean
     profissionais: Profissional[]
     catalogoServicos: Servico[]
