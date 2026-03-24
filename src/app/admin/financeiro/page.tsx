@@ -5,6 +5,11 @@ import Link from 'next/link'
 import { obterResumoFinanceiro, atualizarComissaoFuncionario } from '@/app/actions/financeiro'
 import type { FinanceiroResumo, FuncionarioResumo } from '@/types/domain'
 
+// Importações das bibliotecas de exportação
+import * as XLSX from 'xlsx'
+import jsPDF from 'jspdf'
+import autoTable from 'jspdf-autotable'
+
 type EditState = Record<string, { comissao: number; podeVerComissao: boolean }>
 type Mensagem = { texto: string; tipo: 'sucesso' | 'erro' }
 type PeriodoFiltro = 'hoje' | 'semana' | 'mes' | 'tudo'
@@ -15,11 +20,9 @@ export default function PainelFinanceiroPage() {
     const [editState, setEditState] = useState<EditState>({})
     const [loadingIds, setLoadingIds] = useState<Record<string, boolean>>({})
 
-    // Novo estado para o filtro
     const [periodoAtual, setPeriodoAtual] = useState<PeriodoFiltro>('mes')
     const [isLoadingMetrics, setIsLoadingMetrics] = useState(false)
 
-    // Função auxiliar para calcular as datas do filtro
     const obterDatasDoFiltro = (periodo: PeriodoFiltro) => {
         const hoje = new Date()
         let dataInicio = new Date()
@@ -38,12 +41,11 @@ export default function PainelFinanceiroPage() {
                 dataInicio.setHours(0, 0, 0, 0)
                 break
             case 'tudo':
-                return undefined // Retorna undefined para buscar todo o histórico
+                return undefined
         }
         return { dataInicio, dataFim }
     }
 
-    // Função centralizada para carregar dados
     const carregarDados = useCallback(async (periodo: PeriodoFiltro) => {
         setIsLoadingMetrics(true)
         const filtro = obterDatasDoFiltro(periodo)
@@ -62,7 +64,6 @@ export default function PainelFinanceiroPage() {
         setIsLoadingMetrics(false)
     }, [])
 
-    // Carregamento inicial baseado no período padrão (Mês)
     useEffect(() => {
         carregarDados(periodoAtual)
     }, [carregarDados, periodoAtual])
@@ -76,7 +77,7 @@ export default function PainelFinanceiroPage() {
         const res = await atualizarComissaoFuncionario(prof.id, estado.comissao, estado.podeVerComissao)
         if (res.sucesso) {
             setMensagem({ texto: `Regras de ${prof.nome} atualizadas com sucesso!`, tipo: 'sucesso' })
-            carregarDados(periodoAtual) // Recarrega mantendo o filtro atual
+            carregarDados(periodoAtual)
         } else {
             setMensagem({ texto: res.erro, tipo: 'erro' })
         }
@@ -89,6 +90,88 @@ export default function PainelFinanceiroPage() {
 
     const setPodeVer = (id: string, podeVerComissao: boolean) =>
         setEditState((prev) => ({ ...prev, [id]: { ...prev[id]!, podeVerComissao } }))
+
+    // ── FUNÇÕES DE EXPORTAÇÃO ───────────────────────────────────────────────
+
+    const botoesFiltro: { valor: PeriodoFiltro; label: string }[] = [
+        { valor: 'hoje', label: 'Hoje' },
+        { valor: 'semana', label: 'Últimos 7 Dias' },
+        { valor: 'mes', label: 'Mês Atual' },
+        { valor: 'tudo', label: 'Todo o Histórico' },
+    ]
+
+    const getNomePeriodo = () => botoesFiltro.find(b => b.valor === periodoAtual)?.label || periodoAtual
+
+    const exportarParaExcel = () => {
+        if (!dados) return
+
+        // Mapeia os dados financeiros absolutos
+        const resumoData = [
+            { Métrica: 'Faturamento Bruto', 'Valor (R$)': dados.faturamentoBruto },
+            { Métrica: 'Custos (Insumos + Revenda)', 'Valor (R$)': dados.custoProdutos },
+            { Métrica: 'Comissões Pagas', 'Valor (R$)': dados.totalComissoes },
+            { Métrica: 'Lucro Líquido Real', 'Valor (R$)': dados.lucroLiquido },
+        ]
+        const wsResumo = XLSX.utils.json_to_sheet(resumoData)
+
+        // Mapeia os perfis de comissão da equipa
+        const equipaData = dados.equipe.map(p => ({
+            'Profissional': p.nome,
+            'Taxa de Comissão (%)': p.comissao,
+            'Acesso Visível à Comanda': p.podeVerComissao ? 'Sim' : 'Não'
+        }))
+        const wsEquipa = XLSX.utils.json_to_sheet(equipaData)
+
+        const wb = XLSX.utils.book_new()
+        XLSX.utils.book_append_sheet(wb, wsResumo, 'Resumo Financeiro')
+        XLSX.utils.book_append_sheet(wb, wsEquipa, 'Equipa de Profissionais')
+
+        XLSX.writeFile(wb, `Relatorio_Financeiro_${periodoAtual}.xlsx`)
+    }
+
+    const exportarParaPDF = () => {
+        if (!dados) return
+
+        const doc = new jsPDF()
+
+        // Cabeçalho do Documento
+        doc.setFontSize(20)
+        doc.text('Relatório Financeiro do Salão', 14, 22)
+
+        doc.setFontSize(11)
+        doc.setTextColor(100)
+        doc.text(`Período de Análise: ${getNomePeriodo()}`, 14, 30)
+        doc.text(`Data de Emissão: ${new Date().toLocaleDateString('pt-BR')}`, 14, 36)
+
+        // Bloco 1: Tabela de Totais Financeiros
+        autoTable(doc, {
+            startY: 45,
+            head: [['Métrica Financeira', 'Valor (R$)']],
+            body: [
+                ['Faturamento Bruto', dados.faturamentoBruto.toFixed(2)],
+                ['Custos (Insumos + Revenda)', dados.custoProdutos.toFixed(2)],
+                ['Comissões Pagas', dados.totalComissoes.toFixed(2)],
+                ['Lucro Líquido (Real)', dados.lucroLiquido.toFixed(2)],
+            ],
+            theme: 'grid',
+            headStyles: { fillColor: [92, 64, 51] }, // Castanho escuro (#5C4033)
+            styles: { fontSize: 10 }
+        })
+
+        // Bloco 2: Tabela de Comissões por Profissional
+        autoTable(doc, {
+            startY: (doc as any).lastAutoTable.finalY + 15,
+            head: [['Profissional', 'Comissão (%)', 'Acesso Visível']],
+            body: dados.equipe.map(p => [p.nome, `${p.comissao}%`, p.podeVerComissao ? 'Sim' : 'Não']),
+            theme: 'striped',
+            headStyles: { fillColor: [139, 90, 43] }, // Castanho claro (#8B5A2B)
+            styles: { fontSize: 10 }
+        })
+
+        doc.save(`Relatorio_Financeiro_${periodoAtual}.pdf`)
+    }
+
+    // ────────────────────────────────────────────────────────────────────────
 
     if (!dados) {
         return (
@@ -105,23 +188,15 @@ export default function PainelFinanceiroPage() {
         { label: 'Lucro Líquido (Real)', valor: dados.lucroLiquido, cor: 'border-green-500', textCor: 'text-green-600' },
     ] as const
 
-    const botoesFiltro: { valor: PeriodoFiltro; label: string }[] = [
-        { valor: 'hoje', label: 'Hoje' },
-        { valor: 'semana', label: 'Últimos 7 Dias' },
-        { valor: 'mes', label: 'Mês Atual' },
-        { valor: 'tudo', label: 'Todo o Histórico' },
-    ]
-
     return (
         <div className="min-h-screen bg-[#fdfbf7] p-8 font-sans">
             <header className="mb-6 border-b-2 border-[#5C4033] pb-4 flex justify-between items-center">
                 <div>
                     <h1 className="text-3xl font-bold text-[#5C4033]">Painel Financeiro</h1>
-                    <p className="text-gray-500 mt-1">Visão global de faturamento, custos e metas de equipe.</p>
+                    <p className="text-gray-500 mt-1">Visão global de faturamento, custos e metas de equipa.</p>
                 </div>
             </header>
 
-            {/* Menu de Navegação Horizontal */}
             <nav className="flex flex-wrap gap-3 mb-8">
                 {[
                     { href: '/admin/dashboard', label: 'Equipa (Atual)' },
@@ -130,6 +205,7 @@ export default function PainelFinanceiroPage() {
                     { href: '/admin/servicos', label: 'Portfólio / Serviços' },
                     { href: '/admin/agendamentos', label: 'Agendamentos Globais' },
                     { href: '/admin/clientes', label: 'Base de Clientes' },
+                    { href: '/admin/avaliacoes', label: 'Avaliações' },
                 ].map(({ href, label, ativo }) => (
                     <Link
                         key={href}
@@ -145,28 +221,49 @@ export default function PainelFinanceiroPage() {
                 ))}
             </nav>
 
-            {/* Barra de Filtros */}
-            <div className="flex flex-wrap items-center justify-between bg-white p-4 rounded-lg shadow-sm border border-[#e5d9c5] mb-6">
-                <span className="text-sm font-bold text-gray-600 uppercase tracking-wider mb-2 md:mb-0">Período de Análise:</span>
-                <div className="flex gap-2">
-                    {botoesFiltro.map(btn => (
-                        <button
-                            key={btn.valor}
-                            onClick={() => setPeriodoAtual(btn.valor)}
-                            disabled={isLoadingMetrics}
-                            className={`px-4 py-2 rounded text-sm font-bold transition-colors ${periodoAtual === btn.valor
-                                    ? 'bg-[#8B5A2B] text-white shadow-sm'
-                                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                                }`}
-                        >
-                            {btn.label}
-                        </button>
-                    ))}
+            {/* BARRA DE FILTROS E EXPORTAÇÃO */}
+            <div className="flex flex-col xl:flex-row items-start xl:items-center justify-between bg-white p-5 rounded-lg shadow-sm border border-[#e5d9c5] mb-6 gap-4">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full xl:w-auto">
+                    <span className="text-sm font-bold text-gray-600 uppercase tracking-wider">Período de Análise:</span>
+                    <div className="flex flex-wrap gap-2">
+                        {botoesFiltro.map(btn => (
+                            <button
+                                key={btn.valor}
+                                onClick={() => setPeriodoAtual(btn.valor)}
+                                disabled={isLoadingMetrics}
+                                className={`px-4 py-2 rounded text-sm font-bold transition-colors ${periodoAtual === btn.valor
+                                        ? 'bg-[#8B5A2B] text-white shadow-sm'
+                                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                    }`}
+                            >
+                                {btn.label}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+
+                <div className="flex gap-3 w-full sm:w-auto mt-2 xl:mt-0 pt-4 xl:pt-0 border-t xl:border-0 border-gray-100">
+                    <button
+                        onClick={exportarParaExcel}
+                        disabled={isLoadingMetrics || !dados}
+                        className="flex-1 sm:flex-none flex justify-center items-center gap-2 px-5 py-2.5 bg-green-600 text-white rounded-lg font-bold hover:bg-green-700 transition-colors disabled:opacity-50 text-sm shadow-sm"
+                    >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                        Excel
+                    </button>
+                    <button
+                        onClick={exportarParaPDF}
+                        disabled={isLoadingMetrics || !dados}
+                        className="flex-1 sm:flex-none flex justify-center items-center gap-2 px-5 py-2.5 bg-red-600 text-white rounded-lg font-bold hover:bg-red-700 transition-colors disabled:opacity-50 text-sm shadow-sm"
+                    >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>
+                        PDF
+                    </button>
                 </div>
             </div>
 
-            {/* Métricas Financeiras */}
-            <div className={`grid grid-cols-1 md:grid-cols-4 gap-6 mb-10 transition-opacity ${isLoadingMetrics ? 'opacity-50' : 'opacity-100'}`}>
+            {/* MÉTRICAS */}
+            <div className={`grid grid-cols-1 md:grid-cols-4 gap-6 mb-10 transition-opacity duration-300 ${isLoadingMetrics ? 'opacity-40 pointer-events-none' : 'opacity-100'}`}>
                 {cards.map(({ label, valor, cor, textCor }) => (
                     <div key={label} className={`bg-white p-6 rounded-lg shadow border-l-4 ${cor}`}>
                         <p className="text-sm font-semibold text-gray-500 uppercase tracking-wide">{label}</p>
@@ -181,7 +278,7 @@ export default function PainelFinanceiroPage() {
                 </div>
             )}
 
-            {/* Tabela de Comissões */}
+            {/* TABELA DE COMISSÕES */}
             <section className="bg-white rounded-lg shadow overflow-hidden border border-[#e5d9c5]">
                 <h2 className="bg-[#5C4033] text-white p-4 text-lg font-bold">
                     Gestão de Comissões por Profissional
@@ -198,7 +295,7 @@ export default function PainelFinanceiroPage() {
                         </thead>
                         <tbody>
                             {dados.equipe.length === 0 ? (
-                                <tr><td colSpan={4} className="p-8 text-center text-gray-500">Nenhum profissional cadastrado.</td></tr>
+                                <tr><td colSpan={4} className="p-8 text-center text-gray-500">Nenhum profissional registado.</td></tr>
                             ) : (
                                 dados.equipe.map((p) => {
                                     const estado = editState[p.id]
