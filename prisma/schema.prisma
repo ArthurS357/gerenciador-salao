@@ -12,7 +12,7 @@ datasource db {
 model Cliente {
   id           String        @id @default(uuid())
   nome         String
-  telefone     String
+  telefone     String        @unique  // <-- ADICIONE O @unique AQUI
   senhaHash    String?
   anonimizado  Boolean       @default(false)
   
