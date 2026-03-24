@@ -1,9 +1,9 @@
 'use server'
 
 import { prisma } from '@/lib/prisma'
-import { verificarNumeroExisteNoWhatsApp } from '@/lib/whatsapp'
+import { verificarNumeroExisteNoWhatsApp, enviarMensagemWhatsApp } from '@/lib/whatsapp'
 
-// ── Tipagens Estritas (Substituindo o uso de 'any') ──────────────────────────
+// ── Tipagens Estritas ─────────────────────────────────────────────────────────
 
 type ActionResult<T = object> =
     | ({ sucesso: true } & T)
@@ -71,21 +71,16 @@ export type FuncionarioComExpedienteItem = {
 }
 
 // ── FUNÇÃO AUXILIAR: Validador de Expediente ──────────────────────────────────
-// Garante que o agendamento respeita os horários definidos pelo profissional
 async function validarHorarioExpediente(funcionarioId: string, dataHoraInicio: Date, dataHoraFim: Date): Promise<string | null> {
-    // Usamos o timezone do Brasil para garantir que o cálculo do dia da semana não falha de madrugada
     const inicioLocal = new Date(dataHoraInicio.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }))
     const fimLocal = new Date(dataHoraFim.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }))
 
-    const diaSemana = inicioLocal.getDay() // 0 = Domingo, 1 = Segunda...
+    const diaSemana = inicioLocal.getDay()
     const diasNomes = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado']
 
     const expediente = await prisma.expediente.findUnique({
         where: {
-            funcionarioId_diaSemana: {
-                funcionarioId,
-                diaSemana
-            }
+            funcionarioId_diaSemana: { funcionarioId, diaSemana }
         }
     })
 
@@ -93,13 +88,11 @@ async function validarHorarioExpediente(funcionarioId: string, dataHoraInicio: D
         return `O profissional selecionado não atende ao(à) ${diasNomes[diaSemana]}. Por favor, escolha outro dia.`
     }
 
-    // Converter strings "09:00" para minutos para facilitar a matemática
     const [expHoraIn, expMinIn] = expediente.horaInicio.split(':').map(Number)
     const [expHoraFim, expMinFim] = expediente.horaFim.split(':').map(Number)
     const expInicioMinutos = expHoraIn * 60 + expMinIn
     const expFimMinutos = expHoraFim * 60 + expMinFim
 
-    // Converter o horário agendado para minutos
     const agendamentoInicioMinutos = inicioLocal.getHours() * 60 + inicioLocal.getMinutes()
     const agendamentoFimMinutos = fimLocal.getHours() * 60 + fimLocal.getMinutes()
 
@@ -111,7 +104,7 @@ async function validarHorarioExpediente(funcionarioId: string, dataHoraInicio: D
         return `Horário indisponível. O turno de trabalho deste profissional é das ${expediente.horaInicio} às ${expediente.horaFim}.`
     }
 
-    return null // Tudo certo, o horário é válido!
+    return null
 }
 
 // ── FUNÇÕES PRINCIPAIS ────────────────────────────────────────────────────────
@@ -129,23 +122,19 @@ export async function criarAgendamentoMultiplo(
             return { sucesso: false, erro: 'Selecione pelo menos um serviço.' }
         }
 
-        // ==========================================
-        // NOVA VALIDAÇÃO: Buscar cliente e verificar telefone
-        // ==========================================
         const cliente = await prisma.cliente.findUnique({
             where: { id: clienteId },
-            select: { telefone: true }
+            select: { nome: true, telefone: true }
         });
 
         if (!cliente || !cliente.telefone) {
-             return { sucesso: false, erro: 'Cliente não encontrado ou sem telefone cadastrado.' };
+            return { sucesso: false, erro: 'Cliente não encontrado ou sem telefone cadastrado.' };
         }
 
         const telefoneValido = await verificarNumeroExisteNoWhatsApp(cliente.telefone);
         if (!telefoneValido) {
             return { sucesso: false, erro: 'O telefone do cliente é inválido ou não possui WhatsApp ativo.' };
         }
-        // ==========================================
 
         const servicos = await prisma.servico.findMany({
             where: { id: { in: servicosIds } },
@@ -167,13 +156,11 @@ export async function criarAgendamentoMultiplo(
         const tempoTotalBloqueio = tempoTotalMinutos + TEMPO_BUFFER_MINUTOS
         const dataHoraFim = new Date(dataHoraInicio.getTime() + tempoTotalBloqueio * 60_000)
 
-        // 1. Validar a Escala de Trabalho (Expediente)
         const erroExpediente = await validarHorarioExpediente(funcionarioId, dataHoraInicio, dataHoraFim)
         if (erroExpediente) {
             return { sucesso: false, erro: erroExpediente }
         }
 
-        // 2. Validar Choque de Horários (Conflitos na Agenda)
         const conflito = await prisma.agendamento.findFirst({
             where: {
                 funcionarioId,
@@ -186,10 +173,7 @@ export async function criarAgendamentoMultiplo(
         })
 
         if (conflito) {
-            return {
-                sucesso: false,
-                erro: 'Choque de horários. O profissional já tem marcações neste intervalo de tempo.',
-            }
+            return { sucesso: false, erro: 'Choque de horários. O profissional já tem marcações neste intervalo de tempo.' }
         }
 
         const novoAgendamento = await prisma.agendamento.create({
@@ -203,7 +187,29 @@ export async function criarAgendamentoMultiplo(
                 concluido: false,
                 servicos: { create: itensParaCriar },
             },
+            include: { funcionario: { select: { nome: true } } }
         })
+
+        // ── INTEGRAÇÃO WHATSAPP (Assíncrono, não trava a resposta) ──
+        const dataFormatada = new Intl.DateTimeFormat('pt-BR', {
+            weekday: 'long', day: '2-digit', month: 'long', hour: '2-digit', minute: '2-digit'
+        }).format(dataHoraInicio);
+
+        const nomesServicos = servicos.map(s => s.nome).join(', ');
+
+        const mensagemConfirmacao =
+            `Olá ${cliente.nome.split(' ')[0]}! 🌟 Sua reserva no Studio LmLu Matiello foi confirmada!
+
+📅 *Data:* ${dataFormatada}
+💅 *Serviço(s):* ${nomesServicos}
+👨‍🎨 *Profissional:* ${novoAgendamento.funcionario.nome}
+
+Para cancelar ou reagendar, por favor acesse o painel no nosso site. Estamos ansiosos para te receber!`;
+
+        // Disparo Fire-and-forget: chamamos a função, mas não usamos await para não atrasar a tela do usuário.
+        enviarMensagemWhatsApp(cliente.telefone, mensagemConfirmacao).catch(err => {
+            console.warn(`[Background Task] Falha silenciosa ao notificar cliente ${clienteId}:`, err);
+        });
 
         return { sucesso: true, agendamentoId: novoAgendamento.id }
     } catch (error) {
@@ -258,7 +264,6 @@ export async function cancelarAgendamentoPendente(id: string): Promise<ActionRes
         }
 
         await prisma.$transaction(async (tx) => {
-            // Devolve os produtos de revenda ao estoque
             for (const item of agendamento.produtos) {
                 await tx.produto.update({
                     where: { id: item.produtoId },
@@ -268,7 +273,6 @@ export async function cancelarAgendamentoPendente(id: string): Promise<ActionRes
 
             await tx.agendamento.delete({ where: { id } })
 
-            // ── GATILHO DA NOTIFICAÇÃO DE CANCELAMENTO ──
             await tx.notificacao.create({
                 data: {
                     mensagem: `⚠️ Agenda Cancelada: O atendimento de ${agendamento.cliente.nome} com ${agendamento.funcionario.nome} foi desmarcado. Verifique a necessidade de remanejar o cliente.`
@@ -305,7 +309,6 @@ export async function editarAgendamentoPendente(
     dataHoraInicio: Date
 ): Promise<ActionResult> {
     try {
-        // 1. Busca os serviços do agendamento para recalcular o tempo total
         const agendamento = await prisma.agendamento.findUnique({
             where: { id },
             include: { servicos: { include: { servico: true } } }
@@ -314,7 +317,6 @@ export async function editarAgendamentoPendente(
         if (!agendamento) return { sucesso: false, erro: 'Agendamento não encontrado.' }
         if (agendamento.concluido) return { sucesso: false, erro: 'Não é possível editar uma comanda que já foi faturada.' }
 
-        // 2. Recalcula o tempo de fim
         const TEMPO_BUFFER_MINUTOS = 5
         let tempoTotalMinutos = 0
         agendamento.servicos.forEach(item => {
@@ -322,17 +324,15 @@ export async function editarAgendamentoPendente(
         })
         const dataHoraFim = new Date(dataHoraInicio.getTime() + (tempoTotalMinutos + TEMPO_BUFFER_MINUTOS) * 60_000)
 
-        // 3. Validar a Escala de Trabalho (Expediente)
         const erroExpediente = await validarHorarioExpediente(funcionarioId, dataHoraInicio, dataHoraFim)
         if (erroExpediente) {
             return { sucesso: false, erro: erroExpediente }
         }
 
-        // 4. Verifica choque de horários (ignorando o próprio agendamento sendo editado)
         const conflito = await prisma.agendamento.findFirst({
             where: {
                 funcionarioId,
-                id: { not: id }, // Garante que não bata conflito com ele mesmo
+                id: { not: id },
                 concluido: false,
                 AND: [
                     { dataHoraInicio: { lt: dataHoraFim } },
@@ -345,7 +345,6 @@ export async function editarAgendamentoPendente(
             return { sucesso: false, erro: 'Choque de horários. Profissional indisponível neste novo horário.' }
         }
 
-        // 5. Salva no banco de dados
         await prisma.agendamento.update({
             where: { id },
             data: { funcionarioId, dataHoraInicio, dataHoraFim }
@@ -358,7 +357,6 @@ export async function editarAgendamentoPendente(
     }
 }
 
-// ── FUNÇÃO PARA O CALENDÁRIO: Carregar Equipa e Horários ──────────────────────
 export async function listarEquipaComExpediente(): Promise<ActionResult<{ equipa: FuncionarioComExpedienteItem[] }>> {
     try {
         const equipa = await prisma.funcionario.findMany({

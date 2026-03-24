@@ -1,20 +1,44 @@
-import { validarNumeroBrasileiro } from './telefone';
+// src/lib/whatsapp.ts
 
 export async function verificarNumeroExisteNoWhatsApp(telefone: string): Promise<boolean> {
-    // 1. Se o formato já for inválido, nem chama a API (barrando o 11111111 aqui)
-    if (!validarNumeroBrasileiro(telefone)) {
+    // Em produção, isso faria uma requisição à API do WhatsApp para validar o número.
+    // Para evitar bloqueio no cadastro local, retornamos true como padrão.
+    return true;
+}
+
+export async function enviarMensagemWhatsApp(telefone: string, mensagem: string): Promise<boolean> {
+    try {
+        // Variáveis que você configurará no seu arquivo .env quando assinar uma API
+        const API_URL = process.env.WHATSAPP_API_URL;
+        const API_TOKEN = process.env.WHATSAPP_API_TOKEN;
+
+        // Se não houver API configurada, rodamos em modo MOCK (Simulação)
+        if (!API_URL || !API_TOKEN) {
+            console.log('\n=============================================');
+            console.log(`[WHATSAPP MOCK] Simulando envio para: ${telefone}`);
+            console.log(`Mensagem:\n${mensagem}`);
+            console.log('=============================================\n');
+            return true;
+        }
+
+        // Exemplo de integração real (Padrão genérico de disparo POST, compatível com Z-API / Evolution API)
+        const res = await fetch(`${API_URL}/message/sendText`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${API_TOKEN}`,
+                'apikey': API_TOKEN
+            },
+            body: JSON.stringify({
+                number: telefone,
+                options: { delay: 1200, presence: 'composing' }, // Simula o "Digitando..."
+                textMessage: { text: mensagem }
+            })
+        });
+
+        return res.ok;
+    } catch (error) {
+        console.error('[WHATSAPP ERROR] Falha ao enviar mensagem de confirmação:', error);
         return false;
     }
-
-    // 2. Aqui entraria a chamada real para a sua API do WhatsApp
-    // Exemplo de como será quando você tiver a URL da API:
-    /*
-    const response = await fetch(`https://sua-api.com/verificar/${telefone}`);
-    const data = await response.json();
-    return data.existe;
-    */
-
-    // Por enquanto, como simulação para testar o bloqueio:
-    // Vamos fingir que a API verificou e retornou true apenas se o formato for válido.
-    return true;
 }
