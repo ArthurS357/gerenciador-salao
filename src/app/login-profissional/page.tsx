@@ -399,7 +399,7 @@ export default function LoginProfissionalPage() {
                         {/* Logo */}
                         <div className="logo-area">
                             <div className="logo">
-                                LmLu Mattielo
+                                LmLu Matiello
                                 <small>Painel Operacional</small>
                             </div>
                         </div>
@@ -426,7 +426,7 @@ export default function LoginProfissionalPage() {
                                         required
                                         value={email}
                                         onChange={e => setEmail(e.target.value)}
-                                        placeholder="seu.nome@lmlumattielo.com.br"
+                                        placeholder="seu.nome@lmlumatiello.com.br"
                                         autoComplete="email"
                                     />
                                 </div>
@@ -479,13 +479,13 @@ export default function LoginProfissionalPage() {
                         </div>
 
                         <p className="rodape-link">
-                            Precisa de acesso? <a href="mailto:admin@lmlumattielo.com.br">Fale com o administrador</a>
+                            Precisa de acesso? <a href="mailto:admin@lmlumatiello.com.br">Fale com o administrador</a>
                         </p>
                     </div>
                 </div>
 
                 <footer className="footer">
-                    LmLu Mattielo · Área restrita · {new Date().getFullYear()}
+                    LmLu Matiello · Área restrita · {new Date().getFullYear()}
                 </footer>
             </div>
         </>

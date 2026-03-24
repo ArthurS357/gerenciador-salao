@@ -6,7 +6,7 @@ export async function GET() {
     try {
         const nome = process.env.ADMIN_NOME;
         const email = process.env.ADMIN_EMAIL;
-        const senhaPlana = process.env.ADMIN_SENHA;
+        const senhaPlana = process.env.ADMIN_PASSWORD;
 
         if (!nome || !email || !senhaPlana) {
             return NextResponse.json({ erro: 'Variáveis de ambiente do Admin não configuradas no .env' }, { status: 400 });

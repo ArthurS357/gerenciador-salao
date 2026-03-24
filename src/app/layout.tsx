@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "LmLu Mattielo - Studio de Beleza",
+  title: "LmLu Matiello - Studio de Beleza",
   description: "Onde a beleza encontra a excelência",
 };
 

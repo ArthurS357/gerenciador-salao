@@ -1,5 +1,4 @@
 'use client'
-// src/app/page.tsx — Orquestrador da landing page
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 

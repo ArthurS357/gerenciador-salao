@@ -74,7 +74,7 @@ export async function gerarAdminInicial(): Promise<ActionResult<{ mensagem: stri
     }
 }
 
-// ── 2. CRIAÇÃO ────────────────────────────────────────────────────────────────
+// ── 2. CRIAÇÃO E EDIÇÃO ─────────────────────────────────────────────────────────
 
 export async function criarFuncionario(
     dados: DadosCriarFuncionario
@@ -96,7 +96,6 @@ export async function criarFuncionario(
                 podeAgendar: dados.podeAgendar ?? false,
                 podeVerHistorico: dados.podeVerHistorico ?? false,
                 podeCancelar: dados.podeCancelar ?? false,
-                // Conecta os serviços se o array existir e não estiver vazio
                 servicos: dados.servicosIds && dados.servicosIds.length > 0
                     ? { connect: dados.servicosIds.map(id => ({ id })) }
                     : undefined,
@@ -110,21 +109,17 @@ export async function criarFuncionario(
     }
 }
 
-// ── 3. EDIÇÃO ─────────────────────────────────────────────────────────────────
-
 export async function editarFuncionarioCompleto(
     id: string,
     dados: DadosEditarFuncionario
 ): Promise<ActionResult<{ funcionario: Funcionario }>> {
     try {
-        // Separa os servicosIds do restante dos dados para não quebrar o update do Prisma
         const { servicosIds, ...restoDosDados } = dados;
 
         const atualizado = await prisma.funcionario.update({
             where: { id },
             data: {
                 ...restoDosDados,
-                // O método 'set' sobrescreve a lista antiga com a nova lista de serviços
                 ...(servicosIds && {
                     servicos: {
                         set: servicosIds.map(id => ({ id }))
@@ -140,24 +135,7 @@ export async function editarFuncionarioCompleto(
     }
 }
 
-// ── 4. PERMISSÕES E ATUALIZAÇÃO COMPLETA ──────────────────────────────────────
-
-export async function atualizarPermissoesFuncionario(
-    funcionarioId: string,
-    dados: { comissao?: number; podeAgendar?: boolean; podeVerHistorico?: boolean }
-): Promise<ActionResult<{ funcionario: Funcionario }>> {
-    try {
-        const funcionarioAtualizado = await prisma.funcionario.update({
-            where: { id: funcionarioId },
-            data: dados,
-        })
-
-        return { sucesso: true, funcionario: funcionarioAtualizado as Funcionario }
-    } catch (error) {
-        console.error('Erro ao atualizar permissões do funcionário:', error)
-        return { sucesso: false, erro: 'Falha ao atualizar permissões no banco de dados.' }
-    }
-}
+// ── 3. PERMISSÕES E EXCLUSÕES ────────────────────────────────────────────────
 
 export async function atualizarFuncionarioCompleto(
     id: string,
@@ -175,8 +153,6 @@ export async function atualizarFuncionarioCompleto(
     }
 }
 
-// ── 5. EXCLUSÃO FÍSICA E LÓGICA ───────────────────────────────────────────────
-
 export async function inativarFuncionario(id: string): Promise<ActionResult<{ mensagem: string }>> {
     try {
         await prisma.funcionario.update({
@@ -193,12 +169,8 @@ export async function inativarFuncionario(id: string): Promise<ActionResult<{ me
 
 export async function excluirFuncionarioPermanente(id: string): Promise<ActionResult> {
     try {
-        // Proteção: não exclui se tiver agendamentos (para não quebrar histórico financeiro)
         const temAgendamentos = await prisma.agendamento.findFirst({ where: { funcionarioId: id } })
-
-        if (temAgendamentos) {
-            return { sucesso: false, erro: 'Não é possível excluir um funcionário que já possui agendamentos no histórico. Utilize a inativação.' }
-        }
+        if (temAgendamentos) return { sucesso: false, erro: 'Não é possível excluir um funcionário que já possui agendamentos no histórico. Utilize a inativação.' }
 
         await prisma.funcionario.delete({ where: { id } })
         revalidatePath('/admin/dashboard')
@@ -208,14 +180,11 @@ export async function excluirFuncionarioPermanente(id: string): Promise<ActionRe
     }
 }
 
+// (As funções de cliente LGPD foram omitidas daqui pois já residem e funcionam bem em actions/cliente.ts)
 export async function excluirClientePermanente(id: string): Promise<ActionResult> {
     try {
-        // Proteção: não exclui se tiver agendamentos (para não quebrar histórico financeiro)
         const temAgendamentos = await prisma.agendamento.findFirst({ where: { clienteId: id } })
-
-        if (temAgendamentos) {
-            return { sucesso: false, erro: 'O cliente possui histórico financeiro. Utilize a anonimização (LGPD) ou inative-o.' }
-        }
+        if (temAgendamentos) return { sucesso: false, erro: 'O cliente possui histórico financeiro. Utilize a anonimização (LGPD) ou inative-o.' }
 
         await prisma.cliente.delete({ where: { id } })
         revalidatePath('/admin/clientes')
@@ -225,11 +194,7 @@ export async function excluirClientePermanente(id: string): Promise<ActionResult
     }
 }
 
-// ── 6. LGPD: Anonimização irreversível ───────────────────────────────────────
-
-export async function anonimizarClienteLGPD(
-    clienteId: string
-): Promise<ActionResult<{ mensagem: string }>> {
+export async function anonimizarClienteLGPD(clienteId: string): Promise<ActionResult<{ mensagem: string }>> {
     try {
         const hashNome = `Anonimizado_${randomUUID().substring(0, 8)}`
         const hashTelefone = `0000_${randomUUID().substring(0, 8)}`
@@ -239,29 +204,77 @@ export async function anonimizarClienteLGPD(
             data: { nome: hashNome, telefone: hashTelefone, anonimizado: true },
         })
 
-        return {
-            sucesso: true,
-            mensagem: 'Cliente anonimizado com sucesso. Histórico financeiro preservado para a Curva ABC.',
-        }
+        return { sucesso: true, mensagem: 'Cliente anonimizado com sucesso.' }
     } catch (error) {
-        console.error('Erro na anonimização LGPD:', error)
-        return { sucesso: false, erro: 'Falha ao processar a exclusão e anonimização dos dados.' }
+        return { sucesso: false, erro: 'Falha ao processar a anonimização.' }
     }
 }
 
-// ── 7. LISTAGEM DE EQUIPA ─────────────────────────────────────────────────────
+// ── 4. LISTAGEM DE EQUIPA E ESCALAS (NOVO) ───────────────────────────────────
 
 export async function listarEquipaAdmin(): Promise<ActionResult<{ equipa: any[] }>> {
     try {
         const equipa = await prisma.funcionario.findMany({
             where: { role: 'PROFISSIONAL', ativo: true },
             orderBy: { nome: 'asc' },
-            // Agora trazemos os serviços atrelados a cada profissional
-            include: { servicos: { select: { id: true, nome: true } } }
+            include: {
+                servicos: { select: { id: true, nome: true } },
+                expedientes: { orderBy: { diaSemana: 'asc' } } // <-- AGORA TRAZ A ESCALA
+            }
         })
-        return { sucesso: true, equipa }
+
+        // Normaliza a escala (garante que tem os 7 dias na interface mesmo se não existir no banco)
+        const equipaNormalizada = equipa.map(prof => {
+            let expedientes = prof.expedientes;
+            if (expedientes.length === 0) {
+                const diasPadrao = Array.from({ length: 7 }).map((_, index) => ({
+                    diaSemana: index, horaInicio: '09:00', horaFim: '18:00', ativo: false
+                }));
+                expedientes = diasPadrao as any;
+            }
+            return { ...prof, expedientes }
+        })
+
+        return { sucesso: true, equipa: equipaNormalizada }
     } catch (error) {
         console.error('Erro ao listar equipa:', error)
         return { sucesso: false, erro: 'Falha ao carregar a equipa.' }
+    }
+}
+
+export async function salvarEscalaFuncionarioAdmin(
+    funcionarioId: string,
+    expedientes: Array<{ diaSemana: number, horaInicio: string, horaFim: string, ativo: boolean }>
+): Promise<ActionResult> {
+    try {
+        const transacoes = expedientes.map(exp => {
+            return prisma.expediente.upsert({
+                where: {
+                    funcionarioId_diaSemana: {
+                        funcionarioId: funcionarioId,
+                        diaSemana: exp.diaSemana
+                    }
+                },
+                update: {
+                    horaInicio: exp.horaInicio,
+                    horaFim: exp.horaFim,
+                    ativo: exp.ativo
+                },
+                create: {
+                    funcionarioId: funcionarioId,
+                    diaSemana: exp.diaSemana,
+                    horaInicio: exp.horaInicio,
+                    horaFim: exp.horaFim,
+                    ativo: exp.ativo
+                }
+            })
+        })
+
+        await prisma.$transaction(transacoes)
+        revalidatePath('/admin/dashboard')
+
+        return { sucesso: true }
+    } catch (error) {
+        return { sucesso: false, erro: 'Erro ao salvar a escala de trabalho.' }
     }
 }
