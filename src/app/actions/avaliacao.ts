@@ -38,3 +38,45 @@ export async function criarAvaliacao(
         return { sucesso: false, erro: 'Falha técnica ao tentar salvar a avaliação.' }
     }
 }
+
+export type AvaliacaoAdminItem = {
+    id: string
+    nota: number
+    comentario: string | null
+    criadoEm: Date
+    agendamento: {
+        cliente: { nome: string }
+        funcionario: { nome: string }
+        servicos: { servico: { nome: string } }[]
+    }
+}
+
+export async function listarAvaliacoesAdmin(): Promise<ActionResult<{ avaliacoes: AvaliacaoAdminItem[], mediaGeral: number }>> {
+    try {
+        const avaliacoes = await prisma.avaliacao.findMany({
+            orderBy: { criadoEm: 'desc' },
+            include: {
+                agendamento: {
+                    select: {
+                        cliente: { select: { nome: true } },
+                        funcionario: { select: { nome: true } },
+                        servicos: { select: { servico: { select: { nome: true } } } }
+                    }
+                }
+            }
+        })
+
+        // Calcula a média geral do salão
+        const somaNotas = avaliacoes.reduce((acc, av) => acc + av.nota, 0)
+        const mediaGeral = avaliacoes.length > 0 ? somaNotas / avaliacoes.length : 0
+
+        return {
+            sucesso: true,
+            avaliacoes: avaliacoes as AvaliacaoAdminItem[],
+            mediaGeral
+        }
+    } catch (error) {
+        console.error('Erro ao listar avaliações:', error)
+        return { sucesso: false, erro: 'Falha ao carregar as avaliações.' }
+    }
+}
