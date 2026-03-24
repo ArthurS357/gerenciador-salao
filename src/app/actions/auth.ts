@@ -5,19 +5,20 @@ import { cookies } from 'next/headers'
 import { prisma } from '@/lib/prisma'
 import { compare } from 'bcrypt'
 
+// Chave secreta para assinatura dos tokens. Em produção, DEVE vir do .env
 const JWT_SECRET = new TextEncoder().encode(
     process.env.JWT_SECRET ?? 'chave_secreta_desenvolvimento'
 )
 
-// ── Tipos de retorno ─────────────────────────────────────────────────────────
+// ── 1. Tipos de Retorno (Type Safety) ────────────────────────────────────────
 
 export type LoginResult = {
     success: boolean;
     clienteId?: string;
     error?: string;
-    requireNewName?: boolean;          // Para novos cadastros
-    requireNameConfirmation?: boolean; // Para clientes existentes (Segurança)
-    maskedName?: string;               // O nome mascarado (ex: A***** S*****)
+    requireNewName?: boolean;          // Acionado em novos cadastros
+    requireNameConfirmation?: boolean; // Acionado para segurança de clientes existentes
+    maskedName?: string;               // Exemplo: A***** S*****
 }
 
 type LoginFuncionarioResult =
@@ -32,33 +33,40 @@ type SessaoFuncionarioResult =
     | { logado: true; id: string; nome: string; role: 'ADMIN' | 'PROFISSIONAL' }
     | { logado: false }
 
-// ── Utilitário de Segurança ───────────────────────────────────────────────────
 
+// ── 2. Utilitário de Segurança ───────────────────────────────────────────────
+
+/**
+ * Mascara o nome do cliente para validação de segurança.
+ * Ex: "Arthur Silva" vira "A***** S*****"
+ */
 function mascararNome(nomeCompleto: string): string {
     return nomeCompleto
         .split(' ')
         .map(palavra => {
-            if (palavra.length <= 2) return palavra; // Não mascara "da", "de"
+            if (palavra.length <= 2) return palavra; // Ignora preposições como "da", "de"
             return palavra.charAt(0).toUpperCase() + '*'.repeat(palavra.length - 1);
         })
         .join(' ');
 }
 
-// ── Login do cliente ──────────────────────────────────────────────────────────
+
+// ── 3. Autenticação de Clientes (Passwordless) ───────────────────────────────
 
 export async function loginCliente(
     telefone: string,
-    nome?: string // Opcional no primeiro passo
+    nome?: string
 ): Promise<LoginResult> {
     try {
-        let cliente = await prisma.cliente.findFirst({ where: { telefone } })
+        let cliente = await prisma.cliente.findUnique({ where: { telefone } })
 
         if (cliente) {
+            // Conta inativa por solicitação de exclusão de dados (LGPD)
             if (cliente.anonimizado) {
                 return { success: false, error: 'Esta conta foi desativada e anonimizada.' }
             }
 
-            // SEGREDO DE SEGURANÇA: Se não enviou o nome, pedimos a confirmação mascarada
+            // Desafio de Segurança: Se o cliente digitou apenas o telefone, pedimos a confirmação de identidade
             if (!nome || nome.trim() === '') {
                 return {
                     success: false,
@@ -67,7 +75,7 @@ export async function loginCliente(
                 }
             }
 
-            // Validação: Verifica se o primeiro nome digitado bate com o registado
+            // Validação: Confirma se o primeiro nome fornecido bate com o do banco de dados
             const primeiroNomeBanco = cliente.nome.trim().split(' ')[0].toLowerCase();
             const primeiroNomeInput = nome.trim().split(' ')[0].toLowerCase();
 
@@ -77,22 +85,25 @@ export async function loginCliente(
                     error: 'O nome inserido não corresponde ao titular deste número. Tente novamente.'
                 }
             }
-
         } else {
-            // Cliente não existe, é um cadastro novo
+            // Fluxo de Cadastro de Novo Cliente
             if (!nome || nome.trim() === '') {
                 return { success: false, requireNewName: true }
             }
-            cliente = await prisma.cliente.create({ data: { telefone, nome: nome.trim() } })
+            cliente = await prisma.cliente.create({
+                data: { telefone, nome: nome.trim() }
+            })
         }
 
-        // Gera o Token de Sessão Seguro
-        const token = await new SignJWT({ sub: cliente.id, role: 'CLIENTE' })
+        // Geração do Token JWT (Válido por 7 dias)
+        const token = await new SignJWT({ role: 'CLIENTE' })
             .setProtectedHeader({ alg: 'HS256' })
+            .setSubject(cliente.id) // O ID do utilizador vai na propriedade "sub"
             .setIssuedAt()
             .setExpirationTime('7d')
             .sign(JWT_SECRET)
 
+        // Configuração segura do Cookie
         const cookieStore = await cookies()
         cookieStore.set('cliente_session', token, {
             httpOnly: true,
@@ -109,7 +120,8 @@ export async function loginCliente(
     }
 }
 
-// ── Login do funcionário ───────────────────────────────────────────────────────
+
+// ── 4. Autenticação de Funcionários (E-mail e Senha) ─────────────────────────
 
 export async function loginFuncionario(
     email: string,
@@ -122,13 +134,16 @@ export async function loginFuncionario(
             return { success: false, error: 'Credenciais inválidas.' }
         }
 
+        // Comparação segura de hash
         const senhaValida = await compare(senhaPlana, funcionario.senhaHash)
         if (!senhaValida) {
             return { success: false, error: 'Credenciais inválidas.' }
         }
 
-        const token = await new SignJWT({ sub: funcionario.id, role: funcionario.role })
+        // Geração do Token JWT (Válido por 1 dia de trabalho)
+        const token = await new SignJWT({ role: funcionario.role })
             .setProtectedHeader({ alg: 'HS256' })
+            .setSubject(funcionario.id)
             .setIssuedAt()
             .setExpirationTime('1d')
             .sign(JWT_SECRET)
@@ -149,7 +164,8 @@ export async function loginFuncionario(
     }
 }
 
-// ── Verificação de sessão do cliente ─────────────────────────────────────────
+
+// ── 5. Validadores de Sessão (Usados no Middleware ou Layouts) ───────────────
 
 export async function verificarSessaoCliente(): Promise<SessaoClienteResult> {
     try {
@@ -162,6 +178,7 @@ export async function verificarSessaoCliente(): Promise<SessaoClienteResult> {
 
         if (payload.role !== 'CLIENTE' || !payload.sub) return { logado: false }
 
+        // Validação adicional no banco para garantir que a conta não foi excluída enquanto o token era válido
         const cliente = await prisma.cliente.findUnique({
             where: { id: payload.sub },
             select: { nome: true, anonimizado: true }
@@ -174,8 +191,6 @@ export async function verificarSessaoCliente(): Promise<SessaoClienteResult> {
         return { logado: false }
     }
 }
-
-// ── Verificação de sessão do funcionário ──────────────────────────────────────
 
 export async function verificarSessaoFuncionario(): Promise<SessaoFuncionarioResult> {
     try {
@@ -209,7 +224,8 @@ export async function verificarSessaoFuncionario(): Promise<SessaoFuncionarioRes
     }
 }
 
-// ── Logouts ───────────────────────────────────────────────────────────────────
+
+// ── 6. Encerramento de Sessões (Logouts) ─────────────────────────────────────
 
 export async function logoutFuncionario(): Promise<{ sucesso: true }> {
     const cookieStore = await cookies()
