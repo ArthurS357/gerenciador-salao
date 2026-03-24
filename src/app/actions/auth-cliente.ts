@@ -28,7 +28,7 @@ export async function iniciarLoginCliente(telefoneLimpo: string) {
         return { sucesso: false, erro: 'Número de telemóvel inválido. Formato: (DDD) 9XXXX-XXXX' }
     }
 
-    const cliente = await prisma.cliente.findFirst({
+    const cliente = await prisma.cliente.findUnique({
         where: { telefone: telefoneLimpo }
     })
 
@@ -55,7 +55,7 @@ export async function iniciarLoginCliente(telefoneLimpo: string) {
 }
 
 export async function confirmarDesafioLogin(telefoneLimpo: string, nomeMascaradoEscolhido: string) {
-    const cliente = await prisma.cliente.findFirst({
+    const cliente = await prisma.cliente.findUnique({
         where: { telefone: telefoneLimpo }
     })
 

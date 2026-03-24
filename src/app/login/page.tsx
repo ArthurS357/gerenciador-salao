@@ -26,7 +26,7 @@ export default function LoginPage() {
         return v;
     };
 
-    const handleLogin = async (e: React.FormEvent) => {
+    const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         setLoading(true);
         setErro('');
@@ -57,7 +57,9 @@ export default function LoginPage() {
             }
 
             if (res.success) {
-                window.location.href = '/'; // Logado com sucesso
+                // Utilizado href em vez de router.push para forçar o recarregamento
+                // e garantir que o layout do servidor lê o novo cookie de sessão.
+                window.location.href = '/';
             } else {
                 setErro(res.error || 'Ocorreu um erro ao tentar entrar.');
             }
