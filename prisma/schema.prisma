@@ -161,3 +161,11 @@ model ItemPortfolio {
   ativo       Boolean  @default(true)
   criadoEm   DateTime @default(now())
 }
+
+// 5. SISTEMA DE ALERTAS
+model Notificacao {
+  id        String   @id @default(uuid())
+  mensagem  String
+  lida      Boolean  @default(false)
+  criadoEm  DateTime @default(now())
+}

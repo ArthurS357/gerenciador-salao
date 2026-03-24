@@ -220,7 +220,11 @@ export async function cancelarAgendamentoPendente(id: string): Promise<ActionRes
     try {
         const agendamento = await prisma.agendamento.findUnique({
             where: { id },
-            include: { produtos: true }
+            include: {
+                produtos: true,
+                cliente: { select: { nome: true } },
+                funcionario: { select: { nome: true } }
+            }
         })
 
         if (!agendamento) {
@@ -244,6 +248,13 @@ export async function cancelarAgendamentoPendente(id: string): Promise<ActionRes
             }
 
             await tx.agendamento.delete({ where: { id } })
+
+            // ── GATILHO DA NOTIFICAÇÃO DE CANCELAMENTO ──
+            await tx.notificacao.create({
+                data: {
+                    mensagem: `⚠️ Agenda Cancelada: O atendimento de ${agendamento.cliente.nome} com ${agendamento.funcionario.nome} foi desmarcado. Verifique a necessidade de remanejar o cliente.`
+                }
+            })
         })
 
         return { sucesso: true }

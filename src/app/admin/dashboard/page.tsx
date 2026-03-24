@@ -9,9 +9,42 @@ import {
     atualizarFuncionarioCompleto,
     excluirFuncionarioPermanente,
     editarFuncionarioCompleto,
-    salvarEscalaFuncionarioAdmin // <-- Nova Função
+    salvarEscalaFuncionarioAdmin,
+    listarNotificacoesAdmin,
+    marcarNotificacaoLida,
+    type NotificacaoItem
 } from '@/app/actions/admin'
 import { listarServicosAdmin } from '@/app/actions/servico'
+
+// ── Tipagens Estritas ────────────────────────────────────────────────────────
+
+type ServicoResumo = {
+    id: string
+    nome: string
+}
+
+type ExpedienteInfo = {
+    id?: string
+    diaSemana: number
+    horaInicio: string
+    horaFim: string
+    ativo: boolean
+}
+
+type ProfissionalResumo = {
+    id: string
+    nome: string
+    email: string
+    especialidade: string | null
+    ativo: boolean
+    comissao: number
+    podeVerComissao: boolean
+    podeAgendar: boolean
+    podeVerHistorico: boolean
+    podeCancelar: boolean
+    servicos: ServicoResumo[]
+    expedientes: ExpedienteInfo[]
+}
 
 type FormData = {
     nome: string
@@ -26,74 +59,84 @@ type FormData = {
 
 type Mensagem = { texto: string; tipo: 'sucesso' | 'erro' | 'info' | '' }
 
+type PermissaoKey = 'podeVerComissao' | 'podeAgendar' | 'podeVerHistorico' | 'podeCancelar'
+
+// ── Constantes Globais ───────────────────────────────────────────────────────
+
 const FORM_INICIAL: FormData = {
     nome: '', email: '', cpf: '', telefone: '', especialidade: '', comissao: 40, servicosIds: [], podeCancelar: false
 }
-
 const DIAS_SEMANA = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado']
 
 export default function TorreControleDashboard() {
-    const [equipa, setEquipa] = useState<any[]>([])
-    const [servicosDisponiveis, setServicosDisponiveis] = useState<any[]>([])
+    // ── Estados ──────────────────────────────────────────────────────────────
+    const [equipa, setEquipa] = useState<ProfissionalResumo[]>([])
+    const [servicosDisponiveis, setServicosDisponiveis] = useState<ServicoResumo[]>([])
+    const [notificacoes, setNotificacoes] = useState<NotificacaoItem[]>([])
     const [mensagem, setMensagem] = useState<Mensagem>({ texto: '', tipo: '' })
     const [busca, setBusca] = useState('')
 
-    // Estados de Modais
     const [isModalOpen, setIsModalOpen] = useState(false)
     const [modalServicos, setModalServicos] = useState<{ id: string, nome: string, servicosIds: string[] } | null>(null)
-    const [modalAcessos, setModalAcessos] = useState<any | null>(null)
+    const [modalAcessos, setModalAcessos] = useState<ProfissionalResumo | null>(null)
     const [credenciaisNovo, setCredenciaisNovo] = useState<{ email: string, senhaTemp: string } | null>(null)
-
-    // Abas do Modal de Acesso
     const [abaAtiva, setAbaAtiva] = useState<'permissoes' | 'escala'>('permissoes')
 
     const [formData, setFormData] = useState<FormData>(FORM_INICIAL)
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [loadingAcao, setLoadingAcao] = useState(false)
 
-    const carregarEquipa = useCallback(async () => {
-        const res = await listarEquipaAdmin()
-        if (res.sucesso && 'equipa' in res) setEquipa(res.equipa as any[])
+    // ── Carregamento de Dados ────────────────────────────────────────────────
+    const carregarDados = useCallback(async () => {
+        const [resEq, resSv, resNotif] = await Promise.all([
+            listarEquipaAdmin(), listarServicosAdmin(), listarNotificacoesAdmin()
+        ])
+
+        if (resEq.sucesso && 'equipa' in resEq) {
+            setEquipa(resEq.equipa as ProfissionalResumo[])
+        }
+        if (resSv.sucesso && 'servicos' in resSv) {
+            setServicosDisponiveis(resSv.servicos as ServicoResumo[])
+        }
+        if (resNotif.sucesso && 'notificacoes' in resNotif) {
+            setNotificacoes(resNotif.notificacoes as NotificacaoItem[])
+        }
     }, [])
 
-    const carregarServicos = useCallback(async () => {
-        const res = await listarServicosAdmin()
-        if (res.sucesso && 'servicos' in res) setServicosDisponiveis(res.servicos as any[])
-    }, [])
+    useEffect(() => { void carregarDados() }, [carregarDados])
 
-    useEffect(() => {
-        void carregarEquipa()
-        void carregarServicos()
-    }, [carregarEquipa, carregarServicos])
+    // ── Ações ────────────────────────────────────────────────────────────────
+    const handleLimparAlerta = async (id: string) => {
+        await marcarNotificacaoLida(id)
+        void carregarDados()
+    }
 
-    // --- AÇÃO: CADASTRAR NOVO PROFISSIONAL ---
     const handleCadastrarEquipe = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault()
         if (isSubmitting) return
 
         setIsSubmitting(true)
-        setMensagem({ texto: 'A processar cadastro...', tipo: 'info' })
+        setMensagem({ texto: 'A processar...', tipo: 'info' })
 
         const res = await criarFuncionario(formData)
         if (res.sucesso) {
-            setMensagem({ texto: 'Profissional cadastrado com sucesso!', tipo: 'sucesso' })
+            setMensagem({ texto: 'Profissional cadastrado!', tipo: 'sucesso' })
             setCredenciaisNovo({ email: formData.email, senhaTemp: 'Mudar@123' })
             setIsModalOpen(false)
             setFormData(FORM_INICIAL)
-            void carregarEquipa()
+            void carregarDados()
         } else if ('erro' in res) {
             setMensagem({ texto: res.erro, tipo: 'erro' })
         }
         setIsSubmitting(false)
     }
 
-    // --- AÇÃO: SALVAR PERMISSÕES E ESCALA (VIA MODAL) ---
     const handleSalvarGerenciamento = async () => {
         if (!modalAcessos) return
-        setLoadingAcao(true)
-        setMensagem({ texto: 'A salvar dados do profissional...', tipo: 'info' })
 
-        // 1. Salva Permissões
+        setLoadingAcao(true)
+        setMensagem({ texto: 'A salvar dados...', tipo: 'info' })
+
         const resPermissoes = await atualizarFuncionarioCompleto(modalAcessos.id, {
             comissao: Number(modalAcessos.comissao),
             podeVerComissao: modalAcessos.podeVerComissao,
@@ -102,64 +145,67 @@ export default function TorreControleDashboard() {
             podeCancelar: modalAcessos.podeCancelar
         })
 
-        // 2. Salva Escala
         const resEscala = await salvarEscalaFuncionarioAdmin(modalAcessos.id, modalAcessos.expedientes)
 
         if (resPermissoes.sucesso && resEscala.sucesso) {
-            setMensagem({ texto: 'Configurações atualizadas com sucesso!', tipo: 'sucesso' })
+            setMensagem({ texto: 'Atualizado com sucesso!', tipo: 'sucesso' })
             setModalAcessos(null)
-            void carregarEquipa()
+            void carregarDados()
         } else {
-            setMensagem({ texto: 'Erro parcial ao atualizar dados.', tipo: 'erro' })
+            setMensagem({ texto: 'Erro ao atualizar dados.', tipo: 'erro' })
         }
         setLoadingAcao(false)
     }
 
-    // --- AÇÃO: SALVAR SERVIÇOS ---
     const handleSalvarServicosExistente = async () => {
         if (!modalServicos) return
-        setLoadingAcao(true)
 
-        const res = await editarFuncionarioCompleto(modalServicos.id, {
-            servicosIds: modalServicos.servicosIds
-        })
+        setLoadingAcao(true)
+        const res = await editarFuncionarioCompleto(modalServicos.id, { servicosIds: modalServicos.servicosIds })
 
         if (res.sucesso) {
-            setMensagem({ texto: `Serviços atualizados com sucesso!`, tipo: 'sucesso' })
+            setMensagem({ texto: `Serviços atualizados!`, tipo: 'sucesso' })
             setModalServicos(null)
-            void carregarEquipa()
+            void carregarDados()
         } else if ('erro' in res) {
             setMensagem({ texto: res.erro, tipo: 'erro' })
         }
         setLoadingAcao(false)
     }
 
-    // --- AÇÕES DE ZONA DE PERIGO ---
     const handleInativar = async (id: string, nome: string) => {
-        if (!confirm(`Tem a certeza que deseja desativar o acesso de ${nome}?`)) return
+        if (!confirm(`Desativar o acesso de ${nome}?`)) return
+
         setLoadingAcao(true)
         const res = await inativarFuncionario(id)
         if (res.sucesso) {
-            setMensagem({ texto: 'Profissional inativado.', tipo: 'sucesso' })
+            setMensagem({ texto: 'Inativado com sucesso.', tipo: 'sucesso' })
             setModalAcessos(null)
-            void carregarEquipa()
-        } else if ('erro' in res) setMensagem({ texto: res.erro, tipo: 'erro' })
+            void carregarDados()
+        } else if ('erro' in res) {
+            setMensagem({ texto: res.erro, tipo: 'erro' })
+        }
         setLoadingAcao(false)
     }
 
     const handleExcluir = async (id: string, nome: string) => {
-        if (!confirm(`ATENÇÃO: Deseja EXCLUIR DEFINITIVAMENTE a conta de ${nome}?`)) return
+        if (!confirm(`EXCLUIR DEFINITIVAMENTE a conta de ${nome}?`)) return
+
         setLoadingAcao(true)
         const res = await excluirFuncionarioPermanente(id)
         if (res.sucesso) {
-            setMensagem({ texto: 'Funcionário excluído permanentemente.', tipo: 'sucesso' })
+            setMensagem({ texto: 'Excluído permanentemente.', tipo: 'sucesso' })
             setModalAcessos(null)
-            void carregarEquipa()
-        } else if ('erro' in res) setMensagem({ texto: res.erro, tipo: 'erro' })
+            void carregarDados()
+        } else if ('erro' in res) {
+            setMensagem({ texto: res.erro, tipo: 'erro' })
+        }
         setLoadingAcao(false)
     }
 
-    const atualizarExpedienteLocal = (index: number, campo: string, valor: any) => {
+    // Função tipada com Generics para garantir que só se pode mudar chaves válidas de ExpedienteInfo
+    const atualizarExpedienteLocal = <K extends keyof ExpedienteInfo>(index: number, campo: K, valor: ExpedienteInfo[K]) => {
+        if (!modalAcessos) return
         const novosExpedientes = [...modalAcessos.expedientes]
         novosExpedientes[index] = { ...novosExpedientes[index], [campo]: valor }
         setModalAcessos({ ...modalAcessos, expedientes: novosExpedientes })
@@ -170,6 +216,13 @@ export default function TorreControleDashboard() {
         p.email.toLowerCase().includes(busca.toLowerCase())
     )
 
+    const permissoesSistema: { key: PermissaoKey, label: string, desc: string }[] = [
+        { key: 'podeVerComissao', label: 'Ver Valores Financeiros', desc: 'Pode visualizar o faturamento da comanda.' },
+        { key: 'podeAgendar', label: 'Criar Agendamentos', desc: 'Permite criar novas reservas na sua agenda.' },
+        { key: 'podeVerHistorico', label: 'Ver Histórico Financeiro', desc: 'Acesso às comandas já faturadas.' },
+        { key: 'podeCancelar', label: 'Cancelar Agendamentos', desc: 'Pode excluir clientes e faturamentos.' }
+    ]
+
     return (
         <div className="min-h-screen bg-[#fdfbf7] p-8 font-sans">
             <header className="mb-6 border-b-2 border-[#5C4033] pb-4 flex justify-between items-center">
@@ -177,10 +230,7 @@ export default function TorreControleDashboard() {
                     <h1 className="text-3xl font-bold text-[#5C4033]">Torre de Controlo</h1>
                     <p className="text-gray-500 mt-1">Gestão de Equipa, Permissões e Escalas.</p>
                 </div>
-                <button
-                    onClick={() => { setCredenciaisNovo(null); setIsModalOpen(true); }}
-                    className="bg-[#8B5A2B] text-white px-5 py-2.5 rounded font-bold hover:bg-[#704620] shadow-sm transition-colors"
-                >
+                <button onClick={() => { setCredenciaisNovo(null); setIsModalOpen(true); }} className="bg-[#8B5A2B] text-white px-5 py-2.5 rounded font-bold hover:bg-[#704620] shadow-sm transition-colors">
                     + Novo Profissional
                 </button>
             </header>
@@ -188,11 +238,31 @@ export default function TorreControleDashboard() {
             <nav className="flex flex-wrap gap-3 mb-8">
                 <Link href='/admin/dashboard' className="bg-[#5C4033] text-white px-5 py-2 rounded shadow font-bold text-sm">Equipa (Atual)</Link>
                 <Link href='/admin/financeiro' className="bg-white text-[#5C4033] border border-[#e5d9c5] px-5 py-2 rounded shadow-sm font-bold text-sm hover:border-[#8B5A2B]">Financeiro</Link>
-                <Link href='/admin/estoque' className="bg-white text-[#5C4033] border border-[#e5d9c5] px-5 py-2 rounded shadow-sm font-bold text-sm hover:border-[#8B5A2B]">Estoque</Link>
+                <Link href='/admin/estoque' className="bg-white text-[#5C4033] border border-[#e5d9c5] px-5 py-2 rounded shadow-sm font-bold text-sm hover:border-[#8B5A2B]">Estoque de Produtos</Link>
                 <Link href='/admin/servicos' className="bg-white text-[#5C4033] border border-[#e5d9c5] px-5 py-2 rounded shadow-sm font-bold text-sm hover:border-[#8B5A2B]">Portfólio / Serviços</Link>
                 <Link href='/admin/agendamentos' className="bg-white text-[#5C4033] border border-[#e5d9c5] px-5 py-2 rounded shadow-sm font-bold text-sm hover:border-[#8B5A2B]">Agendamentos Globais</Link>
                 <Link href='/admin/clientes' className="bg-white text-[#5C4033] border border-[#e5d9c5] px-5 py-2 rounded shadow-sm font-bold text-sm hover:border-[#8B5A2B]">Base de Clientes</Link>
             </nav>
+
+            {/* ── ALERTAS DO SISTEMA (CANCELAMENTOS) ── */}
+            {notificacoes.length > 0 && (
+                <div className="mb-8 space-y-3">
+                    <h2 className="text-sm font-bold text-red-600 uppercase tracking-wider flex items-center gap-2">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
+                        Alertas Pendentes ({notificacoes.length})
+                    </h2>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {notificacoes.map(notif => (
+                            <div key={notif.id} className="bg-red-50 border border-red-200 p-4 rounded-xl shadow-sm flex justify-between items-start gap-4">
+                                <p className="text-sm text-red-800 font-medium leading-snug">{notif.mensagem}</p>
+                                <button onClick={() => handleLimparAlerta(notif.id)} className="text-[10px] uppercase tracking-wider font-bold bg-white text-red-600 border border-red-200 px-3 py-1.5 rounded hover:bg-red-600 hover:text-white transition-colors whitespace-nowrap">
+                                    Visto
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
 
             {mensagem.texto && (
                 <div className={`mb-6 p-4 rounded font-bold text-center border shadow-sm ${mensagem.tipo === 'erro' ? 'bg-red-50 text-red-700 border-red-200' : mensagem.tipo === 'info' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-green-50 text-green-700 border-green-200'}`}>
@@ -203,14 +273,13 @@ export default function TorreControleDashboard() {
             {credenciaisNovo && (
                 <div className="mb-6 p-6 bg-orange-50 border-2 border-orange-200 rounded-xl shadow-sm">
                     <h3 className="text-lg font-black text-orange-800 mb-2">🎉 Profissional criado com sucesso!</h3>
-                    <p className="text-sm text-orange-700 mb-4">Envie estas credenciais ao funcionário para que ele possa aceder ao sistema.</p>
                     <div className="flex gap-4">
                         <div className="bg-white px-4 py-2 border border-orange-100 rounded shadow-sm">
                             <span className="text-xs text-gray-500 uppercase font-bold block">Email</span>
                             <span className="font-mono text-[#5C4033] font-bold">{credenciaisNovo.email}</span>
                         </div>
                         <div className="bg-white px-4 py-2 border border-orange-100 rounded shadow-sm">
-                            <span className="text-xs text-gray-500 uppercase font-bold block">Senha Temporária</span>
+                            <span className="text-xs text-gray-500 uppercase font-bold block">Senha</span>
                             <span className="font-mono text-[#5C4033] font-bold">{credenciaisNovo.senhaTemp}</span>
                         </div>
                     </div>
@@ -219,173 +288,84 @@ export default function TorreControleDashboard() {
 
             <div className="mb-6 bg-white p-4 rounded-lg shadow-sm border border-[#e5d9c5]">
                 <div className="relative">
-                    <input
-                        type="text"
-                        placeholder="Pesquisar funcionário por nome ou email..."
-                        value={busca}
-                        onChange={(e) => setBusca(e.target.value)}
-                        className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded outline-none focus:border-[#8B5A2B] transition-colors"
-                    />
-                    <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-                    </svg>
+                    <input type="text" placeholder="Pesquisar funcionário..." value={busca} onChange={(e) => setBusca(e.target.value)} className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded outline-none focus:border-[#8B5A2B] transition-colors" />
+                    <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
                 </div>
             </div>
 
             <section className="bg-white rounded-lg shadow overflow-hidden border border-[#e5d9c5]">
-                <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
-                    <h2 className="font-bold text-gray-700">Membros da Equipa</h2>
-                </div>
+                <div className="bg-gray-50 px-6 py-4 border-b border-gray-200"><h2 className="font-bold text-gray-700">Equipa</h2></div>
                 <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse">
-                        <thead className="bg-[#5C4033] text-white">
-                            <tr>
-                                <th className="p-4 text-sm font-semibold uppercase tracking-wider">Profissional</th>
-                                <th className="p-4 text-sm font-semibold uppercase tracking-wider">Especialidade</th>
-                                <th className="p-4 text-sm font-semibold uppercase tracking-wider text-center">Status</th>
-                                <th className="p-4 text-sm font-semibold uppercase tracking-wider text-right">Ações de Gestão</th>
-                            </tr>
-                        </thead>
+                        <thead className="bg-[#5C4033] text-white"><tr><th className="p-4 text-sm font-semibold uppercase">Profissional</th><th className="p-4 text-sm font-semibold uppercase">Status</th><th className="p-4 text-sm font-semibold uppercase text-right">Ações</th></tr></thead>
                         <tbody>
-                            {equipaFiltrada.length === 0 ? (
-                                <tr>
-                                    <td colSpan={4} className="p-8 text-center text-gray-500 font-medium">
-                                        Nenhum profissional encontrado.
+                            {equipaFiltrada.map((prof) => (
+                                <tr key={prof.id} className="border-b border-gray-100 hover:bg-gray-50">
+                                    <td className="p-4">
+                                        <p className="font-bold text-gray-800">{prof.nome}</p>
+                                        <p className="text-xs text-gray-500">{prof.especialidade || 'Sem especialidade'}</p>
+                                    </td>
+                                    <td className="p-4">
+                                        <span className={`px-2.5 py-1 text-[0.65rem] font-bold rounded uppercase ${prof.ativo ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{prof.ativo ? 'Ativo' : 'Inativo'}</span>
+                                    </td>
+                                    <td className="p-4 text-right">
+                                        <div className="flex justify-end gap-2">
+                                            <button onClick={() => setModalServicos({ id: prof.id, nome: prof.nome, servicosIds: prof.servicos.map(s => s.id) })} className="px-4 py-2 bg-blue-50 text-blue-700 rounded text-xs font-bold hover:bg-blue-100">
+                                                Portfólio
+                                            </button>
+                                            <button onClick={() => setModalAcessos({ ...prof })} className="px-4 py-2 bg-gray-100 text-gray-700 rounded text-xs font-bold hover:bg-gray-200">
+                                                Gerir Acessos
+                                            </button>
+                                        </div>
                                     </td>
                                 </tr>
-                            ) : (
-                                equipaFiltrada.map((prof) => (
-                                    <tr key={prof.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
-                                        <td className="p-4">
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-10 h-10 rounded-full bg-[#8B5A2B]/10 text-[#8B5A2B] flex items-center justify-center font-bold text-lg border border-[#8B5A2B]/20">
-                                                    {prof.nome.charAt(0).toUpperCase()}
-                                                </div>
-                                                <div>
-                                                    <p className="font-bold text-gray-800">{prof.nome}</p>
-                                                    <p className="text-xs text-gray-500 font-mono">{prof.email}</p>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td className="p-4 text-sm font-medium text-gray-600">
-                                            {prof.especialidade || <span className="italic opacity-50">Não definida</span>}
-                                        </td>
-                                        <td className="p-4 text-center">
-                                            <span className={`px-2.5 py-1 text-[0.65rem] font-bold rounded uppercase tracking-wider ${prof.ativo ? 'bg-green-100 text-green-700 border border-green-200' : 'bg-red-100 text-red-700 border border-red-200'}`}>
-                                                {prof.ativo ? 'Ativo' : 'Inativo'}
-                                            </span>
-                                        </td>
-                                        <td className="p-4 text-right">
-                                            <div className="flex justify-end gap-2">
-                                                <button
-                                                    onClick={() => setModalServicos({ id: prof.id, nome: prof.nome, servicosIds: prof.servicos?.map((s: any) => s.id) || [] })}
-                                                    className="px-4 py-2 bg-blue-50 text-blue-700 border border-blue-200 rounded text-xs font-bold hover:bg-blue-100 transition-colors shadow-sm"
-                                                >
-                                                    Portfólio ({prof.servicos?.length || 0})
-                                                </button>
-                                                <button
-                                                    onClick={() => setModalAcessos({ ...prof })}
-                                                    className="px-4 py-2 bg-gray-100 text-gray-700 border border-gray-300 rounded text-xs font-bold hover:bg-gray-200 transition-colors shadow-sm flex items-center gap-2"
-                                                >
-                                                    Gerir Acessos
-                                                </button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))
-                            )}
+                            ))}
                         </tbody>
                     </table>
                 </div>
             </section>
 
-            {/* --- MODAL: GERIR ACESSOS E ESCALAS --- */}
+            {/* ── MODAL: GERIR ACESSOS E ESCALAS ── */}
             {modalAcessos && (
                 <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
                     <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg border-t-4 border-[#8B5A2B] overflow-hidden flex flex-col max-h-[95vh]">
                         <div className="px-6 py-5 border-b border-gray-100 flex justify-between items-center">
-                            <div>
-                                <h2 className="text-xl font-bold text-[#5C4033]">Gerir Perfil</h2>
-                                <p className="text-sm text-gray-500">{modalAcessos.nome}</p>
-                            </div>
-                            <button onClick={() => setModalAcessos(null)} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
+                            <div><h2 className="text-xl font-bold text-[#5C4033]">Gerir Perfil</h2><p className="text-sm text-gray-500">{modalAcessos.nome}</p></div>
+                            <button onClick={() => setModalAcessos(null)} className="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
                         </div>
-
-                        {/* Abas Superiores */}
                         <div className="flex border-b border-gray-200 px-6 pt-2 gap-4">
-                            <button
-                                onClick={() => setAbaAtiva('permissoes')}
-                                className={`pb-2 text-sm font-bold border-b-2 transition-colors ${abaAtiva === 'permissoes' ? 'border-[#8B5A2B] text-[#8B5A2B]' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
-                            >
-                                Permissões
-                            </button>
-                            <button
-                                onClick={() => setAbaAtiva('escala')}
-                                className={`pb-2 text-sm font-bold border-b-2 transition-colors ${abaAtiva === 'escala' ? 'border-[#8B5A2B] text-[#8B5A2B]' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
-                            >
-                                Escala de Trabalho
-                            </button>
+                            <button onClick={() => setAbaAtiva('permissoes')} className={`pb-2 text-sm font-bold border-b-2 ${abaAtiva === 'permissoes' ? 'border-[#8B5A2B] text-[#8B5A2B]' : 'border-transparent text-gray-400'}`}>Permissões</button>
+                            <button onClick={() => setAbaAtiva('escala')} className={`pb-2 text-sm font-bold border-b-2 ${abaAtiva === 'escala' ? 'border-[#8B5A2B] text-[#8B5A2B]' : 'border-transparent text-gray-400'}`}>Escala de Trabalho</button>
                         </div>
 
                         <div className="p-6 overflow-y-auto flex-1 space-y-6 bg-gray-50/30">
-
-                            {/* ABA: PERMISSÕES E FINANCEIRO */}
                             {abaAtiva === 'permissoes' && (
                                 <div className="space-y-6 fade-in">
-                                    <div>
-                                        <label className="block text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">Taxa de Comissão (%)</label>
-                                        <input
-                                            type="number" min="0" max="100"
-                                            value={modalAcessos.comissao}
-                                            onChange={(e) => setModalAcessos({ ...modalAcessos, comissao: e.target.value })}
-                                            className="w-full border border-gray-300 rounded-lg px-4 py-2.5 outline-none focus:border-[#8B5A2B] text-lg font-bold text-[#8B5A2B]"
-                                        />
+                                    <div><label className="block text-xs font-bold text-gray-600 uppercase mb-2">Comissão (%)</label>
+                                        <input type="number" value={modalAcessos.comissao} onChange={(e) => setModalAcessos({ ...modalAcessos, comissao: Number(e.target.value) })} className="w-full border rounded-lg px-4 py-2" />
                                     </div>
-
                                     <div className="space-y-3">
-                                        <h3 className="text-xs font-bold text-gray-600 uppercase tracking-wider border-b pb-1">Permissões do Sistema</h3>
-                                        {[
-                                            { key: 'podeVerComissao', label: 'Ver Valores Financeiros', desc: 'Pode visualizar o faturamento da comanda.' },
-                                            { key: 'podeAgendar', label: 'Criar Agendamentos', desc: 'Permite criar novas reservas na sua agenda.' },
-                                            { key: 'podeVerHistorico', label: 'Ver Histórico Financeiro', desc: 'Acesso às comandas já faturadas.' },
-                                            { key: 'podeCancelar', label: 'Cancelar Agendamentos', desc: 'Pode excluir clientes e faturamentos.' }
-                                        ].map(({ key, label, desc }) => (
-                                            <label key={key} className="flex items-center justify-between p-3 bg-white border border-gray-200 rounded-xl cursor-pointer hover:border-gray-300 transition-colors shadow-sm">
-                                                <div>
-                                                    <span className="block text-sm font-bold text-gray-800">{label}</span>
-                                                    <span className="block text-[10px] text-gray-500 mt-0.5">{desc}</span>
-                                                </div>
-                                                <div className="relative inline-flex items-center">
-                                                    <input type="checkbox" className="sr-only peer" checked={modalAcessos[key]} onChange={(e) => setModalAcessos({ ...modalAcessos, [key]: e.target.checked })} />
-                                                    <div className="w-11 h-6 bg-gray-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#8B5A2B]"></div>
-                                                </div>
+                                        {permissoesSistema.map(({ key, label }) => (
+                                            <label key={key} className="flex items-center justify-between p-3 bg-white border rounded-xl cursor-pointer">
+                                                <span className="text-sm font-bold text-gray-800">{label}</span>
+                                                <input type="checkbox" checked={modalAcessos[key]} onChange={(e) => setModalAcessos({ ...modalAcessos, [key]: e.target.checked })} />
                                             </label>
                                         ))}
                                     </div>
                                 </div>
                             )}
 
-                            {/* ABA: ESCALA DE TRABALHO */}
                             {abaAtiva === 'escala' && (
                                 <div className="space-y-3 fade-in">
-                                    <p className="text-xs text-gray-500 bg-white p-3 rounded-lg border border-gray-200 shadow-sm mb-4">
-                                        Defina os dias e os horários em que este profissional está disponível para os clientes agendarem.
-                                    </p>
-
-                                    {modalAcessos.expedientes.map((exp: any, index: number) => (
-                                        <div key={exp.diaSemana} className={`flex items-center justify-between p-3 rounded-xl border transition-colors shadow-sm ${exp.ativo ? 'bg-orange-50/50 border-orange-200' : 'bg-white border-gray-200'}`}>
-                                            <label className="relative inline-flex items-center cursor-pointer min-w-[100px]">
-                                                <input type="checkbox" className="sr-only peer" checked={exp.ativo} onChange={(e) => atualizarExpedienteLocal(index, 'ativo', e.target.checked)} />
-                                                <div className="w-9 h-5 bg-gray-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#8B5A2B]"></div>
-                                                <span className={`ml-2 text-xs font-bold uppercase ${exp.ativo ? 'text-gray-800' : 'text-gray-400'}`}>
-                                                    {DIAS_SEMANA[exp.diaSemana]}
-                                                </span>
+                                    {modalAcessos.expedientes.map((exp, index) => (
+                                        <div key={exp.diaSemana} className={`flex items-center justify-between p-3 rounded-xl border shadow-sm ${exp.ativo ? 'bg-orange-50/50 border-orange-200' : 'bg-white'}`}>
+                                            <label className="flex items-center cursor-pointer min-w-[100px]">
+                                                <input type="checkbox" checked={exp.ativo} onChange={(e) => atualizarExpedienteLocal(index, 'ativo', e.target.checked)} className="mr-2" />
+                                                <span className="text-xs font-bold uppercase">{DIAS_SEMANA[exp.diaSemana]}</span>
                                             </label>
-
-                                            <div className={`flex items-center gap-2 transition-opacity ${exp.ativo ? 'opacity-100' : 'opacity-30 pointer-events-none'}`}>
-                                                <input type="time" value={exp.horaInicio} onChange={(e) => atualizarExpedienteLocal(index, 'horaInicio', e.target.value)} className="border border-gray-300 rounded px-2 py-1 outline-none focus:border-[#8B5A2B] text-xs font-medium w-20" />
-                                                <span className="text-gray-400 text-xs">às</span>
-                                                <input type="time" value={exp.horaFim} onChange={(e) => atualizarExpedienteLocal(index, 'horaFim', e.target.value)} className="border border-gray-300 rounded px-2 py-1 outline-none focus:border-[#8B5A2B] text-xs font-medium w-20" />
+                                            <div className={`flex gap-2 ${exp.ativo ? '' : 'opacity-30 pointer-events-none'}`}>
+                                                <input type="time" value={exp.horaInicio} onChange={(e) => atualizarExpedienteLocal(index, 'horaInicio', e.target.value)} className="border rounded px-2 py-1 text-xs" />
+                                                <input type="time" value={exp.horaFim} onChange={(e) => atualizarExpedienteLocal(index, 'horaFim', e.target.value)} className="border rounded px-2 py-1 text-xs" />
                                             </div>
                                         </div>
                                     ))}
@@ -393,29 +373,14 @@ export default function TorreControleDashboard() {
                             )}
                         </div>
 
-                        <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex flex-col gap-3">
-                            <button
-                                onClick={handleSalvarGerenciamento}
-                                disabled={loadingAcao}
-                                className="w-full py-3 bg-[#5C4033] text-white font-bold rounded-xl hover:bg-[#3e2b22] transition-colors shadow-sm disabled:opacity-70"
-                            >
-                                {loadingAcao ? 'A Guardar...' : 'Salvar Alteraçôes do Perfil'}
-                            </button>
-
-                            <div className="flex gap-2 mt-2 pt-4 border-t border-gray-200">
-                                <button onClick={() => handleInativar(modalAcessos.id, modalAcessos.nome)} className="flex-1 py-2 text-xs font-bold text-orange-600 bg-orange-50 border border-orange-200 rounded-lg hover:bg-orange-100 transition-colors">
-                                    Desativar Acesso
-                                </button>
-                                <button onClick={() => handleExcluir(modalAcessos.id, modalAcessos.nome)} className="flex-1 py-2 text-xs font-bold text-red-600 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors">
-                                    Excluir Conta
-                                </button>
-                            </div>
+                        <div className="px-6 py-4 bg-gray-50 flex flex-col gap-3">
+                            <button onClick={handleSalvarGerenciamento} disabled={loadingAcao} className="w-full py-3 bg-[#5C4033] text-white font-bold rounded-xl">{loadingAcao ? 'A Guardar...' : 'Salvar Perfil'}</button>
                         </div>
                     </div>
                 </div>
             )}
 
-            {/* Modal Novo Profissional mantido... */}
+            {/* ── MODAL: NOVO PROFISSIONAL ── */}
             {isModalOpen && (
                 <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
                     <div className="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-lg border-t-4 border-[#5C4033] max-h-[90vh] overflow-y-auto">
@@ -436,7 +401,7 @@ export default function TorreControleDashboard() {
                 </div>
             )}
 
-            {/* Modal de Edição de Serviços mantido... */}
+            {/* ── MODAL: PORTFÓLIO DE SERVIÇOS ── */}
             {modalServicos && (
                 <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
                     <div className="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-md border-t-4 border-[#8B5A2B]">
@@ -454,7 +419,9 @@ export default function TorreControleDashboard() {
                                             checked={modalServicos.servicosIds.includes(servico.id)}
                                             onChange={() => setModalServicos({
                                                 ...modalServicos,
-                                                servicosIds: modalServicos.servicosIds.includes(servico.id) ? modalServicos.servicosIds.filter(id => id !== servico.id) : [...modalServicos.servicosIds, servico.id]
+                                                servicosIds: modalServicos.servicosIds.includes(servico.id)
+                                                    ? modalServicos.servicosIds.filter(id => id !== servico.id)
+                                                    : [...modalServicos.servicosIds, servico.id]
                                             })}
                                             disabled={loadingAcao}
                                             className="w-4 h-4 accent-[#8B5A2B] rounded"

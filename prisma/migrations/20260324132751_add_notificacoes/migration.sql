@@ -125,6 +125,14 @@ CREATE TABLE "ItemPortfolio" (
 );
 
 -- CreateTable
+CREATE TABLE "Notificacao" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "mensagem" TEXT NOT NULL,
+    "lida" BOOLEAN NOT NULL DEFAULT false,
+    "criadoEm" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- CreateTable
 CREATE TABLE "_FuncionarioToServico" (
     "A" TEXT NOT NULL,
     "B" TEXT NOT NULL,

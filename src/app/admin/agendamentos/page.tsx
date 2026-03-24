@@ -12,7 +12,15 @@ import {
     type FuncionarioComExpedienteItem
 } from '@/app/actions/agendamento'
 
+// Importações do Admin para a Gestão Rápida no Calendário
+import {
+    atualizarFuncionarioCompleto,
+    salvarEscalaFuncionarioAdmin,
+    type ExpedienteInfo
+} from '@/app/actions/admin'
+
 const DIAS_SEMANA = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
+const DIAS_SEMANA_COMPLETO = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado']
 
 export default function AgendamentosGlobaisPage() {
     // ── Estados Globais (Estritamente Tipados) ──────────────────────────────
@@ -31,6 +39,11 @@ export default function AgendamentosGlobaisPage() {
 
     const [agendamentoEditando, setAgendamentoEditando] = useState<{ id: string; funcionarioId: string; dataHora: string } | null>(null)
     const [loadingEditar, setLoadingEditar] = useState(false)
+
+    // ── Estados do Modal de Gestão Rápida do Profissional ────────────────────
+    const [modalAcessos, setModalAcessos] = useState<FuncionarioComExpedienteItem | null>(null)
+    const [abaAtiva, setAbaAtiva] = useState<'permissoes' | 'escala'>('permissoes')
+    const [loadingAcaoProfissional, setLoadingAcaoProfissional] = useState(false)
 
     // ── Carregamento de Dados ────────────────────────────────────────────────
     const carregarDados = useCallback(async () => {
@@ -122,6 +135,52 @@ export default function AgendamentosGlobaisPage() {
         }
     }
 
+    // ── Ações Rápidas do Profissional no Calendário ──────────────────────────
+    const handleSalvarGerenciamentoProfissional = async () => {
+        if (!modalAcessos) return
+        setLoadingAcaoProfissional(true)
+
+        // Coerção segura para garantir que o TypeScript aceita as chaves extraídas
+        const dadosFunc = modalAcessos as unknown as {
+            id: string, comissao?: number, podeVerComissao?: boolean,
+            podeAgendar?: boolean, podeVerHistorico?: boolean, podeCancelar?: boolean,
+            expedientes: ExpedienteInfo[]
+        }
+
+        const resPermissoes = await atualizarFuncionarioCompleto(dadosFunc.id, {
+            comissao: Number(dadosFunc.comissao || 0),
+            podeVerComissao: Boolean(dadosFunc.podeVerComissao),
+            podeAgendar: Boolean(dadosFunc.podeAgendar),
+            podeVerHistorico: Boolean(dadosFunc.podeVerHistorico),
+            podeCancelar: Boolean(dadosFunc.podeCancelar)
+        })
+
+        const resEscala = await salvarEscalaFuncionarioAdmin(dadosFunc.id, dadosFunc.expedientes)
+
+        if (resPermissoes.sucesso && resEscala.sucesso) {
+            alert('Perfil do profissional atualizado com sucesso!')
+            setModalAcessos(null)
+            void carregarDados()
+        } else {
+            alert('Erro ao atualizar os dados do profissional.')
+        }
+        setLoadingAcaoProfissional(false)
+    }
+
+    // Corrigido: Assegura que o mapeamento reflete perfeitamente a interface ExpedienteInfo
+    const atualizarExpedienteLocal = <K extends keyof ExpedienteInfo>(index: number, campo: K, valor: ExpedienteInfo[K]) => {
+        if (!modalAcessos) return
+
+        const novosExpedientes = modalAcessos.expedientes.map((exp, i) => {
+            if (i === index) {
+                return { ...exp, [campo]: valor }
+            }
+            return exp
+        })
+
+        setModalAcessos({ ...modalAcessos, expedientes: novosExpedientes })
+    }
+
     // ── Derivações para o Pop-up Diário ──────────────────────────────────────
     let agendamentosSelecionados: AgendamentoGlobalItem[] = []
     let equipaDoDia: FuncionarioComExpedienteItem[] = []
@@ -135,6 +194,13 @@ export default function AgendamentosGlobaisPage() {
             return expediente && expediente.ativo
         })
     }
+
+    const permissoesSistema: { key: string, label: string, desc: string }[] = [
+        { key: 'podeVerComissao', label: 'Ver Valores Financeiros', desc: 'Pode visualizar o faturamento da comanda.' },
+        { key: 'podeAgendar', label: 'Criar Agendamentos', desc: 'Permite criar novas reservas na sua agenda.' },
+        { key: 'podeVerHistorico', label: 'Ver Histórico Financeiro', desc: 'Acesso às comandas já faturadas.' },
+        { key: 'podeCancelar', label: 'Cancelar Agendamentos', desc: 'Pode excluir clientes e faturamentos.' }
+    ]
 
     return (
         <div className="min-h-screen bg-[#fdfbf7] p-8 font-sans">
@@ -224,9 +290,9 @@ export default function AgendamentosGlobaisPage() {
             </section>
 
             {/* POP-UP: DETALHES DO DIA SELECIONADO */}
-            {diaSelecionado && (
+            {diaSelecionado && !modalAcessos && (
                 <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-40 backdrop-blur-sm">
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl border-t-4 border-[#8B5A2B] flex flex-col max-h-[90vh]">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl border-t-4 border-[#8B5A2B] flex flex-col max-h-[90vh]">
                         {/* Header do Pop-up */}
                         <div className="px-6 py-5 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
                             <div>
@@ -239,21 +305,29 @@ export default function AgendamentosGlobaisPage() {
                         </div>
 
                         <div className="p-6 overflow-y-auto flex-1 bg-[#fdfbf7]">
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-                                {/* Coluna Esquerda: Equipa de Plantão */}
-                                <div className="md:col-span-1">
+                                {/* Coluna Esquerda: Equipa de Plantão + Botão de Editar Perfil */}
+                                <div className="lg:col-span-1">
                                     <h3 className="font-bold text-gray-800 text-sm uppercase tracking-wider mb-3 border-b border-gray-200 pb-2">Equipa de Plantão</h3>
                                     {equipaDoDia.length === 0 ? (
                                         <p className="text-xs text-gray-500 italic bg-white p-3 rounded border border-gray-100">Nenhum profissional escalado.</p>
                                     ) : (
-                                        <div className="space-y-2">
+                                        <div className="space-y-3">
                                             {equipaDoDia.map(prof => {
                                                 const exp = prof.expedientes?.find((e) => e.diaSemana === diaSelecionado.getDay())
                                                 return (
-                                                    <div key={prof.id} className="bg-white p-3 rounded-lg border border-[#e5d9c5] shadow-sm">
-                                                        <p className="font-bold text-sm text-[#5C4033]">{prof.nome}</p>
-                                                        <p className="text-xs text-gray-500 mt-1 font-mono">{exp?.horaInicio} - {exp?.horaFim}</p>
+                                                    <div key={prof.id} className="bg-white p-4 rounded-xl border border-[#e5d9c5] shadow-sm flex flex-col gap-3 group hover:border-[#8B5A2B] transition-colors">
+                                                        <div>
+                                                            <p className="font-bold text-sm text-[#5C4033]">{prof.nome}</p>
+                                                            <p className="text-xs text-gray-500 mt-0.5 font-mono">{exp?.horaInicio} - {exp?.horaFim}</p>
+                                                        </div>
+                                                        <button
+                                                            onClick={() => setModalAcessos(prof)}
+                                                            className="w-full py-1.5 bg-orange-50 text-[#8B5A2B] border border-orange-100 rounded text-xs font-bold hover:bg-orange-100 transition-colors"
+                                                        >
+                                                            Editar Perfil / Horários
+                                                        </button>
                                                     </div>
                                                 )
                                             })}
@@ -262,8 +336,8 @@ export default function AgendamentosGlobaisPage() {
                                 </div>
 
                                 {/* Coluna Direita: Agendamentos */}
-                                <div className="md:col-span-2">
-                                    <h3 className="font-bold text-gray-800 text-sm uppercase tracking-wider mb-3 border-b border-gray-200 pb-2">Agenda ({agendamentosSelecionados.length})</h3>
+                                <div className="lg:col-span-2">
+                                    <h3 className="font-bold text-gray-800 text-sm uppercase tracking-wider mb-3 border-b border-gray-200 pb-2">Agenda de Clientes ({agendamentosSelecionados.length})</h3>
 
                                     {agendamentosSelecionados.length === 0 ? (
                                         <div className="bg-white border border-dashed border-gray-300 rounded-lg p-8 text-center">
@@ -308,6 +382,61 @@ export default function AgendamentosGlobaisPage() {
                 </div>
             )}
 
+            {/* MODAL: GERIR ACESSOS E ESCALAS (ABERTO DE DENTRO DO CALENDÁRIO) */}
+            {modalAcessos && (
+                <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[60] backdrop-blur-sm">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg border-t-4 border-[#8B5A2B] overflow-hidden flex flex-col max-h-[95vh]">
+                        <div className="px-6 py-5 border-b border-gray-100 flex justify-between items-center">
+                            <div><h2 className="text-xl font-bold text-[#5C4033]">Gerir Perfil</h2><p className="text-sm text-gray-500">{modalAcessos.nome}</p></div>
+                            <button onClick={() => setModalAcessos(null)} className="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
+                        </div>
+                        <div className="flex border-b border-gray-200 px-6 pt-2 gap-4">
+                            <button onClick={() => setAbaAtiva('permissoes')} className={`pb-2 text-sm font-bold border-b-2 ${abaAtiva === 'permissoes' ? 'border-[#8B5A2B] text-[#8B5A2B]' : 'border-transparent text-gray-400'}`}>Permissões</button>
+                            <button onClick={() => setAbaAtiva('escala')} className={`pb-2 text-sm font-bold border-b-2 ${abaAtiva === 'escala' ? 'border-[#8B5A2B] text-[#8B5A2B]' : 'border-transparent text-gray-400'}`}>Escala de Trabalho</button>
+                        </div>
+
+                        <div className="p-6 overflow-y-auto flex-1 space-y-6 bg-gray-50/30">
+                            {abaAtiva === 'permissoes' && (
+                                <div className="space-y-6 fade-in">
+                                    <div><label className="block text-xs font-bold text-gray-600 uppercase mb-2">Comissão (%)</label>
+                                        <input type="number" value={(modalAcessos as any).comissao || 0} onChange={(e) => setModalAcessos({ ...modalAcessos, comissao: Number(e.target.value) } as any)} className="w-full border rounded-lg px-4 py-2" />
+                                    </div>
+                                    <div className="space-y-3">
+                                        {permissoesSistema.map(({ key, label }) => (
+                                            <label key={key} className="flex items-center justify-between p-3 bg-white border rounded-xl cursor-pointer">
+                                                <span className="text-sm font-bold text-gray-800">{label}</span>
+                                                <input type="checkbox" checked={(modalAcessos as any)[key] || false} onChange={(e) => setModalAcessos({ ...modalAcessos, [key]: e.target.checked } as any)} />
+                                            </label>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {abaAtiva === 'escala' && (
+                                <div className="space-y-3 fade-in">
+                                    {modalAcessos.expedientes.map((exp: any, index: number) => (
+                                        <div key={exp.diaSemana} className={`flex items-center justify-between p-3 rounded-xl border shadow-sm ${exp.ativo ? 'bg-orange-50/50 border-orange-200' : 'bg-white'}`}>
+                                            <label className="flex items-center cursor-pointer min-w-[100px]">
+                                                <input type="checkbox" checked={exp.ativo} onChange={(e) => atualizarExpedienteLocal(index, 'ativo', e.target.checked)} className="mr-2" />
+                                                <span className="text-xs font-bold uppercase">{DIAS_SEMANA_COMPLETO[exp.diaSemana]}</span>
+                                            </label>
+                                            <div className={`flex gap-2 ${exp.ativo ? '' : 'opacity-30 pointer-events-none'}`}>
+                                                <input type="time" value={exp.horaInicio} onChange={(e) => atualizarExpedienteLocal(index, 'horaInicio', e.target.value)} className="border rounded px-2 py-1 text-xs" />
+                                                <input type="time" value={exp.horaFim} onChange={(e) => atualizarExpedienteLocal(index, 'horaFim', e.target.value)} className="border rounded px-2 py-1 text-xs" />
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="px-6 py-4 bg-gray-50 flex flex-col gap-3">
+                            <button onClick={handleSalvarGerenciamentoProfissional} disabled={loadingAcaoProfissional} className="w-full py-3 bg-[#5C4033] text-white font-bold rounded-xl">{loadingAcaoProfissional ? 'A Guardar...' : 'Salvar Perfil'}</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Modal de Criação */}
             {isModalNovoOpen && (
                 <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
@@ -343,6 +472,11 @@ export default function AgendamentosGlobaisPage() {
                     </div>
                 </div>
             )}
+
+            <style jsx>{`
+                .fade-in { animation: fadeIn 0.3s ease-in-out; }
+                @keyframes fadeIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
+            `}</style>
         </div>
     )
 }
