@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { loginCliente } from '@/app/actions/auth';
+// 1. Importando a Server Action recém-criada
+import { validarWhatsAppAction } from '@/app/actions/whatsapp';
 
 export default function LoginPage() {
     const [telefone, setTelefone] = useState('');
@@ -38,6 +40,17 @@ export default function LoginPage() {
         }
 
         try {
+            // 2. NOVA VALIDAÇÃO: Verifica o WhatsApp apenas na primeira etapa (quando pede o número)
+            if (!precisaNovoNome && !precisaConfirmarNome) {
+                const numeroAtivo = await validarWhatsAppAction(telefone);
+
+                if (!numeroAtivo) {
+                    setErro('O número digitado é inválido ou não possui uma conta de WhatsApp ativa.');
+                    setLoading(false);
+                    return;
+                }
+            }
+
             const envioNome = (precisaNovoNome || precisaConfirmarNome) ? nome : undefined;
             const res = await loginCliente(telefone, envioNome);
 

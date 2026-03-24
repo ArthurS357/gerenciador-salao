@@ -1,6 +1,7 @@
 'use server'
 
 import { prisma } from '@/lib/prisma'
+import { verificarNumeroExisteNoWhatsApp } from '@/lib/whatsapp'
 
 // ── Tipagens Estritas (Substituindo o uso de 'any') ──────────────────────────
 
@@ -127,6 +128,24 @@ export async function criarAgendamentoMultiplo(
         if (!servicosIds.length) {
             return { sucesso: false, erro: 'Selecione pelo menos um serviço.' }
         }
+
+        // ==========================================
+        // NOVA VALIDAÇÃO: Buscar cliente e verificar telefone
+        // ==========================================
+        const cliente = await prisma.cliente.findUnique({
+            where: { id: clienteId },
+            select: { telefone: true }
+        });
+
+        if (!cliente || !cliente.telefone) {
+             return { sucesso: false, erro: 'Cliente não encontrado ou sem telefone cadastrado.' };
+        }
+
+        const telefoneValido = await verificarNumeroExisteNoWhatsApp(cliente.telefone);
+        if (!telefoneValido) {
+            return { sucesso: false, erro: 'O telefone do cliente é inválido ou não possui WhatsApp ativo.' };
+        }
+        // ==========================================
 
         const servicos = await prisma.servico.findMany({
             where: { id: { in: servicosIds } },
