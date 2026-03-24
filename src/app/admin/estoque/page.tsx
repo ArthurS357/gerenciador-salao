@@ -93,6 +93,7 @@ export default function PainelEstoquePage() {
     const [carregando, setCarregando] = useState(true)
     const [mensagem, setMensagem] = useState<Mensagem | null>(null)
     const [filtro, setFiltro] = useState<'todos' | 'alerta'>('todos')
+    const [busca, setBusca] = useState('') // Novo estado para busca
 
     // Modal de criação
     const [modalCriar, setModalCriar] = useState(false)
@@ -217,9 +218,11 @@ export default function PainelEstoquePage() {
 
     // ── Derivações para UI ────────────────────────────────────────────────────
 
-    const produtosFiltrados = filtro === 'alerta'
-        ? produtos.filter(p => statusEstoque(p) !== 'ok')
-        : produtos
+    const produtosFiltrados = produtos.filter(p => {
+        const atendeStatus = filtro === 'alerta' ? statusEstoque(p) !== 'ok' : true
+        const atendeBusca = p.nome.toLowerCase().includes(busca.toLowerCase())
+        return atendeStatus && atendeBusca
+    })
 
     const alertas = produtos.filter(p => statusEstoque(p) !== 'ok').length
 
@@ -353,28 +356,43 @@ export default function PainelEstoquePage() {
                 {/* Tabela */}
                 <div className="bg-white rounded-xl shadow-sm border border-[#e5d9c5] overflow-hidden">
 
-                    {/* Barra de filtros */}
-                    <div className="flex items-center justify-between px-6 py-4 border-b border-[#e5d9c5] bg-gray-50/50">
+                    {/* Barra de filtros e busca */}
+                    <div className="flex flex-col md:flex-row items-center justify-between px-6 py-4 border-b border-[#e5d9c5] bg-gray-50/50 gap-4">
                         <h2 className="font-bold text-gray-700 text-sm">Catálogo de Produtos</h2>
-                        <div className="flex gap-2">
-                            <button
-                                onClick={() => setFiltro('todos')}
-                                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${filtro === 'todos'
-                                    ? 'bg-[#5C4033] text-white'
-                                    : 'bg-white text-gray-600 border border-gray-200 hover:border-[#8B5A2B]'
-                                    }`}
-                            >
-                                Todos ({produtos.length})
-                            </button>
-                            <button
-                                onClick={() => setFiltro('alerta')}
-                                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${filtro === 'alerta'
-                                    ? 'bg-orange-600 text-white'
-                                    : 'bg-white text-gray-600 border border-gray-200 hover:border-orange-400'
-                                    }`}
-                            >
-                                Alertas ({alertas})
-                            </button>
+
+                        <div className="flex items-center gap-3 w-full md:w-auto">
+                            {/* Novo campo de pesquisa */}
+                            <div className="relative w-full md:w-64">
+                                <input
+                                    type="text"
+                                    placeholder="Pesquisar produto..."
+                                    value={busca}
+                                    onChange={(e) => setBusca(e.target.value)}
+                                    className="w-full pl-9 pr-3 py-1.5 text-sm border border-gray-300 rounded-lg outline-none focus:border-[#8B5A2B] transition-colors"
+                                />
+                                <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                            </div>
+
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={() => setFiltro('todos')}
+                                    className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${filtro === 'todos'
+                                        ? 'bg-[#5C4033] text-white'
+                                        : 'bg-white text-gray-600 border border-gray-200 hover:border-[#8B5A2B]'
+                                        }`}
+                                >
+                                    Todos ({produtos.length})
+                                </button>
+                                <button
+                                    onClick={() => setFiltro('alerta')}
+                                    className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${filtro === 'alerta'
+                                        ? 'bg-orange-600 text-white'
+                                        : 'bg-white text-gray-600 border border-gray-200 hover:border-orange-400'
+                                        }`}
+                                >
+                                    Alertas ({alertas})
+                                </button>
+                            </div>
                         </div>
                     </div>
 
@@ -405,7 +423,9 @@ export default function PainelEstoquePage() {
                                         <td colSpan={6} className="px-5 py-16 text-center text-gray-500">
                                             {filtro === 'alerta'
                                                 ? '✅ Nenhum produto com alerta de estoque. Tudo em ordem!'
-                                                : 'Nenhum produto cadastrado. Clique em "Novo Produto" para começar.'}
+                                                : busca
+                                                    ? 'Nenhum produto encontrado para essa pesquisa.'
+                                                    : 'Nenhum produto cadastrado. Clique em "Novo Produto" para começar.'}
                                         </td>
                                     </tr>
                                 ) : (

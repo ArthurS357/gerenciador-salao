@@ -51,7 +51,6 @@ export default function PerfilProfissionalPage() {
 
         let urlFinal = fotoUrl
 
-        // Se o utilizador escolheu uma foto nova, faz o upload primeiro
         if (arquivoFoto) {
             const data = new FormData()
             data.append("file", arquivoFoto)
@@ -60,7 +59,7 @@ export default function PerfilProfissionalPage() {
                 const resUpload = await fetch("/api/upload", { method: "POST", body: data })
                 const uploadResult = await resUpload.json()
 
-                if (uploadResult.sucesso) {
+                if (uploadResult.url) {
                     urlFinal = uploadResult.url
                     setFotoUrl(urlFinal)
                 } else {
@@ -92,7 +91,6 @@ export default function PerfilProfissionalPage() {
 
     return (
         <div className="min-h-screen bg-[#fdfbf7] font-sans pb-12">
-            {/* Header / Nav (Ajuste os links conforme a sua estrutura de profissional) */}
             <header className="bg-white border-b border-[#e5d9c5] px-8 py-6 mb-8 shadow-sm">
                 <div className="max-w-4xl mx-auto flex justify-between items-center">
                     <h1 className="text-2xl font-bold text-[#5C4033]">O Meu Perfil</h1>
@@ -111,8 +109,6 @@ export default function PerfilProfissionalPage() {
                 )}
 
                 <form onSubmit={handleSalvar} className="space-y-8">
-
-                    {/* Secção da Imagem */}
                     <div className="bg-white p-8 rounded-xl shadow-sm border border-[#e5d9c5] flex items-center gap-8">
                         <div className="relative">
                             <div className="w-24 h-24 rounded-full bg-gray-100 border-2 border-dashed border-[#c5a87c] overflow-hidden flex items-center justify-center">
@@ -135,7 +131,6 @@ export default function PerfilProfissionalPage() {
                         </div>
                     </div>
 
-                    {/* Secção do Horário (Escala) */}
                     <div className="bg-white p-8 rounded-xl shadow-sm border border-[#e5d9c5]">
                         <div className="mb-6">
                             <h2 className="text-xl font-bold text-[#5C4033] mb-1">Horário de Atendimento</h2>
@@ -145,8 +140,6 @@ export default function PerfilProfissionalPage() {
                         <div className="space-y-4">
                             {expedientes.map((exp, index) => (
                                 <div key={exp.diaSemana} className={`flex items-center gap-6 p-4 rounded-lg border transition-colors ${exp.ativo ? 'bg-orange-50/30 border-[#e5d9c5]' : 'bg-gray-50 border-gray-100'}`}>
-
-                                    {/* Toggle Ativo/Inativo */}
                                     <label className="relative inline-flex items-center cursor-pointer w-32">
                                         <input type="checkbox" className="sr-only peer" checked={exp.ativo} onChange={(e) => atualizarExpediente(index, 'ativo', e.target.checked)} />
                                         <div className="w-11 h-6 bg-gray-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#8B5A2B]"></div>
@@ -155,7 +148,6 @@ export default function PerfilProfissionalPage() {
                                         </span>
                                     </label>
 
-                                    {/* Horários */}
                                     <div className={`flex items-center gap-3 transition-opacity ${exp.ativo ? 'opacity-100' : 'opacity-40 pointer-events-none'}`}>
                                         <div className="flex flex-col">
                                             <span className="text-[10px] uppercase font-bold text-gray-500 mb-1">Entrada</span>
@@ -177,7 +169,6 @@ export default function PerfilProfissionalPage() {
                                             />
                                         </div>
                                     </div>
-
                                     {!exp.ativo && <span className="ml-auto text-xs font-semibold text-gray-400 uppercase tracking-widest">Folga</span>}
                                 </div>
                             ))}
