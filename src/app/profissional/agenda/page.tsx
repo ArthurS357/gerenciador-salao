@@ -3,7 +3,8 @@ import { redirect } from 'next/navigation';
 import { jwtVerify } from 'jose';
 import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
-import { listarAgendaProfissional } from '@/app/actions/agendamento';
+// Importamos o tipo real retornado pela função
+import { listarAgendaProfissional, type AgendaProfissionalItem } from '@/app/actions/agendamento';
 import BotaoCancelarAgendamento from '@/components/BotaoCancelarAgendamento';
 
 const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || 'chave_secreta_desenvolvimento');
@@ -28,24 +29,25 @@ export default async function AgendaProfissionalPage() {
         redirect('/login-profissional');
     }
 
-    // 2. Consulta as permissões em tempo real no banco de dados (incluindo podeCancelar)
+    // 2. Consulta as permissões em tempo real no banco de dados
     const usuarioLogado = await prisma.funcionario.findUnique({
         where: { id: funcionarioId },
         select: { podeAgendar: true, podeVerHistorico: true, podeCancelar: true }
     });
 
-    // Administradores têm sempre acesso total; Profissionais dependem da flag no banco
     const permissaoAgendar = funcionarioRole === 'ADMIN' || usuarioLogado?.podeAgendar === true;
     const permissaoHistorico = funcionarioRole === 'ADMIN' || usuarioLogado?.podeVerHistorico === true;
     const permissaoCancelar = funcionarioRole === 'ADMIN' || usuarioLogado?.podeCancelar === true;
 
     // 3. Resgata a agenda do profissional logado
     const res = await listarAgendaProfissional(funcionarioId);
-    const agendamentos = res.sucesso ? res.agendamentos : [];
 
-    // Filtramos para separar o que está pendente do que já foi concluído (faturado)
-    const pendentes = agendamentos.filter((a: any) => !a.concluido);
-    const concluidos = agendamentos.filter((a: any) => a.concluido);
+    // Usamos o tipo importado para garantir compatibilidade total
+    const agendamentos: AgendaProfissionalItem[] = res.sucesso && res.agendamentos ? res.agendamentos : [];
+
+    // Filtramos para separar o que está pendente do que já foi concluído
+    const pendentes = agendamentos.filter((a) => !a.concluido);
+    const concluidos = agendamentos.filter((a) => a.concluido);
 
     const formatarHora = (dataHora: Date) => {
         return new Intl.DateTimeFormat('pt-PT', { hour: '2-digit', minute: '2-digit' }).format(new Date(dataHora));
@@ -71,7 +73,6 @@ export default async function AgendaProfissionalPage() {
                             {new Intl.DateTimeFormat('pt-PT', { weekday: 'long', day: '2-digit', month: 'long' }).format(new Date())}
                         </div>
 
-                        {/* Trava Visual 1: Botão de Novo Agendamento */}
                         {permissaoAgendar && (
                             <button className="w-full md:w-auto px-6 py-2.5 bg-[#8B5A2B] text-white font-bold rounded-lg hover:bg-[#704620] shadow-sm transition-colors border border-[#5C4033]">
                                 + Nova Reserva
@@ -95,7 +96,7 @@ export default async function AgendaProfissionalPage() {
                             </div>
                         ) : (
                             <div className="space-y-4">
-                                {pendentes.map((agendamento: any) => (
+                                {pendentes.map((agendamento) => (
                                     <div key={agendamento.id} className="bg-white border border-[#e5d9c5] rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow flex flex-col md:flex-row gap-6 items-start md:items-center">
 
                                         {/* Bloco de Hora */}
@@ -116,8 +117,10 @@ export default async function AgendaProfissionalPage() {
                                                 {agendamento.cliente.telefone}
                                             </p>
                                             <div className="flex flex-wrap gap-2">
-                                                {agendamento.servicos.map((item: any) => (
-                                                    <span key={item.id} className="text-[0.65rem] font-bold uppercase tracking-wider bg-gray-100 text-gray-600 px-2.5 py-1 rounded">
+                                                {/* CORREÇÃO: Removido 'item.servico.id' pois o tipo diz que não existe.
+                                                    Usamos o 'index' como chave para o React. */}
+                                                {agendamento.servicos.map((item, index) => (
+                                                    <span key={index} className="text-[0.65rem] font-bold uppercase tracking-wider bg-gray-100 text-gray-600 px-2.5 py-1 rounded">
                                                         {item.servico.nome}
                                                     </span>
                                                 ))}
@@ -133,7 +136,6 @@ export default async function AgendaProfissionalPage() {
                                                 Abrir Comanda
                                             </Link>
 
-                                            {/* Trava Visual de Cancelamento */}
                                             {permissaoCancelar && (
                                                 <BotaoCancelarAgendamento id={agendamento.id} />
                                             )}
@@ -151,14 +153,13 @@ export default async function AgendaProfissionalPage() {
                             <h2 className="text-xl font-bold text-[#5C4033]">Concluídos</h2>
                         </div>
 
-                        {/* Trava Visual 2: Histórico */}
                         {permissaoHistorico ? (
                             <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
                                 {concluidos.length === 0 ? (
                                     <p className="text-sm text-gray-500 text-center py-4">Nenhum atendimento finalizado ainda.</p>
                                 ) : (
                                     <div className="space-y-4">
-                                        {concluidos.map((agendamento: any) => (
+                                        {concluidos.map((agendamento) => (
                                             <div key={agendamento.id} className="flex justify-between items-center border-b border-gray-100 pb-4 last:border-0 last:pb-0">
                                                 <div>
                                                     <p className="font-bold text-gray-800 text-sm">{formatarHora(agendamento.dataHoraInicio)}</p>

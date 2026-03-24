@@ -2,9 +2,18 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import Image from 'next/image' // 1. Importar componente Image
 import { obterPerfilEExpediente, salvarPerfilEExpediente } from '@/app/actions/profissional'
 
 const DIAS_SEMANA = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado']
+
+// 2. Definição do tipo para substituir 'any'
+type ExpedienteItem = {
+    diaSemana: number;
+    horaInicio: string;
+    horaFim: string;
+    ativo: boolean;
+};
 
 export default function PerfilProfissionalPage() {
     const [carregando, setCarregando] = useState(true)
@@ -15,20 +24,21 @@ export default function PerfilProfissionalPage() {
     const [arquivoFoto, setArquivoFoto] = useState<File | null>(null)
     const [previewFoto, setPreviewFoto] = useState<string | null>(null)
 
-    const [expedientes, setExpedientes] = useState<Array<{ diaSemana: number, horaInicio: string, horaFim: string, ativo: boolean }>>([])
+    const [expedientes, setExpedientes] = useState<ExpedienteItem[]>([])
 
+    // 3. Correção: Lógica movida para dentro do useEffect para evitar erro de declaração
     useEffect(() => {
+        const carregarDados = async () => {
+            const res = await obterPerfilEExpediente()
+            if (res.sucesso) {
+                setFotoUrl(res.fotoUrl)
+                setExpedientes(res.expedientes)
+            }
+            setCarregando(false)
+        }
+
         carregarDados()
     }, [])
-
-    const carregarDados = async () => {
-        const res = await obterPerfilEExpediente()
-        if (res.sucesso) {
-            setFotoUrl(res.fotoUrl)
-            setExpedientes(res.expedientes)
-        }
-        setCarregando(false)
-    }
 
     const handleFotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
@@ -38,7 +48,8 @@ export default function PerfilProfissionalPage() {
         }
     }
 
-    const atualizarExpediente = (index: number, campo: string, valor: any) => {
+    // 4. Correção: Tipagem estrita no lugar de 'any'
+    const atualizarExpediente = <K extends keyof ExpedienteItem>(index: number, campo: K, valor: ExpedienteItem[K]) => {
         const novosExpedientes = [...expedientes]
         novosExpedientes[index] = { ...novosExpedientes[index], [campo]: valor }
         setExpedientes(novosExpedientes)
@@ -67,7 +78,7 @@ export default function PerfilProfissionalPage() {
                     setSalvando(false)
                     return
                 }
-            } catch (error) {
+            } catch { // 5. Removido variável 'error' não utilizada
                 setMensagem({ texto: "Erro técnico ao subir imagem.", tipo: 'erro' })
                 setSalvando(false)
                 return
@@ -110,10 +121,18 @@ export default function PerfilProfissionalPage() {
 
                 <form onSubmit={handleSalvar} className="space-y-8">
                     <div className="bg-white p-8 rounded-xl shadow-sm border border-[#e5d9c5] flex items-center gap-8">
-                        <div className="relative">
+                        {/* 6. Ajuste para next/image: relative container e fill */}
+                        <div className="relative w-24 h-24 flex-shrink-0">
                             <div className="w-24 h-24 rounded-full bg-gray-100 border-2 border-dashed border-[#c5a87c] overflow-hidden flex items-center justify-center">
                                 {previewFoto || fotoUrl ? (
-                                    <img src={previewFoto || fotoUrl!} alt="Perfil" className="w-full h-full object-cover" />
+                                    <Image
+                                        src={previewFoto || fotoUrl!}
+                                        alt="Foto de Perfil"
+                                        fill
+                                        className="object-cover"
+                                        // Necessário para imagens externas ou data URIs se não configurado no next.config.js
+                                        unoptimized={previewFoto?.startsWith('blob:') || false}
+                                    />
                                 ) : (
                                     <span className="text-3xl text-gray-300">👤</span>
                                 )}

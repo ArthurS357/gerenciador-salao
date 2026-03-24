@@ -5,8 +5,8 @@ import Link from 'next/link'
 import {
     listarProdutosAdmin,
     criarProdutoAdmin,
-    baixarEstoqueAbsoluto, // Antigo ajustarEstoque
-    adicionarEstoqueFrascos, // Antigo registrarEntradaEstoque
+    baixarEstoqueAbsoluto,
+    adicionarEstoqueFrascos,
     excluirProdutoLogico,
 } from '@/app/actions/produto'
 import type { Produto } from '@/types/domain'
@@ -15,13 +15,12 @@ import type { Produto } from '@/types/domain'
 
 type StatusEstoque = 'esgotado' | 'critico' | 'baixo' | 'ok'
 
-// Atualizado para contemplar a ficha técnica
 type FormCriar = {
     nome: string
     descricao: string
     precoCusto: number
     precoVenda: number
-    unidadeMedida: string // 'ml', 'g', 'un'
+    unidadeMedida: string
     tamanhoUnidade: number
     estoqueInicialEmFrascos: number
 }
@@ -48,7 +47,6 @@ const NAV_LINKS = [
 // ── Utilitários ───────────────────────────────────────────────────────────────
 
 function statusEstoque(produto: Produto): StatusEstoque {
-    // Calcula o mínimo baseado no tamanho do frasco. Ex: Se o mínimo é 2 frascos, o alerta dispara.
     const minAbsoluto = 2 * produto.tamanhoUnidade
 
     if (produto.estoque === 0) return 'esgotado'
@@ -93,34 +91,41 @@ export default function PainelEstoquePage() {
     const [carregando, setCarregando] = useState(true)
     const [mensagem, setMensagem] = useState<Mensagem | null>(null)
     const [filtro, setFiltro] = useState<'todos' | 'alerta'>('todos')
-    const [busca, setBusca] = useState('') // Novo estado para busca
+    const [busca, setBusca] = useState('')
 
-    // Modal de criação
     const [modalCriar, setModalCriar] = useState(false)
     const [formData, setFormData] = useState<FormCriar>(FORM_INICIAL)
     const [criando, setCriando] = useState(false)
 
-    // Modal de entrada de mercadoria
     const [modalEntrada, setModalEntrada] = useState<ModalEntrada>(null)
     const [entradando, setEntradando] = useState(false)
 
-    // Loading por linha (ajuste rápido e inativação)
     const [loadingId, setLoadingId] = useState<string | null>(null)
 
     // ── Carregamento ──────────────────────────────────────────────────────────
 
-    const carregar = useCallback(async () => {
-        setCarregando(true)
+    // 1. Função para carregamento inicial (dentro do useEffect)
+    useEffect(() => {
+        const init = async () => {
+            setCarregando(true)
+            const res = await listarProdutosAdmin()
+            if (res.sucesso && res.produtos) {
+                setProdutos(res.produtos as Produto[])
+            }
+            setCarregando(false)
+        }
+        init()
+    }, [])
+
+    // 2. Função memoizada para ser chamada manualmente (botões de ação)
+    const recarregarDados = useCallback(async () => {
+        // Não settamos 'carregando' true aqui para não perder a UI da tabela em atualizações rápidas
         const res = await listarProdutosAdmin()
         if (res.sucesso && res.produtos) {
             setProdutos(res.produtos as Produto[])
         }
-        setCarregando(false)
     }, [])
 
-    useEffect(() => { void carregar() }, [carregar])
-
-    // Lógica inteligente de formatação visual do estoque
     const formatarEstoqueVisivel = (quantidade: number, unidade: string) => {
         if (unidade === 'ml') {
             if (quantidade >= 1000) return `${(quantidade / 1000).toFixed(1)} L`
@@ -148,28 +153,27 @@ export default function PainelEstoquePage() {
             setMensagem({ texto: `"${formData.nome}" adicionado ao catálogo com sucesso.`, tipo: 'sucesso' })
             setModalCriar(false)
             setFormData(FORM_INICIAL)
-            void carregar()
+            recarregarDados()
         } else {
             setMensagem({ texto: res.erro, tipo: 'erro' })
         }
         setCriando(false)
     }
 
-    // ── Baixa Rápida de Estoque (Retira 1 Frasco Inteiro) ────────────────────
+    // ── Baixa Rápida de Estoque ────────────────────────────────────────────────
 
     const handleAjusteBaixa = async (id: string, tamanhoUnidade: number) => {
         if (loadingId) return
         setLoadingId(id)
 
-        // Remove 1 frasco inteiro (ex: se o frasco tem 700ml, remove 700ml)
         const res = await baixarEstoqueAbsoluto(id, tamanhoUnidade)
 
         if (!res.sucesso) setMensagem({ texto: res.erro, tipo: 'erro' })
-        await carregar()
+        await recarregarDados()
         setLoadingId(null)
     }
 
-    // ── Entrada em lote (Frascos) ─────────────────────────────────────────────
+    // ── Entrada em lote ────────────────────────────────────────────────────────
 
     const handleEntrada = async () => {
         if (!modalEntrada || entradando) return
@@ -188,7 +192,7 @@ export default function PainelEstoquePage() {
                 tipo: 'sucesso',
             })
             setModalEntrada(null)
-            void carregar()
+            recarregarDados()
         } else {
             setMensagem({ texto: res.erro, tipo: 'erro' })
         }
@@ -209,7 +213,7 @@ export default function PainelEstoquePage() {
 
         if (res.sucesso) {
             setMensagem({ texto: res.mensagem, tipo: 'sucesso' })
-            void carregar()
+            recarregarDados()
         } else {
             setMensagem({ texto: res.erro, tipo: 'erro' })
         }
@@ -226,7 +230,6 @@ export default function PainelEstoquePage() {
 
     const alertas = produtos.filter(p => statusEstoque(p) !== 'ok').length
 
-    // Cálculo financeiro (Calcula quantos frascos completos tens no total)
     const valorTotalEstoque = produtos.reduce((acc, p) => {
         const frascosEmEstoque = Math.floor(p.estoque / p.tamanhoUnidade)
         const custoFrasco = p.precoCusto || 0
@@ -237,12 +240,17 @@ export default function PainelEstoquePage() {
         ? produtos.reduce((acc, p) => acc + margem(p), 0) / produtos.length
         : 0
 
+    // 3. Correção: Tipagem estrita sem 'any'
     const campo = <K extends keyof FormCriar>(key: K) =>
         (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
             const numKeys: Array<keyof FormCriar> = ['precoCusto', 'precoVenda', 'tamanhoUnidade', 'estoqueInicialEmFrascos']
-            const val = numKeys.includes(key as any)
+            // O tipo de 'key' já é 'K', que extende 'keyof FormCriar', então é compatível com 'includes'
+            const isNum = numKeys.includes(key)
+
+            const val = isNum
                 ? (Number(e.target.value) as FormCriar[K])
                 : (e.target.value as FormCriar[K])
+
             setFormData(prev => ({ ...prev, [key]: val }))
         }
 
@@ -361,7 +369,6 @@ export default function PainelEstoquePage() {
                         <h2 className="font-bold text-gray-700 text-sm">Catálogo de Produtos</h2>
 
                         <div className="flex items-center gap-3 w-full md:w-auto">
-                            {/* Novo campo de pesquisa */}
                             <div className="relative w-full md:w-64">
                                 <input
                                     type="text"
@@ -560,7 +567,7 @@ export default function PainelEstoquePage() {
                                 </div>
                                 <div>
                                     <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1.5">
-                                        Descriçãão (Opcional)
+                                        Descrição (Opcional)
                                     </label>
                                     <input
                                         disabled={criando}

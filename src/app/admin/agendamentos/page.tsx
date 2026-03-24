@@ -12,27 +12,34 @@ import {
     type FuncionarioComExpedienteItem
 } from '@/app/actions/agendamento'
 
-// Importações do Admin para a Gestão Rápida no Calendário
 import {
     atualizarFuncionarioCompleto,
     salvarEscalaFuncionarioAdmin,
     type ExpedienteInfo
 } from '@/app/actions/admin'
 
+// 1. Definição de Tipos para corrigir o erro de 'any'
+// Estendemos o tipo importado para incluir os campos de permissão que o modal utiliza
+interface FuncionarioGerenciavel extends FuncionarioComExpedienteItem {
+    comissao: number;
+    podeVerComissao: boolean;
+    podeAgendar: boolean;
+    podeVerHistorico: boolean;
+    podeCancelar: boolean;
+}
+
 const DIAS_SEMANA = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
 const DIAS_SEMANA_COMPLETO = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado']
 
 export default function AgendamentosGlobaisPage() {
-    // ── Estados Globais (Estritamente Tipados) ──────────────────────────────
+    // ... (estados iniciais mantidos iguais)
     const [agendamentos, setAgendamentos] = useState<AgendamentoGlobalItem[]>([])
     const [equipa, setEquipa] = useState<FuncionarioComExpedienteItem[]>([])
     const [loading, setLoading] = useState(true)
 
-    // ── Estados do Calendário ────────────────────────────────────────────────
     const [dataAtual, setDataAtual] = useState(new Date())
     const [diaSelecionado, setDiaSelecionado] = useState<Date | null>(null)
 
-    // ── Estados dos Modais ───────────────────────────────────────────────────
     const [isModalNovoOpen, setIsModalNovoOpen] = useState(false)
     const [loadingSalvar, setLoadingSalvar] = useState(false)
     const [novaReserva, setNovaReserva] = useState({ clienteId: '', funcionarioId: '', dataHora: '', servicoId: '' })
@@ -40,12 +47,12 @@ export default function AgendamentosGlobaisPage() {
     const [agendamentoEditando, setAgendamentoEditando] = useState<{ id: string; funcionarioId: string; dataHora: string } | null>(null)
     const [loadingEditar, setLoadingEditar] = useState(false)
 
-    // ── Estados do Modal de Gestão Rápida do Profissional ────────────────────
-    const [modalAcessos, setModalAcessos] = useState<FuncionarioComExpedienteItem | null>(null)
+    // 2. Estado do Modal tipado corretamente (remove a necessidade de 'as any')
+    const [modalAcessos, setModalAcessos] = useState<FuncionarioGerenciavel | null>(null)
     const [abaAtiva, setAbaAtiva] = useState<'permissoes' | 'escala'>('permissoes')
     const [loadingAcaoProfissional, setLoadingAcaoProfissional] = useState(false)
 
-    // ── Carregamento de Dados ────────────────────────────────────────────────
+    // ... (carregarDados e lógicas do calendário mantidos iguais)
     const carregarDados = useCallback(async () => {
         setLoading(true)
         const [resAg, resEq] = await Promise.all([
@@ -59,7 +66,6 @@ export default function AgendamentosGlobaisPage() {
 
     useEffect(() => { void carregarDados() }, [carregarDados])
 
-    // ── Lógicas do Calendário ────────────────────────────────────────────────
     const mes = dataAtual.getMonth()
     const ano = dataAtual.getFullYear()
     const diasNoMes = new Date(ano, mes + 1, 0).getDate()
@@ -77,7 +83,6 @@ export default function AgendamentosGlobaisPage() {
         })
     }
 
-    // ── Ações de Agendamento ─────────────────────────────────────────────────
     const handleCancelar = async (id: string) => {
         if (!confirm("Deseja realmente cancelar/excluir este agendamento?")) return
         const res = await cancelarAgendamentoPendente(id)
@@ -135,27 +140,22 @@ export default function AgendamentosGlobaisPage() {
         }
     }
 
-    // ── Ações Rápidas do Profissional no Calendário ──────────────────────────
+    // 3. Função de salvar limpa, usando o tipo correto
     const handleSalvarGerenciamentoProfissional = async () => {
         if (!modalAcessos) return
         setLoadingAcaoProfissional(true)
 
-        // Coerção segura para garantir que o TypeScript aceita as chaves extraídas
-        const dadosFunc = modalAcessos as unknown as {
-            id: string, comissao?: number, podeVerComissao?: boolean,
-            podeAgendar?: boolean, podeVerHistorico?: boolean, podeCancelar?: boolean,
-            expedientes: ExpedienteInfo[]
-        }
+        const { id, comissao, podeVerComissao, podeAgendar, podeVerHistorico, podeCancelar, expedientes } = modalAcessos;
 
-        const resPermissoes = await atualizarFuncionarioCompleto(dadosFunc.id, {
-            comissao: Number(dadosFunc.comissao || 0),
-            podeVerComissao: Boolean(dadosFunc.podeVerComissao),
-            podeAgendar: Boolean(dadosFunc.podeAgendar),
-            podeVerHistorico: Boolean(dadosFunc.podeVerHistorico),
-            podeCancelar: Boolean(dadosFunc.podeCancelar)
+        const resPermissoes = await atualizarFuncionarioCompleto(id, {
+            comissao: Number(comissao || 0),
+            podeVerComissao: Boolean(podeVerComissao),
+            podeAgendar: Boolean(podeAgendar),
+            podeVerHistorico: Boolean(podeVerHistorico),
+            podeCancelar: Boolean(podeCancelar)
         })
 
-        const resEscala = await salvarEscalaFuncionarioAdmin(dadosFunc.id, dadosFunc.expedientes)
+        const resEscala = await salvarEscalaFuncionarioAdmin(id, expedientes)
 
         if (resPermissoes.sucesso && resEscala.sucesso) {
             alert('Perfil do profissional atualizado com sucesso!')
@@ -167,7 +167,6 @@ export default function AgendamentosGlobaisPage() {
         setLoadingAcaoProfissional(false)
     }
 
-    // Corrigido: Assegura que o mapeamento reflete perfeitamente a interface ExpedienteInfo
     const atualizarExpedienteLocal = <K extends keyof ExpedienteInfo>(index: number, campo: K, valor: ExpedienteInfo[K]) => {
         if (!modalAcessos) return
 
@@ -181,7 +180,6 @@ export default function AgendamentosGlobaisPage() {
         setModalAcessos({ ...modalAcessos, expedientes: novosExpedientes })
     }
 
-    // ── Derivações para o Pop-up Diário ──────────────────────────────────────
     let agendamentosSelecionados: AgendamentoGlobalItem[] = []
     let equipaDoDia: FuncionarioComExpedienteItem[] = []
 
@@ -195,7 +193,8 @@ export default function AgendamentosGlobaisPage() {
         })
     }
 
-    const permissoesSistema: { key: string, label: string, desc: string }[] = [
+    // 4. Tipagem correta das chaves para remover 'any' nas permissões
+    const permissoesSistema: { key: keyof Pick<FuncionarioGerenciavel, 'podeVerComissao' | 'podeAgendar' | 'podeVerHistorico' | 'podeCancelar'>, label: string, desc: string }[] = [
         { key: 'podeVerComissao', label: 'Ver Valores Financeiros', desc: 'Pode visualizar o faturamento da comanda.' },
         { key: 'podeAgendar', label: 'Criar Agendamentos', desc: 'Permite criar novas reservas na sua agenda.' },
         { key: 'podeVerHistorico', label: 'Ver Histórico Financeiro', desc: 'Acesso às comandas já faturadas.' },
@@ -229,7 +228,6 @@ export default function AgendamentosGlobaisPage() {
 
             {/* CALENDÁRIO MENSAL */}
             <section className="bg-white rounded-xl shadow-sm border border-[#e5d9c5] overflow-hidden mb-8">
-                {/* Cabeçalho do Calendário */}
                 <div className="flex items-center justify-between px-6 py-4 border-b border-[#e5d9c5] bg-gray-50/50">
                     <button onClick={() => mudarMes(-1)} className="p-2 text-gray-600 hover:text-[#8B5A2B] hover:bg-orange-50 rounded transition-colors font-bold text-xl leading-none">&lt;</button>
                     <h2 className="font-bold text-xl text-[#5C4033] capitalize">
@@ -242,7 +240,6 @@ export default function AgendamentosGlobaisPage() {
                     <div className="p-20 text-center text-gray-400 font-bold uppercase tracking-widest text-sm">A carregar dados da agenda...</div>
                 ) : (
                     <div className="p-6">
-                        {/* Dias da Semana */}
                         <div className="grid grid-cols-7 gap-2 mb-2">
                             {DIAS_SEMANA.map(dia => (
                                 <div key={dia} className="text-center font-bold text-xs text-gray-400 uppercase tracking-wider py-2">
@@ -251,14 +248,11 @@ export default function AgendamentosGlobaisPage() {
                             ))}
                         </div>
 
-                        {/* Grelha de Dias */}
                         <div className="grid grid-cols-7 gap-2">
-                            {/* Espaços vazios do início do mês */}
                             {Array.from({ length: primeiroDiaDoMes }).map((_, i) => (
                                 <div key={`empty-${i}`} className="h-24 bg-gray-50/30 rounded-lg border border-transparent"></div>
                             ))}
 
-                            {/* Dias Reais */}
                             {Array.from({ length: diasNoMes }).map((_, i) => {
                                 const dia = i + 1
                                 const agendamentosNesteDia = obterAgendamentosDoDia(dia, mes, ano)
@@ -293,7 +287,6 @@ export default function AgendamentosGlobaisPage() {
             {diaSelecionado && !modalAcessos && (
                 <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-40 backdrop-blur-sm">
                     <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl border-t-4 border-[#8B5A2B] flex flex-col max-h-[90vh]">
-                        {/* Header do Pop-up */}
                         <div className="px-6 py-5 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
                             <div>
                                 <h2 className="text-2xl font-bold text-[#5C4033] capitalize">
@@ -307,7 +300,6 @@ export default function AgendamentosGlobaisPage() {
                         <div className="p-6 overflow-y-auto flex-1 bg-[#fdfbf7]">
                             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-                                {/* Coluna Esquerda: Equipa de Plantão + Botão de Editar Perfil */}
                                 <div className="lg:col-span-1">
                                     <h3 className="font-bold text-gray-800 text-sm uppercase tracking-wider mb-3 border-b border-gray-200 pb-2">Equipa de Plantão</h3>
                                     {equipaDoDia.length === 0 ? (
@@ -322,8 +314,9 @@ export default function AgendamentosGlobaisPage() {
                                                             <p className="font-bold text-sm text-[#5C4033]">{prof.nome}</p>
                                                             <p className="text-xs text-gray-500 mt-0.5 font-mono">{exp?.horaInicio} - {exp?.horaFim}</p>
                                                         </div>
+                                                        {/* Botão ajustado para fazer cast seguro ao abrir o modal */}
                                                         <button
-                                                            onClick={() => setModalAcessos(prof)}
+                                                            onClick={() => setModalAcessos(prof as FuncionarioGerenciavel)}
                                                             className="w-full py-1.5 bg-orange-50 text-[#8B5A2B] border border-orange-100 rounded text-xs font-bold hover:bg-orange-100 transition-colors"
                                                         >
                                                             Editar Perfil / Horários
@@ -335,7 +328,6 @@ export default function AgendamentosGlobaisPage() {
                                     )}
                                 </div>
 
-                                {/* Coluna Direita: Agendamentos */}
                                 <div className="lg:col-span-2">
                                     <h3 className="font-bold text-gray-800 text-sm uppercase tracking-wider mb-3 border-b border-gray-200 pb-2">Agenda de Clientes ({agendamentosSelecionados.length})</h3>
 
@@ -382,7 +374,7 @@ export default function AgendamentosGlobaisPage() {
                 </div>
             )}
 
-            {/* MODAL: GERIR ACESSOS E ESCALAS (ABERTO DE DENTRO DO CALENDÁRIO) */}
+            {/* MODAL: GERIR ACESSOS E ESCALAS (Tipagem Corrigida) */}
             {modalAcessos && (
                 <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[60] backdrop-blur-sm">
                     <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg border-t-4 border-[#8B5A2B] overflow-hidden flex flex-col max-h-[95vh]">
@@ -398,14 +390,26 @@ export default function AgendamentosGlobaisPage() {
                         <div className="p-6 overflow-y-auto flex-1 space-y-6 bg-gray-50/30">
                             {abaAtiva === 'permissoes' && (
                                 <div className="space-y-6 fade-in">
-                                    <div><label className="block text-xs font-bold text-gray-600 uppercase mb-2">Comissão (%)</label>
-                                        <input type="number" value={(modalAcessos as any).comissao || 0} onChange={(e) => setModalAcessos({ ...modalAcessos, comissao: Number(e.target.value) } as any)} className="w-full border rounded-lg px-4 py-2" />
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-600 uppercase mb-2">Comissão (%)</label>
+                                        {/* Removido 'as any', uso direto da propriedade tipada */}
+                                        <input
+                                            type="number"
+                                            value={modalAcessos.comissao || 0}
+                                            onChange={(e) => setModalAcessos({ ...modalAcessos, comissao: Number(e.target.value) })}
+                                            className="w-full border rounded-lg px-4 py-2"
+                                        />
                                     </div>
                                     <div className="space-y-3">
                                         {permissoesSistema.map(({ key, label }) => (
                                             <label key={key} className="flex items-center justify-between p-3 bg-white border rounded-xl cursor-pointer">
                                                 <span className="text-sm font-bold text-gray-800">{label}</span>
-                                                <input type="checkbox" checked={(modalAcessos as any)[key] || false} onChange={(e) => setModalAcessos({ ...modalAcessos, [key]: e.target.checked } as any)} />
+                                                {/* Removido 'as any', uso de chave tipada */}
+                                                <input
+                                                    type="checkbox"
+                                                    checked={Boolean(modalAcessos[key])}
+                                                    onChange={(e) => setModalAcessos({ ...modalAcessos, [key]: e.target.checked })}
+                                                />
                                             </label>
                                         ))}
                                     </div>
@@ -414,7 +418,8 @@ export default function AgendamentosGlobaisPage() {
 
                             {abaAtiva === 'escala' && (
                                 <div className="space-y-3 fade-in">
-                                    {modalAcessos.expedientes.map((exp: any, index: number) => (
+                                    {/* Removido 'any', usado tipo ExpedienteInfo importado */}
+                                    {modalAcessos.expedientes.map((exp: ExpedienteInfo, index: number) => (
                                         <div key={exp.diaSemana} className={`flex items-center justify-between p-3 rounded-xl border shadow-sm ${exp.ativo ? 'bg-orange-50/50 border-orange-200' : 'bg-white'}`}>
                                             <label className="flex items-center cursor-pointer min-w-[100px]">
                                                 <input type="checkbox" checked={exp.ativo} onChange={(e) => atualizarExpedienteLocal(index, 'ativo', e.target.checked)} className="mr-2" />
@@ -437,7 +442,7 @@ export default function AgendamentosGlobaisPage() {
                 </div>
             )}
 
-            {/* Modal de Criação */}
+            {/* Modais de Criação e Edição mantidos iguais */}
             {isModalNovoOpen && (
                 <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
                     <div className="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-md border-t-4 border-[#5C4033]">
@@ -456,7 +461,6 @@ export default function AgendamentosGlobaisPage() {
                 </div>
             )}
 
-            {/* Modal de Edição */}
             {agendamentoEditando && (
                 <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
                     <div className="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-md border-t-4 border-[#8B5A2B]">

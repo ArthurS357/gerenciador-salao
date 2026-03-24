@@ -12,9 +12,26 @@ export default function PainelFinanceiroPage() {
     const [dados, setDados] = useState<FinanceiroResumo | null>(null)
     const [mensagem, setMensagem] = useState<Mensagem | null>(null)
     const [editState, setEditState] = useState<EditState>({})
-    const [loadingIds, setLoadingIds] = useState<Record<string, boolean>>({}) // Trava por botão
+    const [loadingIds, setLoadingIds] = useState<Record<string, boolean>>({})
 
-    const carregarDados = useCallback(async () => {
+    // 1. Função para carregamento inicial (dentro do useEffect)
+    useEffect(() => {
+        const init = async () => {
+            const res = await obterResumoFinanceiro()
+            if (res.sucesso) {
+                setDados(res)
+                const estado: EditState = {}
+                res.equipe.forEach((p) => {
+                    estado[p.id] = { comissao: p.comissao, podeVerComissao: p.podeVerComissao }
+                })
+                setEditState(estado)
+            }
+        }
+        init()
+    }, [])
+
+    // 2. Função memoizada para ser chamada manualmente (botões de ação)
+    const recarregarDados = useCallback(async () => {
         const res = await obterResumoFinanceiro()
         if (res.sucesso) {
             setDados(res)
@@ -26,25 +43,21 @@ export default function PainelFinanceiroPage() {
         }
     }, [])
 
-    useEffect(() => {
-        void carregarDados()
-    }, [carregarDados])
-
     const handleAtualizarRegras = async (prof: FuncionarioResumo) => {
         const estado = editState[prof.id]
         if (!estado) return
 
-        setLoadingIds((prev) => ({ ...prev, [prof.id]: true })) // Inicia loading do botão específico
+        setLoadingIds((prev) => ({ ...prev, [prof.id]: true }))
 
         const res = await atualizarComissaoFuncionario(prof.id, estado.comissao, estado.podeVerComissao)
         if (res.sucesso) {
             setMensagem({ texto: `Regras de ${prof.nome} atualizadas com sucesso!`, tipo: 'sucesso' })
-            void carregarDados()
+            recarregarDados()
         } else {
             setMensagem({ texto: res.erro, tipo: 'erro' })
         }
 
-        setLoadingIds((prev) => ({ ...prev, [prof.id]: false })) // Fim loading
+        setLoadingIds((prev) => ({ ...prev, [prof.id]: false }))
     }
 
     const setComissao = (id: string, comissao: number) =>
@@ -77,7 +90,7 @@ export default function PainelFinanceiroPage() {
                 </div>
             </header>
 
-            {/* Menu de Navegação Horizontal - Igual ao Dashboard da Equipe */}
+            {/* Menu de Navegação Horizontal */}
             <nav className="flex flex-wrap gap-3 mb-8">
                 {[
                     { href: '/admin/dashboard', label: 'Equipa (Atual)' },

@@ -2,13 +2,42 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { adicionarProdutoNaComanda } from '@/app/actions/comanda'
-import { finalizarComanda } from '@/app/actions/comanda'
+import { adicionarProdutoNaComanda, finalizarComanda } from '@/app/actions/comanda'
+
+// 1. Definição das Interfaces de Tipagem (Substituem o 'any')
+
+type ServicoDaComanda = {
+    id: string;
+    precoCobrado: number | null; // Pode ser nulo, tratado no código com || 0
+    servico: {
+        nome: string;
+    };
+};
+
+type ProdutoDaComanda = {
+    id: string;
+    precoCobrado: number;
+    quantidade: number;
+    produto: {
+        nome: string;
+    };
+};
+
+type AgendamentoComanda = {
+    id: string;
+    concluido: boolean;
+    cliente: {
+        nome: string;
+        telefone: string;
+    };
+    servicos: ServicoDaComanda[];
+    produtos: ProdutoDaComanda[];
+};
 
 type PainelComandaProps = {
-    agendamento: any;
+    agendamento: AgendamentoComanda;
     produtosDisponiveis: Array<{ id: string, nome: string, precoVenda: number, estoque: number }>;
-    podeVerFinancas: boolean; // <-- Nova propriedade de permissão
+    podeVerFinancas: boolean;
 }
 
 export default function PainelComanda({ agendamento, produtosDisponiveis, podeVerFinancas }: PainelComandaProps) {
@@ -21,9 +50,9 @@ export default function PainelComanda({ agendamento, produtosDisponiveis, podeVe
     const [isFinalizando, setIsFinalizando] = useState(false)
     const [erro, setErro] = useState('')
 
-    // Cálculos Financeiros Dinâmicos
-    const totalServicos = agendamento.servicos.reduce((acc: number, item: any) => acc + (item.precoCobrado || 0), 0)
-    const totalProdutos = agendamento.produtos.reduce((acc: number, item: any) => acc + (item.precoCobrado * item.quantidade), 0)
+    // Cálculos Financeiros Dinâmicos (Com tipos explícitos nos parâmetros do reduce)
+    const totalServicos = agendamento.servicos.reduce((acc: number, item: ServicoDaComanda) => acc + (item.precoCobrado || 0), 0)
+    const totalProdutos = agendamento.produtos.reduce((acc: number, item: ProdutoDaComanda) => acc + (item.precoCobrado * item.quantidade), 0)
     const valorTotalRevisado = totalServicos + totalProdutos
 
     const handleAdicionarProduto = async () => {
@@ -100,7 +129,8 @@ export default function PainelComanda({ agendamento, produtosDisponiveis, podeVe
                         Serviços Realizados
                     </h3>
                     <div className="space-y-3">
-                        {agendamento.servicos.map((item: any) => (
+                        {/* Removido 'any', usando o tipo da interface */}
+                        {agendamento.servicos.map((item: ServicoDaComanda) => (
                             <div key={item.id} className="flex justify-between items-center p-4 bg-gray-50 rounded-lg border border-gray-100">
                                 <span className="font-medium text-gray-700">{item.servico.nome}</span>
                                 <span className="font-bold text-[#5C4033]">
@@ -121,7 +151,8 @@ export default function PainelComanda({ agendamento, produtosDisponiveis, podeVe
                         <p className="text-sm text-gray-500 italic">Nenhum produto adicionado nesta comanda.</p>
                     ) : (
                         <div className="space-y-3">
-                            {agendamento.produtos.map((item: any) => (
+                            {/* Removido 'any', usando o tipo da interface */}
+                            {agendamento.produtos.map((item: ProdutoDaComanda) => (
                                 <div key={item.id} className="flex justify-between items-center p-4 bg-orange-50/50 rounded-lg border border-orange-100">
                                     <div>
                                         <span className="font-medium text-gray-800">{item.produto.nome}</span>

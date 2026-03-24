@@ -4,10 +4,8 @@ import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import {
     criarFuncionario,
-    inativarFuncionario,
     listarEquipaAdmin,
     atualizarFuncionarioCompleto,
-    excluirFuncionarioPermanente,
     editarFuncionarioCompleto,
     salvarEscalaFuncionarioAdmin,
     listarNotificacoesAdmin,
@@ -87,28 +85,43 @@ export default function TorreControleDashboard() {
     const [loadingAcao, setLoadingAcao] = useState(false)
 
     // ── Carregamento de Dados ────────────────────────────────────────────────
-    const carregarDados = useCallback(async () => {
+
+    // 1. Função para carregamento inicial (dentro do useEffect para evitar warnings)
+    useEffect(() => {
+        const carregarDadosIniciais = async () => {
+            const [resEq, resSv, resNotif] = await Promise.all([
+                listarEquipaAdmin(), listarServicosAdmin(), listarNotificacoesAdmin()
+            ])
+
+            if (resEq.sucesso && 'equipa' in resEq) {
+                setEquipa(resEq.equipa as ProfissionalResumo[])
+            }
+            if (resSv.sucesso && 'servicos' in resSv) {
+                setServicosDisponiveis(resSv.servicos as ServicoResumo[])
+            }
+            if (resNotif.sucesso && 'notificacoes' in resNotif) {
+                setNotificacoes(resNotif.notificacoes as NotificacaoItem[])
+            }
+        }
+
+        carregarDadosIniciais()
+    }, [])
+
+    // 2. Função memoizada para ser chamada manualmente (botões de ação)
+    const recarregarDados = useCallback(async () => {
         const [resEq, resSv, resNotif] = await Promise.all([
             listarEquipaAdmin(), listarServicosAdmin(), listarNotificacoesAdmin()
         ])
 
-        if (resEq.sucesso && 'equipa' in resEq) {
-            setEquipa(resEq.equipa as ProfissionalResumo[])
-        }
-        if (resSv.sucesso && 'servicos' in resSv) {
-            setServicosDisponiveis(resSv.servicos as ServicoResumo[])
-        }
-        if (resNotif.sucesso && 'notificacoes' in resNotif) {
-            setNotificacoes(resNotif.notificacoes as NotificacaoItem[])
-        }
+        if (resEq.sucesso && 'equipa' in resEq) setEquipa(resEq.equipa as ProfissionalResumo[])
+        if (resSv.sucesso && 'servicos' in resSv) setServicosDisponiveis(resSv.servicos as ServicoResumo[])
+        if (resNotif.sucesso && 'notificacoes' in resNotif) setNotificacoes(resNotif.notificacoes as NotificacaoItem[])
     }, [])
-
-    useEffect(() => { void carregarDados() }, [carregarDados])
 
     // ── Ações ────────────────────────────────────────────────────────────────
     const handleLimparAlerta = async (id: string) => {
         await marcarNotificacaoLida(id)
-        void carregarDados()
+        recarregarDados()
     }
 
     const handleCadastrarEquipe = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -124,7 +137,7 @@ export default function TorreControleDashboard() {
             setCredenciaisNovo({ email: formData.email, senhaTemp: 'Mudar@123' })
             setIsModalOpen(false)
             setFormData(FORM_INICIAL)
-            void carregarDados()
+            recarregarDados()
         } else if ('erro' in res) {
             setMensagem({ texto: res.erro, tipo: 'erro' })
         }
@@ -150,7 +163,7 @@ export default function TorreControleDashboard() {
         if (resPermissoes.sucesso && resEscala.sucesso) {
             setMensagem({ texto: 'Atualizado com sucesso!', tipo: 'sucesso' })
             setModalAcessos(null)
-            void carregarDados()
+            recarregarDados()
         } else {
             setMensagem({ texto: 'Erro ao atualizar dados.', tipo: 'erro' })
         }
@@ -166,37 +179,7 @@ export default function TorreControleDashboard() {
         if (res.sucesso) {
             setMensagem({ texto: `Serviços atualizados!`, tipo: 'sucesso' })
             setModalServicos(null)
-            void carregarDados()
-        } else if ('erro' in res) {
-            setMensagem({ texto: res.erro, tipo: 'erro' })
-        }
-        setLoadingAcao(false)
-    }
-
-    const handleInativar = async (id: string, nome: string) => {
-        if (!confirm(`Desativar o acesso de ${nome}?`)) return
-
-        setLoadingAcao(true)
-        const res = await inativarFuncionario(id)
-        if (res.sucesso) {
-            setMensagem({ texto: 'Inativado com sucesso.', tipo: 'sucesso' })
-            setModalAcessos(null)
-            void carregarDados()
-        } else if ('erro' in res) {
-            setMensagem({ texto: res.erro, tipo: 'erro' })
-        }
-        setLoadingAcao(false)
-    }
-
-    const handleExcluir = async (id: string, nome: string) => {
-        if (!confirm(`EXCLUIR DEFINITIVAMENTE a conta de ${nome}?`)) return
-
-        setLoadingAcao(true)
-        const res = await excluirFuncionarioPermanente(id)
-        if (res.sucesso) {
-            setMensagem({ texto: 'Excluído permanentemente.', tipo: 'sucesso' })
-            setModalAcessos(null)
-            void carregarDados()
+            recarregarDados()
         } else if ('erro' in res) {
             setMensagem({ texto: res.erro, tipo: 'erro' })
         }

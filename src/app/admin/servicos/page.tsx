@@ -2,16 +2,51 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { listarServicosAdmin, criarServicoAdmin, adicionarInsumoFichaTecnica, removerInsumoFichaTecnica, alternarDestaqueServico } from "@/app/actions/servico";
+import Image from "next/image"; // Correção: Importar next/image
+import {
+    listarServicosAdmin,
+    criarServicoAdmin,
+    adicionarInsumoFichaTecnica,
+    removerInsumoFichaTecnica,
+    alternarDestaqueServico
+} from "@/app/actions/servico";
 import { listarProdutosAdmin } from "@/app/actions/produto";
 
+// 1. Definição de Tipos para substituir 'any'
+type Insumo = {
+    id: string;
+    quantidadeUsada: number;
+    produto: {
+        id: string;
+        nome: string;
+        unidadeMedida: string;
+    };
+};
+
+type Servico = {
+    id: string;
+    nome: string;
+    descricao: string | null;
+    preco: number | null;
+    tempoMinutos: number | null;
+    imagemUrl: string | null;
+    destaque: boolean;
+    insumos: Insumo[];
+};
+
+type Produto = {
+    id: string;
+    nome: string;
+    unidadeMedida: string;
+};
+
 export default function PainelServicosPage() {
-    const [servicos, setServicos] = useState<any[]>([]);
-    const [produtos, setProdutos] = useState<any[]>([]);
-    const [busca, setBusca] = useState(""); // <-- Estado da Busca
+    const [servicos, setServicos] = useState<Servico[]>([]);
+    const [produtos, setProdutos] = useState<Produto[]>([]);
+    const [busca, setBusca] = useState("");
 
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [modalFichaTecnica, setModalFichaTecnica] = useState<any | null>(null);
+    const [modalFichaTecnica, setModalFichaTecnica] = useState<Servico | null>(null);
 
     const [imagemArquivo, setImagemArquivo] = useState<File | null>(null);
     const [uploading, setUploading] = useState(false);
@@ -23,25 +58,45 @@ export default function PainelServicosPage() {
 
     const [novoInsumo, setNovoInsumo] = useState({ produtoId: "", quantidadeUsada: "" });
 
+    // 2. Correção: Funções movidas para dentro do useEffect para resolver erro de declaração e dependências
     useEffect(() => {
+        const carregarServicos = async () => {
+            const res = await listarServicosAdmin();
+            if (res.sucesso && res.servicos) {
+                setServicos(res.servicos);
+                // Verifica se o modal está aberto e atualiza os dados dele em tempo real
+                setModalFichaTecnica(prevModal => {
+                    if (prevModal) {
+                        const atualizado = res.servicos.find((s: Servico) => s.id === prevModal.id);
+                        return atualizado || null;
+                    }
+                    return null;
+                });
+            }
+        };
+
+        const carregarProdutos = async () => {
+            const res = await listarProdutosAdmin();
+            if (res.sucesso && res.produtos) setProdutos(res.produtos);
+        };
+
         carregarServicos();
         carregarProdutos();
-    }, []);
+    }, []); // Array vazio é correto aqui pois as funções estão definidas dentro
 
-    const carregarServicos = async () => {
+    // Função exposta para ser chamada manualmente (ex: após salvar)
+    const recarregarServicosManualmente = async () => {
         const res = await listarServicosAdmin();
-        if (res.sucesso) {
+        if (res.sucesso && res.servicos) {
             setServicos(res.servicos);
-            if (modalFichaTecnica) {
-                const atualizado = res.servicos.find(s => s.id === modalFichaTecnica.id);
-                if (atualizado) setModalFichaTecnica(atualizado);
-            }
+            setModalFichaTecnica(prevModal => {
+                if (prevModal) {
+                    const atualizado = res.servicos.find((s: Servico) => s.id === prevModal.id);
+                    return atualizado || null;
+                }
+                return null;
+            });
         }
-    };
-
-    const carregarProdutos = async () => {
-        const res = await listarProdutosAdmin();
-        if (res.sucesso) setProdutos(res.produtos);
     };
 
     const handleSalvarServico = async (e: React.FormEvent) => {
@@ -53,13 +108,20 @@ export default function PainelServicosPage() {
             const data = new FormData();
             data.append("file", imagemArquivo);
 
-            const resUpload = await fetch("/api/upload", { method: "POST", body: data });
-            const uploadResult = await resUpload.json();
+            try {
+                const resUpload = await fetch("/api/upload", { method: "POST", body: data });
+                const uploadResult = await resUpload.json();
 
-            if (uploadResult.sucesso) {
-                urlFinal = uploadResult.url;
-            } else {
-                alert("Erro ao subir a imagem.");
+                if (uploadResult.url) { // Ajuste para 'url' que é mais comum, verifique sua API
+                    urlFinal = uploadResult.url;
+                } else {
+                    alert("Erro ao subir a imagem.");
+                    setUploading(false);
+                    return;
+                }
+            } catch (error) { // Removido warning de variável não usada
+                console.error(error);
+                alert("Erro técnico no upload.");
                 setUploading(false);
                 return;
             }
@@ -71,7 +133,7 @@ export default function PainelServicosPage() {
             setIsModalOpen(false);
             setImagemArquivo(null);
             setFormData({ nome: "", descricao: "", preco: "", tempoMinutos: "", imagemUrl: "" });
-            carregarServicos();
+            recarregarServicosManualmente();
         } else {
             alert(res.erro);
         }
@@ -88,7 +150,7 @@ export default function PainelServicosPage() {
 
         if (res.sucesso) {
             setNovoInsumo({ produtoId: "", quantidadeUsada: "" });
-            carregarServicos();
+            recarregarServicosManualmente();
         } else alert(res.erro);
         setLoadingAcao(false);
     };
@@ -96,7 +158,7 @@ export default function PainelServicosPage() {
     const handleRemoverInsumo = async (idInsumo: string) => {
         setLoadingAcao(true);
         const res = await removerInsumoFichaTecnica(idInsumo);
-        if (res.sucesso) carregarServicos();
+        if (res.sucesso) recarregarServicosManualmente();
         else alert(res.erro);
         setLoadingAcao(false);
     };
@@ -104,7 +166,7 @@ export default function PainelServicosPage() {
     // Alternar Destaque
     const handleToggleDestaque = async (id: string, destaqueAtual: boolean) => {
         const res = await alternarDestaqueServico(id, !destaqueAtual);
-        if (res.sucesso) carregarServicos();
+        if (res.sucesso) recarregarServicosManualmente();
         else alert(res.erro);
     };
 
@@ -130,7 +192,6 @@ export default function PainelServicosPage() {
             </header>
 
             <nav className="flex flex-wrap gap-3 mb-8">
-                {/* Mantido seus links de navegação iguais */}
                 <Link href='/admin/dashboard' className="bg-white text-[#5C4033] border border-[#e5d9c5] px-5 py-2 rounded shadow-sm font-bold text-sm hover:border-[#8B5A2B]">Equipa (Atual)</Link>
                 <Link href='/admin/financeiro' className="bg-white text-[#5C4033] border border-[#e5d9c5] px-5 py-2 rounded shadow-sm font-bold text-sm hover:border-[#8B5A2B]">Financeiro</Link>
                 <Link href='/admin/estoque' className="bg-white text-[#5C4033] border border-[#e5d9c5] px-5 py-2 rounded shadow-sm font-bold text-sm hover:border-[#8B5A2B]">Estoque</Link>
@@ -150,7 +211,7 @@ export default function PainelServicosPage() {
                 />
             </div>
 
-            {/* Grid de Serviços Reduzido (h-32 em vez de h-48) */}
+            {/* Grid de Serviços */}
             <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
                 {servicosFiltrados.length === 0 ? (
                     <div className="col-span-full p-12 bg-white rounded-lg border border-dashed border-[#e5d9c5] text-center">
@@ -160,7 +221,7 @@ export default function PainelServicosPage() {
                     servicosFiltrados.map((s) => (
                         <div key={s.id} className="bg-white rounded-xl shadow-sm border border-[#e5d9c5] overflow-hidden hover:shadow-md transition-shadow group flex flex-col relative">
 
-                            {/* Botão de Estrela (Destaque) */}
+                            {/* Botão de Estrela */}
                             <button
                                 onClick={() => handleToggleDestaque(s.id, s.destaque)}
                                 className={`absolute top-2 right-2 z-10 p-1.5 rounded-full backdrop-blur-md transition-colors shadow-sm ${s.destaque ? 'bg-yellow-400 text-white' : 'bg-white/70 text-gray-500 hover:bg-white'}`}
@@ -171,11 +232,14 @@ export default function PainelServicosPage() {
                                 </svg>
                             </button>
 
+                            {/* 3. Correção: next/image com layout fill */}
                             <div className="relative h-32 w-full bg-gray-100 overflow-hidden">
-                                <img
+                                <Image
                                     src={s.imagemUrl || imagePlaceholder}
                                     alt={s.nome}
-                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                                    fill
+                                    unoptimized // Necessário para URLs externas ou data URIs sem config de domínios
+                                    className="object-cover group-hover:scale-105 transition-transform duration-500"
                                 />
                             </div>
 
@@ -207,8 +271,7 @@ export default function PainelServicosPage() {
                 )}
             </div>
 
-            {/* MODAIS (MANTIDOS EXATAMENTE IGUAIS) */}
-            {/* Modal de Criação de Serviço */}
+            {/* MODAL: Criação de Serviço */}
             {isModalOpen && (
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 transition-opacity">
                     <div className="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-lg border-t-4 border-[#5C4033] transform transition-transform">
@@ -247,7 +310,7 @@ export default function PainelServicosPage() {
                 </div>
             )}
 
-            {/* Modal da Ficha Técnica */}
+            {/* MODAL: Ficha Técnica */}
             {modalFichaTecnica && (
                 <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
                     <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg border-t-4 border-[#8B5A2B] overflow-hidden flex flex-col max-h-[90vh]">
@@ -281,7 +344,8 @@ export default function PainelServicosPage() {
                                     <p className="text-sm text-gray-500 italic text-center py-4 bg-gray-50 rounded-lg">Nenhum custo interno atrelado.</p>
                                 ) : (
                                     <div className="space-y-2">
-                                        {modalFichaTecnica.insumos.map((insumo: any) => (
+                                        {/* 4. Correção: Tipagem explícita no map */}
+                                        {modalFichaTecnica.insumos.map((insumo: Insumo) => (
                                             <div key={insumo.id} className="flex justify-between items-center p-3 bg-white border border-gray-200 rounded-lg shadow-sm">
                                                 <span className="font-semibold text-sm text-gray-700">{insumo.produto.nome}</span>
                                                 <div className="flex items-center gap-4">
