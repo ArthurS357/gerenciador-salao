@@ -52,7 +52,7 @@ const Localizacao = memo(function Localizacao() {
                         </h2>
 
                         <p className="text-[0.88rem] text-[#9c8070] leading-[1.85] mb-10 font-light max-w-[420px]">
-                            O LmLu Mattielo está no coração da cidade, projetado para oferecer uma experiência de puro conforto e sofisticação desde o momento em que você entra.
+                            O LmLu Matiello está no coração da cidade, projetado para oferecer uma experiência de puro conforto e sofisticação desde o momento em que você entra.
                         </p>
 
                         <div className="flex flex-col gap-7 mb-10">
@@ -65,9 +65,11 @@ const Localizacao = memo(function Localizacao() {
                                 titulo="Endereço"
                             >
                                 <p className="text-[0.88rem] text-[#6b4c3b] leading-[1.6]">
-                                    Av. da Beleza e Estética, 1000 — Piso Superior
+                                    Estrada Santa Isabel, 1647 — Sala 15
                                     <br />
-                                    Bairro Nobre, São Paulo — SP
+                                    Boulevard Villa Florida · Caputera, Arujá
+                                    <br />
+                                    <span className="text-[#9c8070] text-[0.8rem]">CEP 07435-180</span>
                                 </p>
                             </InfoItem>
 
@@ -103,7 +105,7 @@ const Localizacao = memo(function Localizacao() {
                                 titulo="Funcionamento"
                             >
                                 <p className="text-[0.88rem] text-[#6b4c3b] leading-[1.6]">
-                                    Terça a Sábado: 09:00 às 20:00
+                                    Terça a Sábado: 09:00 às 19:00
                                 </p>
                                 <p className="text-[0.78rem] text-red-500/70 font-medium mt-0.5">
                                     Fechado Domingos e Segundas
@@ -134,14 +136,14 @@ const Localizacao = memo(function Localizacao() {
                             style={{ clipPath: 'polygon(16px 0,100% 0,100% calc(100% - 16px),calc(100% - 16px) 100%,0 100%,0 16px)' }}
                         >
                             <iframe
-                                src="https://maps.google.com/maps?q=Avenida%20Paulista,%201000&t=&z=15&ie=UTF8&iwloc=&output=embed"
+                                src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d915.3246905101598!2d-46.32287802417501!3d-23.413572464601405!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x94ce7d9daab0dc0b%3A0xf95126263b5144cf!2sLM%20LU%20MATIELLO!5e0!3m2!1spt-BR!2sbr!4v1774354079521!5m2!1spt-BR!2sbr"
                                 width="100%"
                                 height="100%"
                                 style={{ border: 0, filter: 'sepia(20%) contrast(0.95) brightness(1.02)' }}
                                 allowFullScreen
                                 loading="lazy"
                                 referrerPolicy="no-referrer-when-downgrade"
-                                title="Mapa de Localização LmLu Mattielo"
+                                title="Localização LmLu Matiello — Arujá SP"
                             />
                         </div>
 
@@ -151,7 +153,7 @@ const Localizacao = memo(function Localizacao() {
                                 <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" />
                             </svg>
                             <span className="text-[0.7rem] text-[#9c8070] font-light tracking-[0.04em]">
-                                Av. da Beleza e Estética, 1000 · Bairro Nobre, São Paulo
+                                Estrada Santa Isabel, 1647 — Sala 15 · Boulevard Villa Florida · Caputera, Arujá — CEP 07435-180
                             </span>
                         </div>
                     </div>
