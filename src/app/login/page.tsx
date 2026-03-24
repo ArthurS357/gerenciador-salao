@@ -33,8 +33,9 @@ export default function LoginPage() {
         setLoading(true);
         setErro('');
 
-        if (telefone.length < 14) {
-            setErro('Por favor, insira um telefone válido com DDD.');
+        // Um celular brasileiro com máscara (XX) 9XXXX-XXXX tem exatamente 15 caracteres
+        if (telefone.length < 15) {
+            setErro('Por favor, insira um celular válido com DDD e o 9º dígito.');
             setLoading(false);
             return;
         }
