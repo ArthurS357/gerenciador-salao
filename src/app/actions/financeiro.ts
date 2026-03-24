@@ -7,10 +7,21 @@ type ActionResult<T = object> =
     | ({ sucesso: true } & T)
     | { sucesso: false; erro: string }
 
-export async function obterResumoFinanceiro(): Promise<ActionResult<FinanceiroResumo>> {
+// 1. Atualizado: Recebe parâmetros opcionais de data
+export async function obterResumoFinanceiro(filtro?: { dataInicio: Date; dataFim: Date }): Promise<ActionResult<FinanceiroResumo>> {
     try {
+        // Monta a query dinamicamente
+        const whereClause: any = { concluido: true }
+
+        if (filtro) {
+            whereClause.dataHoraInicio = {
+                gte: filtro.dataInicio,
+                lte: filtro.dataFim,
+            }
+        }
+
         const agendamentos = await prisma.agendamento.findMany({
-            where: { concluido: true },
+            where: whereClause,
             include: {
                 funcionario: true,
                 produtos: { include: { produto: true } },
@@ -28,7 +39,6 @@ export async function obterResumoFinanceiro(): Promise<ActionResult<FinanceiroRe
             totalTaxas += ag.taxas ?? 0
 
             // 1. Custo de Insumos Internos (Salvo diretamente no fechamento da comanda pela Ficha Técnica)
-            // Usamos 'any' aqui temporariamente caso o TypeScript não reconheça o novo campo até compilar
             const custoInsumosInternos = (ag as any).custoInsumos ?? 0
 
             // 2. Custo de Revenda (Produtos físicos vendidos diretamente na comanda)

@@ -7,6 +7,7 @@ import type { FinanceiroResumo, FuncionarioResumo } from '@/types/domain'
 
 type EditState = Record<string, { comissao: number; podeVerComissao: boolean }>
 type Mensagem = { texto: string; tipo: 'sucesso' | 'erro' }
+type PeriodoFiltro = 'hoje' | 'semana' | 'mes' | 'tudo'
 
 export default function PainelFinanceiroPage() {
     const [dados, setDados] = useState<FinanceiroResumo | null>(null)
@@ -14,25 +15,40 @@ export default function PainelFinanceiroPage() {
     const [editState, setEditState] = useState<EditState>({})
     const [loadingIds, setLoadingIds] = useState<Record<string, boolean>>({})
 
-    // 1. Função para carregamento inicial (dentro do useEffect)
-    useEffect(() => {
-        const init = async () => {
-            const res = await obterResumoFinanceiro()
-            if (res.sucesso) {
-                setDados(res)
-                const estado: EditState = {}
-                res.equipe.forEach((p) => {
-                    estado[p.id] = { comissao: p.comissao, podeVerComissao: p.podeVerComissao }
-                })
-                setEditState(estado)
-            }
-        }
-        init()
-    }, [])
+    // Novo estado para o filtro
+    const [periodoAtual, setPeriodoAtual] = useState<PeriodoFiltro>('mes')
+    const [isLoadingMetrics, setIsLoadingMetrics] = useState(false)
 
-    // 2. Função memoizada para ser chamada manualmente (botões de ação)
-    const recarregarDados = useCallback(async () => {
-        const res = await obterResumoFinanceiro()
+    // Função auxiliar para calcular as datas do filtro
+    const obterDatasDoFiltro = (periodo: PeriodoFiltro) => {
+        const hoje = new Date()
+        let dataInicio = new Date()
+        let dataFim = new Date(hoje.setHours(23, 59, 59, 999))
+
+        switch (periodo) {
+            case 'hoje':
+                dataInicio.setHours(0, 0, 0, 0)
+                break
+            case 'semana':
+                dataInicio.setDate(dataInicio.getDate() - 7)
+                dataInicio.setHours(0, 0, 0, 0)
+                break
+            case 'mes':
+                dataInicio = new Date(hoje.getFullYear(), hoje.getMonth(), 1)
+                dataInicio.setHours(0, 0, 0, 0)
+                break
+            case 'tudo':
+                return undefined // Retorna undefined para buscar todo o histórico
+        }
+        return { dataInicio, dataFim }
+    }
+
+    // Função centralizada para carregar dados
+    const carregarDados = useCallback(async (periodo: PeriodoFiltro) => {
+        setIsLoadingMetrics(true)
+        const filtro = obterDatasDoFiltro(periodo)
+
+        const res = await obterResumoFinanceiro(filtro)
         if (res.sucesso) {
             setDados(res)
             const estado: EditState = {}
@@ -40,8 +56,16 @@ export default function PainelFinanceiroPage() {
                 estado[p.id] = { comissao: p.comissao, podeVerComissao: p.podeVerComissao }
             })
             setEditState(estado)
+        } else {
+            setMensagem({ texto: res.erro, tipo: 'erro' })
         }
+        setIsLoadingMetrics(false)
     }, [])
+
+    // Carregamento inicial baseado no período padrão (Mês)
+    useEffect(() => {
+        carregarDados(periodoAtual)
+    }, [carregarDados, periodoAtual])
 
     const handleAtualizarRegras = async (prof: FuncionarioResumo) => {
         const estado = editState[prof.id]
@@ -52,7 +76,7 @@ export default function PainelFinanceiroPage() {
         const res = await atualizarComissaoFuncionario(prof.id, estado.comissao, estado.podeVerComissao)
         if (res.sucesso) {
             setMensagem({ texto: `Regras de ${prof.nome} atualizadas com sucesso!`, tipo: 'sucesso' })
-            recarregarDados()
+            carregarDados(periodoAtual) // Recarrega mantendo o filtro atual
         } else {
             setMensagem({ texto: res.erro, tipo: 'erro' })
         }
@@ -80,6 +104,13 @@ export default function PainelFinanceiroPage() {
         { label: 'Comissões Pagas', valor: dados.totalComissoes, cor: 'border-orange-500', textCor: 'text-orange-600' },
         { label: 'Lucro Líquido (Real)', valor: dados.lucroLiquido, cor: 'border-green-500', textCor: 'text-green-600' },
     ] as const
+
+    const botoesFiltro: { valor: PeriodoFiltro; label: string }[] = [
+        { valor: 'hoje', label: 'Hoje' },
+        { valor: 'semana', label: 'Últimos 7 Dias' },
+        { valor: 'mes', label: 'Mês Atual' },
+        { valor: 'tudo', label: 'Todo o Histórico' },
+    ]
 
     return (
         <div className="min-h-screen bg-[#fdfbf7] p-8 font-sans">
@@ -114,8 +145,28 @@ export default function PainelFinanceiroPage() {
                 ))}
             </nav>
 
+            {/* Barra de Filtros */}
+            <div className="flex flex-wrap items-center justify-between bg-white p-4 rounded-lg shadow-sm border border-[#e5d9c5] mb-6">
+                <span className="text-sm font-bold text-gray-600 uppercase tracking-wider mb-2 md:mb-0">Período de Análise:</span>
+                <div className="flex gap-2">
+                    {botoesFiltro.map(btn => (
+                        <button
+                            key={btn.valor}
+                            onClick={() => setPeriodoAtual(btn.valor)}
+                            disabled={isLoadingMetrics}
+                            className={`px-4 py-2 rounded text-sm font-bold transition-colors ${periodoAtual === btn.valor
+                                    ? 'bg-[#8B5A2B] text-white shadow-sm'
+                                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                }`}
+                        >
+                            {btn.label}
+                        </button>
+                    ))}
+                </div>
+            </div>
+
             {/* Métricas Financeiras */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-10">
+            <div className={`grid grid-cols-1 md:grid-cols-4 gap-6 mb-10 transition-opacity ${isLoadingMetrics ? 'opacity-50' : 'opacity-100'}`}>
                 {cards.map(({ label, valor, cor, textCor }) => (
                     <div key={label} className={`bg-white p-6 rounded-lg shadow border-l-4 ${cor}`}>
                         <p className="text-sm font-semibold text-gray-500 uppercase tracking-wide">{label}</p>
