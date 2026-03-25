@@ -2,30 +2,49 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
-import dynamic from 'next/dynamic' // <-- NOVA IMPORTAÇÃO
-import { obterResumoFinanceiro, atualizarComissaoFuncionario } from '@/app/actions/financeiro'
+import dynamic from 'next/dynamic'
+import { obterResumoFinanceiro, atualizarComissaoFuncionario, obterDadosGraficosFinanceiros } from '@/app/actions/financeiro'
+import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import type { FinanceiroResumo, FuncionarioResumo } from '@/types/domain'
 import * as XLSX from 'xlsx'
 
-// Carregamos o componente de PDF dinamicamente, forçando a NÃO renderizar no servidor (ssr: false)
-// Isto previne os erros de build do Turbopack
+// Carrega o componente de PDF dinamicamente, forçando a NÃO renderizar no servidor (ssr: false)
 const BotaoExportarPDF = dynamic(() => import('@/components/BotaoExportarPDF'), {
     ssr: false,
-    loading: () => <button disabled className="px-5 py-2.5 bg-gray-300 text-white rounded-lg text-sm font-bold opacity-50 cursor-not-allowed">PDF a carregar...</button>
+    loading: () => <button disabled className="px-5 py-2.5 bg-gray-300 text-white rounded-lg text-sm font-bold opacity-50 cursor-not-allowed shadow-sm">PDF a carregar...</button>
 })
 
 type EditState = Record<string, { comissao: number; podeVerComissao: boolean }>
 type Mensagem = { texto: string; tipo: 'sucesso' | 'erro' }
 type PeriodoFiltro = 'hoje' | 'semana' | 'mes' | 'tudo'
+type ChartData = { data: string; 'Faturamento (R$)': number; Atendimentos: number }
+
+// Type guards para verificar os tipos de resposta
+function isSuccessResponse<T>(response: unknown): response is T & { sucesso: true } {
+    return typeof response === 'object' && response !== null && 'sucesso' in response && response.sucesso === true
+}
+
+function isErrorResponse(response: unknown): response is { sucesso: false; erro: string } {
+    return typeof response === 'object' && response !== null && 'sucesso' in response && response.sucesso === false && 'erro' in response
+}
+
+function isFinanceiroResumo(response: unknown): response is FinanceiroResumo {
+    return typeof response === 'object' && response !== null && 'equipe' in response
+}
+
+function isChartDataResponse(response: unknown): response is { chartData: ChartData[] } {
+    return typeof response === 'object' && response !== null && 'chartData' in response
+}
 
 export default function PainelFinanceiroPage() {
     const [dados, setDados] = useState<FinanceiroResumo | null>(null)
+    const [chartData, setChartData] = useState<ChartData[]>([])
     const [mensagem, setMensagem] = useState<Mensagem | null>(null)
     const [editState, setEditState] = useState<EditState>({})
     const [loadingIds, setLoadingIds] = useState<Record<string, boolean>>({})
 
     const [periodoAtual, setPeriodoAtual] = useState<PeriodoFiltro>('mes')
-    const [isLoadingMetrics, setIsLoadingMetrics] = useState(false)
+    const [isLoadingMetrics, setIsLoadingMetrics] = useState(true)
 
     const obterDatasDoFiltro = (periodo: PeriodoFiltro) => {
         const hoje = new Date()
@@ -51,36 +70,49 @@ export default function PainelFinanceiroPage() {
     }
 
     const carregarDados = useCallback(async (periodo: PeriodoFiltro) => {
+        setIsLoadingMetrics(true)
         const filtro = obterDatasDoFiltro(periodo)
 
-        const res = await obterResumoFinanceiro(filtro)
-        if (res.sucesso) {
+        // Busca os totais e os dados do gráfico ao mesmo tempo
+        const [res, resGraficos] = await Promise.all([
+            obterResumoFinanceiro(filtro),
+            obterDadosGraficosFinanceiros(7)
+        ])
+
+        // Processa resposta do resumo financeiro
+        if (isSuccessResponse<FinanceiroResumo>(res) && isFinanceiroResumo(res)) {
             setDados(res)
             const estado: EditState = {}
             res.equipe.forEach((p) => {
                 estado[p.id] = { comissao: p.comissao, podeVerComissao: p.podeVerComissao }
             })
             setEditState(estado)
-        } else {
+        } else if (isErrorResponse(res)) {
             setMensagem({ texto: res.erro, tipo: 'erro' })
+        } else {
+            setMensagem({ texto: 'Erro ao carregar dados financeiros', tipo: 'erro' })
         }
+
+        // Processa resposta dos dados gráficos
+        if (isSuccessResponse<{ chartData: ChartData[] }>(resGraficos) && isChartDataResponse(resGraficos)) {
+            setChartData(resGraficos.chartData)
+        } else if (isErrorResponse(resGraficos)) {
+            console.error('Erro ao carregar dados gráficos:', resGraficos.erro)
+        }
+
         setIsLoadingMetrics(false)
     }, [])
 
     useEffect(() => {
-        let isMounted = true;
+        let isMounted = true
 
         const fetchFinanceiro = async () => {
-            if (isMounted) {
-                await carregarDados(periodoAtual);
-            }
-        };
+            if (isMounted) await carregarDados(periodoAtual)
+        }
 
-        fetchFinanceiro();
+        fetchFinanceiro()
 
-        return () => {
-            isMounted = false;
-        };
+        return () => { isMounted = false }
     }, [carregarDados, periodoAtual])
 
     const handleAtualizarRegras = async (prof: FuncionarioResumo) => {
@@ -90,12 +122,14 @@ export default function PainelFinanceiroPage() {
         setLoadingIds((prev) => ({ ...prev, [prof.id]: true }))
 
         const res = await atualizarComissaoFuncionario(prof.id, estado.comissao, estado.podeVerComissao)
-        if (res.sucesso) {
+
+        if (isSuccessResponse(res)) {
             setMensagem({ texto: `Regras de ${prof.nome} atualizadas com sucesso!`, tipo: 'sucesso' })
-            setIsLoadingMetrics(true)
             await carregarDados(periodoAtual)
-        } else {
+        } else if (isErrorResponse(res)) {
             setMensagem({ texto: res.erro, tipo: 'erro' })
+        } else {
+            setMensagem({ texto: 'Erro ao atualizar regras', tipo: 'erro' })
         }
 
         setLoadingIds((prev) => ({ ...prev, [prof.id]: false }))
@@ -139,13 +173,16 @@ export default function PainelFinanceiroPage() {
         XLSX.writeFile(wb, `Relatorio_Financeiro_${periodoAtual}.xlsx`)
     }
 
-    if (!dados) {
+    if (!dados && isLoadingMetrics) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-[#fdfbf7]">
-                <p className="text-gray-500 font-bold uppercase tracking-wider">A carregar métricas...</p>
+            <div className="min-h-screen flex flex-col gap-4 items-center justify-center bg-[#fdfbf7]">
+                <svg className="animate-spin h-8 w-8 text-[#8B5A2B]" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                <p className="text-[#8B5A2B] font-bold uppercase tracking-wider text-sm">A processar motor financeiro...</p>
             </div>
         )
     }
+
+    if (!dados) return null
 
     const cards = [
         { label: 'Faturamento Bruto', valor: dados.faturamentoBruto, cor: 'border-blue-500', textCor: 'text-gray-800' },
@@ -159,7 +196,7 @@ export default function PainelFinanceiroPage() {
             <header className="mb-6 border-b-2 border-[#5C4033] pb-4 flex justify-between items-center">
                 <div>
                     <h1 className="text-3xl font-bold text-[#5C4033]">Painel Financeiro</h1>
-                    <p className="text-gray-500 mt-1">Visão global de faturamento, custos e metas de equipa.</p>
+                    <p className="text-gray-500 mt-1">Visão global de faturamento, gráficos e metas da equipa.</p>
                 </div>
             </header>
 
@@ -187,6 +224,7 @@ export default function PainelFinanceiroPage() {
                 ))}
             </nav>
 
+            {/* BARRA DE FILTROS E EXPORTAÇÃO */}
             <div className="flex flex-col xl:flex-row items-start xl:items-center justify-between bg-white p-5 rounded-lg shadow-sm border border-[#e5d9c5] mb-6 gap-4">
                 <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full xl:w-auto">
                     <span className="text-sm font-bold text-gray-600 uppercase tracking-wider">Período de Análise:</span>
@@ -195,10 +233,7 @@ export default function PainelFinanceiroPage() {
                             <button
                                 key={btn.valor}
                                 onClick={() => {
-                                    if (periodoAtual !== btn.valor) {
-                                        setIsLoadingMetrics(true)
-                                        setPeriodoAtual(btn.valor)
-                                    }
+                                    if (periodoAtual !== btn.valor) setPeriodoAtual(btn.valor)
                                 }}
                                 disabled={isLoadingMetrics}
                                 className={`px-4 py-2 rounded text-sm font-bold transition-colors ${periodoAtual === btn.valor
@@ -221,12 +256,13 @@ export default function PainelFinanceiroPage() {
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
                         Excel
                     </button>
-                    {/* AQUI ESTÁ O NOVO COMPONENTE ISOLADO! */}
+                    {/* Componente dinâmico carrega em segurança apenas no cliente */}
                     <BotaoExportarPDF dados={dados} periodoAtual={periodoAtual} isLoadingMetrics={isLoadingMetrics} />
                 </div>
             </div>
 
-            <div className={`grid grid-cols-1 md:grid-cols-4 gap-6 mb-10 transition-opacity duration-300 ${isLoadingMetrics ? 'opacity-40 pointer-events-none' : 'opacity-100'}`}>
+            {/* MÉTRICAS (CARDS) */}
+            <div className={`grid grid-cols-1 md:grid-cols-4 gap-6 mb-8 transition-opacity duration-300 ${isLoadingMetrics ? 'opacity-40 pointer-events-none' : 'opacity-100'}`}>
                 {cards.map(({ label, valor, cor, textCor }) => (
                     <div key={label} className={`bg-white p-6 rounded-lg shadow border-l-4 ${cor}`}>
                         <p className="text-sm font-semibold text-gray-500 uppercase tracking-wide">{label}</p>
@@ -235,13 +271,58 @@ export default function PainelFinanceiroPage() {
                 ))}
             </div>
 
+            {/* GRÁFICOS VISUAIS RECHARTS */}
+            {chartData.length > 0 && (
+                <div className={`grid grid-cols-1 lg:grid-cols-2 gap-6 mb-10 transition-opacity duration-300 ${isLoadingMetrics ? 'opacity-40 pointer-events-none' : 'opacity-100'}`}>
+                    <div className="bg-white p-6 rounded-lg shadow border border-[#e5d9c5]">
+                        <h3 className="text-lg font-bold text-[#5C4033] mb-6">Tendência de Faturamento (Últimos 7 dias)</h3>
+                        <div className="h-72 w-full">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <LineChart data={chartData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                                    <XAxis dataKey="data" tick={{ fontSize: 12, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
+                                    <YAxis tick={{ fontSize: 12, fill: '#9ca3af' }} axisLine={false} tickLine={false} tickFormatter={(value) => `R$${value}`} />
+                                    <Tooltip
+                                        contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                                        formatter={(value: unknown) => {
+                                            const numericValue = typeof value === 'number' ? value : 0
+                                            return [`R$ ${numericValue.toFixed(2)}`, 'Faturamento'] as [string, string]
+                                        }}
+                                    />
+                                    <Line type="monotone" dataKey="Faturamento (R$)" stroke="#8B5A2B" strokeWidth={3} dot={{ r: 4, fill: '#8B5A2B', strokeWidth: 2, stroke: '#fff' }} activeDot={{ r: 6 }} />
+                                </LineChart>
+                            </ResponsiveContainer>
+                        </div>
+                    </div>
+
+                    <div className="bg-white p-6 rounded-lg shadow border border-[#e5d9c5]">
+                        <h3 className="text-lg font-bold text-[#5C4033] mb-6">Volume de Atendimentos (Últimos 7 dias)</h3>
+                        <div className="h-72 w-full">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart data={chartData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                                    <XAxis dataKey="data" tick={{ fontSize: 12, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
+                                    <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
+                                    <Tooltip
+                                        cursor={{ fill: '#fdfbf7' }}
+                                        contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                                    />
+                                    <Bar dataKey="Atendimentos" fill="#c5a87c" radius={[4, 4, 0, 0]} barSize={40} />
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {mensagem && (
                 <div className={`mb-6 p-4 rounded text-center font-bold shadow-sm ${mensagem.tipo === 'sucesso' ? 'bg-green-100 text-green-700 border border-green-200' : 'bg-red-100 text-red-700 border border-red-200'}`}>
                     {mensagem.texto}
                 </div>
             )}
 
-            <section className="bg-white rounded-lg shadow overflow-hidden border border-[#e5d9c5]">
+            {/* TABELA DE COMISSÕES */}
+            <section className={`bg-white rounded-lg shadow overflow-hidden border border-[#e5d9c5] transition-opacity ${isLoadingMetrics ? 'opacity-40' : 'opacity-100'}`}>
                 <h2 className="bg-[#5C4033] text-white p-4 text-lg font-bold">
                     Gestão de Comissões por Profissional
                 </h2>

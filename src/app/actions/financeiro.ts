@@ -144,3 +144,53 @@ export async function calcularFechamentoComanda(
         return { sucesso: false, erro: 'Falha ao processar o fechamento da comanda.' }
     }
 }
+
+export async function obterDadosGraficosFinanceiros(dias: number = 7) {
+    try {
+        const hoje = new Date()
+        const dataLimite = new Date()
+        dataLimite.setDate(hoje.getDate() - (dias - 1))
+        dataLimite.setHours(0, 0, 0, 0)
+
+        const agendamentos = await prisma.agendamento.findMany({
+            where: {
+                dataHoraInicio: { gte: dataLimite },
+                concluido: true
+            },
+            select: { dataHoraInicio: true, valorBruto: true }
+        })
+
+        // Preparar o array com os últimos X dias zerados (para o gráfico não ter buracos)
+        const mapaDias = new Map<string, { faturamento: number, atendimentos: number }>()
+
+        for (let i = dias - 1; i >= 0; i--) {
+            const d = new Date()
+            d.setDate(hoje.getDate() - i)
+            const dataFormatada = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short' }).format(d)
+            mapaDias.set(dataFormatada, { faturamento: 0, atendimentos: 0 })
+        }
+
+        // Preencher com os dados reais
+        agendamentos.forEach(ag => {
+            const dataFormatada = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short' }).format(ag.dataHoraInicio)
+            if (mapaDias.has(dataFormatada)) {
+                const atual = mapaDias.get(dataFormatada)!
+                mapaDias.set(dataFormatada, {
+                    faturamento: atual.faturamento + ag.valorBruto,
+                    atendimentos: atual.atendimentos + 1
+                })
+            }
+        })
+
+        const chartData = Array.from(mapaDias.entries()).map(([data, valores]) => ({
+            data,
+            'Faturamento (R$)': valores.faturamento,
+            'Atendimentos': valores.atendimentos
+        }))
+
+        return { sucesso: true, chartData }
+    } catch (error) {
+        console.error('Erro ao gerar dados do gráfico:', error)
+        return { sucesso: false, erro: 'Falha ao carregar gráficos.' }
+    }
+}
