@@ -2,12 +2,23 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { jwtVerify } from 'jose'
 
-const JWT_SECRET = new TextEncoder().encode(
-    process.env.JWT_SECRET ?? 'chave_secreta_desenvolvimento'
-)
-
 const REDIRECT_PROFISSIONAL = '/login-profissional'
 const REDIRECT_CLIENTE = '/login'
+
+// ── FUNÇÃO AUXILIAR: Obter a chave do .env com segurança ───────────────────
+function getJwtSecret() {
+    const secret = process.env.JWT_SECRET
+
+    if (!secret) {
+        if (process.env.NODE_ENV === 'production') {
+            // Em produção, a falta do JWT_SECRET no .env é uma falha crítica de segurança.
+            throw new Error('FALHA CRÍTICA: Variável JWT_SECRET não configurada no ficheiro .env!')
+        }
+        console.warn('Aviso: Variável JWT_SECRET ausente no .env. A utilizar fallback de desenvolvimento.')
+    }
+
+    return new TextEncoder().encode(secret ?? 'chave_secreta_desenvolvimento')
+}
 
 // ── SISTEMA DE RATE LIMITING (In-Memory com Cooldown) ──────────────────────
 type RateLimitData = {
@@ -18,7 +29,6 @@ type RateLimitData = {
 
 const rateLimitMap = new Map<string, RateLimitData>()
 
-// Configurações exatas: Max 5 requisições em 1 segundo. Se passar, bloqueia por 30s.
 const RATE_LIMIT_WINDOW_MS = 1000       // 1 segundo
 const MAX_REQUESTS_PER_WINDOW = 5       // Máximo de 5 envios 
 const BLOCK_DURATION_MS = 30 * 1000     // Castigo de 30 segundos
@@ -30,13 +40,11 @@ function applyRateLimit(request: NextRequest): NextResponse | null {
     const now = Date.now()
     const clientData = rateLimitMap.get(ip)
 
-    // 1. Registo de Novo IP
     if (!clientData) {
         rateLimitMap.set(ip, { count: 1, windowStart: now })
         return null
     }
 
-    // 2. Verifica se o utilizador está cumprindo o castigo (bloqueado)
     if (clientData.blockedUntil && now < clientData.blockedUntil) {
         const segundosRestantes = Math.ceil((clientData.blockedUntil - now) / 1000)
         return new NextResponse(
@@ -48,7 +56,6 @@ function applyRateLimit(request: NextRequest): NextResponse | null {
         )
     }
 
-    // 3. Janela de 1 segundo expirou? Reseta a contagem
     if (now - clientData.windowStart > RATE_LIMIT_WINDOW_MS) {
         clientData.count = 1
         clientData.windowStart = now
@@ -56,10 +63,8 @@ function applyRateLimit(request: NextRequest): NextResponse | null {
         return null
     }
 
-    // 4. Incrementa dentro do mesmo segundo
     clientData.count += 1
 
-    // 5. Se ultrapassou 5 no mesmo segundo, aplica o castigo de 30s
     if (clientData.count > MAX_REQUESTS_PER_WINDOW) {
         clientData.blockedUntil = now + BLOCK_DURATION_MS
         console.warn(`[RATE LIMIT] IP ${ip} bloqueado por 30s. Excedeu 5 req/segundo.`)
@@ -76,12 +81,15 @@ function applyRateLimit(request: NextRequest): NextResponse | null {
     return null
 }
 
-// ── MIDDLEWARE PRINCIPAL ──────────────────────────────────────────────────
-export async function middleware(request: NextRequest): Promise<NextResponse> {
+// ── PROXY PRINCIPAL ───────────────────────────────────────────────────────
+export async function proxy(request: NextRequest): Promise<NextResponse> {
     const { pathname } = request.nextUrl
 
     const rateLimitResponse = applyRateLimit(request)
     if (rateLimitResponse) return rateLimitResponse
+
+    // Carrega a chave do .env a cada requisição
+    const SECRET = getJwtSecret()
 
     // Área Corporativa (/admin e /profissional)
     if (pathname.startsWith('/admin') || pathname.startsWith('/profissional')) {
@@ -90,7 +98,7 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
         if (!token) return NextResponse.redirect(new URL(REDIRECT_PROFISSIONAL, request.url))
 
         try {
-            const { payload } = await jwtVerify(token, JWT_SECRET)
+            const { payload } = await jwtVerify(token, SECRET)
 
             const roleValida = payload.role === 'ADMIN' || payload.role === 'PROFISSIONAL'
             if (!roleValida) return NextResponse.redirect(new URL(REDIRECT_PROFISSIONAL, request.url))
@@ -118,7 +126,7 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
         if (!token) return NextResponse.redirect(new URL(REDIRECT_CLIENTE, request.url))
 
         try {
-            const { payload } = await jwtVerify(token, JWT_SECRET)
+            const { payload } = await jwtVerify(token, SECRET)
 
             if (payload.role !== 'CLIENTE') return NextResponse.redirect(new URL(REDIRECT_CLIENTE, request.url))
 

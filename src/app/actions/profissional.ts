@@ -29,6 +29,16 @@ type PainelResult =
     }
     | { sucesso: false; erro: string }
 
+// Novo tipo para definir a estrutura do expediente retornado
+type ExpedientePayload = {
+    diaSemana: number
+    horaInicio: string
+    horaFim: string
+    ativo: boolean
+    id?: string
+    funcionarioId?: string
+}
+
 export async function obterDadosPainelProfissional(): Promise<PainelResult> {
     try {
         const cookieStore = await cookies()
@@ -101,7 +111,8 @@ export async function obterDadosPainelProfissional(): Promise<PainelResult> {
     }
 }
 
-export async function obterPerfilEExpediente(): Promise<ActionResult<{ fotoUrl: string | null, expedientes: any[] }>> {
+// Correção: Substituído 'any[]' pelo tipo definido 'ExpedientePayload[]'
+export async function obterPerfilEExpediente(): Promise<ActionResult<{ fotoUrl: string | null, expedientes: ExpedientePayload[] }>> {
     try {
         const cookieStore = await cookies()
         const token = cookieStore.get('funcionario_session')?.value
@@ -121,8 +132,9 @@ export async function obterPerfilEExpediente(): Promise<ActionResult<{ fotoUrl: 
 
         if (!funcionario) return { sucesso: false, erro: 'Profissional não encontrado.' }
 
-        // Se o funcionário ainda não tem expediente criado, geramos um padrão (vazio) para a interface
-        let expedientes = funcionario.expedientes;
+        // Correção: Variável tipada explicitamente para evitar 'any' implícito e permitir atribuição posterior
+        let expedientes: ExpedientePayload[] = funcionario.expedientes;
+
         if (expedientes.length === 0) {
             const diasPadrao = Array.from({ length: 7 }).map((_, index) => ({
                 diaSemana: index,
@@ -130,7 +142,8 @@ export async function obterPerfilEExpediente(): Promise<ActionResult<{ fotoUrl: 
                 horaFim: '18:00',
                 ativo: false
             }));
-            expedientes = diasPadrao as any;
+            // Correção: Removido 'as any', pois 'diasPadrao' é compatível com 'ExpedientePayload[]'
+            expedientes = diasPadrao;
         }
 
         return {
@@ -138,7 +151,8 @@ export async function obterPerfilEExpediente(): Promise<ActionResult<{ fotoUrl: 
             fotoUrl: funcionario.fotoUrl,
             expedientes
         }
-    } catch (error) {
+    } catch {
+        // Correção: Removido parâmetro 'error' não utilizado
         return { sucesso: false, erro: 'Erro ao carregar perfil.' }
     }
 }

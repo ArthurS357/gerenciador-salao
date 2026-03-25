@@ -7,17 +7,12 @@ import type { FinanceiroResumo, FuncionarioResumo } from '@/types/domain'
 
 // Importações das bibliotecas de exportação
 import * as XLSX from 'xlsx'
-import jsPDF from 'jspdf'
-import autoTable from 'jspdf-autotable'
 
 type EditState = Record<string, { comissao: number; podeVerComissao: boolean }>
 type Mensagem = { texto: string; tipo: 'sucesso' | 'erro' }
 type PeriodoFiltro = 'hoje' | 'semana' | 'mes' | 'tudo'
 
 // Extensão de tipagem para remover o 'any' do jsPDF
-interface jsPDFWithAutoTable extends jsPDF {
-    lastAutoTable: { finalY: number }
-}
 
 export default function PainelFinanceiroPage() {
     const [dados, setDados] = useState<FinanceiroResumo | null>(null)
@@ -145,8 +140,12 @@ export default function PainelFinanceiroPage() {
         XLSX.writeFile(wb, `Relatorio_Financeiro_${periodoAtual}.xlsx`)
     }
 
-    const exportarParaPDF = () => {
+    const exportarParaPDF = async () => {
         if (!dados) return
+
+        // CORREÇÃO: Lazy load dinâmico para evitar erro de build no SSR do Turbopack
+        const { jsPDF } = await import('jspdf')
+        const autoTable = (await import('jspdf-autotable')).default
 
         const doc = new jsPDF()
 
@@ -173,7 +172,7 @@ export default function PainelFinanceiroPage() {
         })
 
         autoTable(doc, {
-            startY: (doc as jsPDFWithAutoTable).lastAutoTable.finalY + 15,
+            startY: (doc as any).lastAutoTable.finalY + 15,
             head: [['Profissional', 'Comissão (%)', 'Acesso Visível']],
             body: dados.equipe.map(p => [p.nome, `${p.comissao}%`, p.podeVerComissao ? 'Sim' : 'Não']),
             theme: 'striped',

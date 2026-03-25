@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link' // 1. Importação adicionada
 import { logoutCliente } from '@/app/actions/auth'
 import { excluirContaCliente } from '@/app/actions/cliente'
 import { criarAvaliacao } from '@/app/actions/avaliacao'
@@ -12,6 +13,12 @@ interface ClienteDashboardUIProps {
     nomeCliente: string
     agendamentos: HistoricoAgendamentoItem[]
     totalGasto: number
+}
+
+// 2. Tipo auxiliar para evitar o uso de 'any'
+// Assume que 'avaliacao' pode vir do backend mas não está na tipagem padrão
+type HistoricoItemComAvaliacao = HistoricoAgendamentoItem & {
+    avaliacao?: unknown
 }
 
 const STATUS_BADGE = {
@@ -139,12 +146,13 @@ export default function ClienteDashboardUI({
                     {pendentes.length === 0 ? (
                         <div className="bg-white rounded-2xl border border-dashed border-[#e5d9c5] p-10 text-center text-gray-400">
                             <p className="text-base font-medium">Nenhum agendamento pendente.</p>
-                            <a
+                            {/* CORREÇÃO 1: Substituído <a> por <Link> */}
+                            <Link
                                 href="/#agendamento"
                                 className="inline-block mt-4 px-6 py-2.5 bg-[#8B5A2B] text-white rounded-lg text-sm font-semibold hover:bg-[#704620] transition-colors"
                             >
                                 Agendar Agora
-                            </a>
+                            </Link>
                         </div>
                     ) : (
                         <div className="space-y-3">
@@ -190,8 +198,9 @@ export default function ClienteDashboardUI({
                         </h2>
                         <div className="space-y-3">
                             {concluidos.map(ag => {
-                                // Fallback inteligente: se já tiver avaliação no payload ou estiver no estado local
-                                const jaAvaliado = (ag as any).avaliacao != null || avaliadosLocalmente.includes(ag.id);
+                                // CORREÇÃO 2: Uso de tipo definido em vez de 'any'
+                                const itemComAvaliacao = ag as HistoricoItemComAvaliacao;
+                                const jaAvaliado = itemComAvaliacao.avaliacao != null || avaliadosLocalmente.includes(ag.id);
 
                                 return (
                                     <div key={ag.id} className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm flex flex-col md:flex-row gap-4 items-start md:items-center">

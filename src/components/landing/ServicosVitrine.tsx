@@ -163,7 +163,7 @@ const ServicosVitrine = memo(function ServicosVitrine({
                 <div className="border border-[rgba(197,168,124,0.15)] overflow-hidden shadow-[0_2px_40px_rgba(42,24,16,0.04)]">
                     {servicosFiltrados.length === 0 ? (
                         <div className="p-16 text-center text-[#9c8070]">
-                            Nenhum serviço encontrado para "{busca}".
+                            Nenhum serviço encontrado para &ldquo;{busca}&rdquo;.
                         </div>
                     ) : (
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">

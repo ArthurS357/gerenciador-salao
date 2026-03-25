@@ -1,6 +1,7 @@
 'use server'
 
 import { prisma } from '@/lib/prisma'
+import { Prisma } from '@prisma/client' // 1. Importação adicionada para usar tipos do Prisma
 import type { FinanceiroResumo, FuncionarioResumo, FechamentoComanda } from '@/types/domain'
 
 type ActionResult<T = object> =
@@ -10,8 +11,8 @@ type ActionResult<T = object> =
 // 1. Atualizado: Recebe parâmetros opcionais de data
 export async function obterResumoFinanceiro(filtro?: { dataInicio: Date; dataFim: Date }): Promise<ActionResult<FinanceiroResumo>> {
     try {
-        // Monta a query dinamicamente
-        const whereClause: any = { concluido: true }
+        // Correção 1: Tipagem explícita com Prisma.AgendamentoWhereInput
+        const whereClause: Prisma.AgendamentoWhereInput = { concluido: true }
 
         if (filtro) {
             whereClause.dataHoraInicio = {
@@ -39,7 +40,8 @@ export async function obterResumoFinanceiro(filtro?: { dataInicio: Date; dataFim
             totalTaxas += ag.taxas ?? 0
 
             // 1. Custo de Insumos Internos (Salvo diretamente no fechamento da comanda pela Ficha Técnica)
-            const custoInsumosInternos = (ag as any).custoInsumos ?? 0
+            // Correção 2: Substituído 'any' por tipo específico para a propriedade esperada
+            const custoInsumosInternos = (ag as { custoInsumos?: number }).custoInsumos ?? 0
 
             // 2. Custo de Revenda (Produtos físicos vendidos diretamente na comanda)
             let custoRevenda = 0

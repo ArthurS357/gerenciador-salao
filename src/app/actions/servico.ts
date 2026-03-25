@@ -1,6 +1,7 @@
 'use server'
 
 import { prisma } from '@/lib/prisma'
+import { Prisma } from '@prisma/client' // 1. Importação adicionada para tipagem
 import { revalidatePath } from 'next/cache'
 import type { Servico } from '@/types/domain'
 
@@ -16,6 +17,19 @@ type DadosCriarServico = {
     imagemUrl?: string | null
 }
 
+// 2. Tipo definido para o retorno com relações (inclui insumos e produtos)
+type ServicoComInsumos = Prisma.ServicoGetPayload<{
+    include: {
+        insumos: {
+            include: {
+                produto: {
+                    select: { nome: true, unidadeMedida: true }
+                }
+            }
+        }
+    }
+}>
+
 export async function listarServicosPublicos(): Promise<ActionResult<{ servicos: Servico[] }>> {
     try {
         const servicos = await prisma.servico.findMany({
@@ -28,7 +42,8 @@ export async function listarServicosPublicos(): Promise<ActionResult<{ servicos:
     }
 }
 
-export async function listarServicosAdmin(): Promise<ActionResult<{ servicos: any[] }>> {
+// Correção: Substituído 'any[]' pelo tipo 'ServicoComInsumos[]'
+export async function listarServicosAdmin(): Promise<ActionResult<{ servicos: ServicoComInsumos[] }>> {
     try {
         const servicos = await prisma.servico.findMany({
             where: { ativo: true },
@@ -133,7 +148,8 @@ export async function removerInsumoFichaTecnica(idInsumo: string): Promise<Actio
         })
         revalidatePath('/admin/servicos')
         return { sucesso: true }
-    } catch (error) {
+    } catch {
+        // 3. Correção: Removido o parâmetro 'error' não utilizado
         return { sucesso: false, erro: 'Falha ao remover insumo da ficha técnica.' }
     }
 }
