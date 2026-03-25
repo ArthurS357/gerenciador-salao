@@ -2,17 +2,21 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
+import dynamic from 'next/dynamic' // <-- NOVA IMPORTAÇÃO
 import { obterResumoFinanceiro, atualizarComissaoFuncionario } from '@/app/actions/financeiro'
 import type { FinanceiroResumo, FuncionarioResumo } from '@/types/domain'
-
-// Importações das bibliotecas de exportação
 import * as XLSX from 'xlsx'
+
+// Carregamos o componente de PDF dinamicamente, forçando a NÃO renderizar no servidor (ssr: false)
+// Isto previne os erros de build do Turbopack
+const BotaoExportarPDF = dynamic(() => import('@/components/BotaoExportarPDF'), {
+    ssr: false,
+    loading: () => <button disabled className="px-5 py-2.5 bg-gray-300 text-white rounded-lg text-sm font-bold opacity-50 cursor-not-allowed">PDF a carregar...</button>
+})
 
 type EditState = Record<string, { comissao: number; podeVerComissao: boolean }>
 type Mensagem = { texto: string; tipo: 'sucesso' | 'erro' }
 type PeriodoFiltro = 'hoje' | 'semana' | 'mes' | 'tudo'
-
-// Extensão de tipagem para remover o 'any' do jsPDF
 
 export default function PainelFinanceiroPage() {
     const [dados, setDados] = useState<FinanceiroResumo | null>(null)
@@ -63,17 +67,16 @@ export default function PainelFinanceiroPage() {
         setIsLoadingMetrics(false)
     }, [])
 
-    // CORREÇÃO: Função assíncrona encapsulada dentro do useEffect para respeitar a regra do linter
     useEffect(() => {
         let isMounted = true;
 
         const fetchFinanceiro = async () => {
-            await carregarDados(periodoAtual);
+            if (isMounted) {
+                await carregarDados(periodoAtual);
+            }
         };
 
-        if (isMounted) {
-            fetchFinanceiro();
-        }
+        fetchFinanceiro();
 
         return () => {
             isMounted = false;
@@ -104,16 +107,12 @@ export default function PainelFinanceiroPage() {
     const setPodeVer = (id: string, podeVerComissao: boolean) =>
         setEditState((prev) => ({ ...prev, [id]: { ...prev[id]!, podeVerComissao } }))
 
-    // ── FUNÇÕES DE EXPORTAÇÃO ───────────────────────────────────────────────
-
     const botoesFiltro: { valor: PeriodoFiltro; label: string }[] = [
         { valor: 'hoje', label: 'Hoje' },
         { valor: 'semana', label: 'Últimos 7 Dias' },
         { valor: 'mes', label: 'Mês Atual' },
         { valor: 'tudo', label: 'Todo o Histórico' },
     ]
-
-    const getNomePeriodo = () => botoesFiltro.find(b => b.valor === periodoAtual)?.label || periodoAtual
 
     const exportarParaExcel = () => {
         if (!dados) return
@@ -139,51 +138,6 @@ export default function PainelFinanceiroPage() {
 
         XLSX.writeFile(wb, `Relatorio_Financeiro_${periodoAtual}.xlsx`)
     }
-
-    const exportarParaPDF = async () => {
-        if (!dados) return
-
-        // CORREÇÃO: Lazy load dinâmico para evitar erro de build no SSR do Turbopack
-        const { jsPDF } = await import('jspdf')
-        const autoTable = (await import('jspdf-autotable')).default
-
-        const doc = new jsPDF()
-
-        doc.setFontSize(20)
-        doc.text('Relatório Financeiro do Salão', 14, 22)
-
-        doc.setFontSize(11)
-        doc.setTextColor(100)
-        doc.text(`Período de Análise: ${getNomePeriodo()}`, 14, 30)
-        doc.text(`Data de Emissão: ${new Date().toLocaleDateString('pt-BR')}`, 14, 36)
-
-        autoTable(doc, {
-            startY: 45,
-            head: [['Métrica Financeira', 'Valor (R$)']],
-            body: [
-                ['Faturamento Bruto', dados.faturamentoBruto.toFixed(2)],
-                ['Custos (Insumos + Revenda)', dados.custoProdutos.toFixed(2)],
-                ['Comissões Pagas', dados.totalComissoes.toFixed(2)],
-                ['Lucro Líquido (Real)', dados.lucroLiquido.toFixed(2)],
-            ],
-            theme: 'grid',
-            headStyles: { fillColor: [92, 64, 51] },
-            styles: { fontSize: 10 }
-        })
-
-        autoTable(doc, {
-            startY: (doc as any).lastAutoTable.finalY + 15,
-            head: [['Profissional', 'Comissão (%)', 'Acesso Visível']],
-            body: dados.equipe.map(p => [p.nome, `${p.comissao}%`, p.podeVerComissao ? 'Sim' : 'Não']),
-            theme: 'striped',
-            headStyles: { fillColor: [139, 90, 43] },
-            styles: { fontSize: 10 }
-        })
-
-        doc.save(`Relatorio_Financeiro_${periodoAtual}.pdf`)
-    }
-
-    // ────────────────────────────────────────────────────────────────────────
 
     if (!dados) {
         return (
@@ -233,7 +187,6 @@ export default function PainelFinanceiroPage() {
                 ))}
             </nav>
 
-            {/* BARRA DE FILTROS E EXPORTAÇÃO */}
             <div className="flex flex-col xl:flex-row items-start xl:items-center justify-between bg-white p-5 rounded-lg shadow-sm border border-[#e5d9c5] mb-6 gap-4">
                 <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full xl:w-auto">
                     <span className="text-sm font-bold text-gray-600 uppercase tracking-wider">Período de Análise:</span>
@@ -268,18 +221,11 @@ export default function PainelFinanceiroPage() {
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
                         Excel
                     </button>
-                    <button
-                        onClick={exportarParaPDF}
-                        disabled={isLoadingMetrics || !dados}
-                        className="flex-1 sm:flex-none flex justify-center items-center gap-2 px-5 py-2.5 bg-red-600 text-white rounded-lg font-bold hover:bg-red-700 transition-colors disabled:opacity-50 text-sm shadow-sm"
-                    >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>
-                        PDF
-                    </button>
+                    {/* AQUI ESTÁ O NOVO COMPONENTE ISOLADO! */}
+                    <BotaoExportarPDF dados={dados} periodoAtual={periodoAtual} isLoadingMetrics={isLoadingMetrics} />
                 </div>
             </div>
 
-            {/* MÉTRICAS */}
             <div className={`grid grid-cols-1 md:grid-cols-4 gap-6 mb-10 transition-opacity duration-300 ${isLoadingMetrics ? 'opacity-40 pointer-events-none' : 'opacity-100'}`}>
                 {cards.map(({ label, valor, cor, textCor }) => (
                     <div key={label} className={`bg-white p-6 rounded-lg shadow border-l-4 ${cor}`}>
@@ -295,7 +241,6 @@ export default function PainelFinanceiroPage() {
                 </div>
             )}
 
-            {/* TABELA DE COMISSÕES */}
             <section className="bg-white rounded-lg shadow overflow-hidden border border-[#e5d9c5]">
                 <h2 className="bg-[#5C4033] text-white p-4 text-lg font-bold">
                     Gestão de Comissões por Profissional

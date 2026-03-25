@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import Image from "next/image"; // Correção: Importar next/image
+import Image from "next/image";
 import {
     listarServicosAdmin,
     criarServicoAdmin,
@@ -17,7 +17,7 @@ type Insumo = {
     id: string;
     quantidadeUsada: number;
     produto: {
-        id: string;
+        id?: string; // CORREÇÃO: Tornado opcional para coincidir com o retorno do backend
         nome: string;
         unidadeMedida: string;
     };
@@ -58,17 +58,15 @@ export default function PainelServicosPage() {
 
     const [novoInsumo, setNovoInsumo] = useState({ produtoId: "", quantidadeUsada: "" });
 
-    // 2. Correção: Funções movidas para dentro do useEffect para resolver erro de declaração e dependências
     useEffect(() => {
         const carregarServicos = async () => {
             const res = await listarServicosAdmin();
             if (res.sucesso && res.servicos) {
-                setServicos(res.servicos);
-                // Verifica se o modal está aberto e atualiza os dados dele em tempo real
+                setServicos(res.servicos as Servico[]);
                 setModalFichaTecnica(prevModal => {
                     if (prevModal) {
                         const atualizado = res.servicos.find((s: Servico) => s.id === prevModal.id);
-                        return atualizado || null;
+                        return (atualizado as Servico) || null;
                     }
                     return null;
                 });
@@ -82,17 +80,16 @@ export default function PainelServicosPage() {
 
         carregarServicos();
         carregarProdutos();
-    }, []); // Array vazio é correto aqui pois as funções estão definidas dentro
+    }, []);
 
-    // Função exposta para ser chamada manualmente (ex: após salvar)
     const recarregarServicosManualmente = async () => {
         const res = await listarServicosAdmin();
         if (res.sucesso && res.servicos) {
-            setServicos(res.servicos);
+            setServicos(res.servicos as Servico[]);
             setModalFichaTecnica(prevModal => {
                 if (prevModal) {
                     const atualizado = res.servicos.find((s: Servico) => s.id === prevModal.id);
-                    return atualizado || null;
+                    return (atualizado as Servico) || null;
                 }
                 return null;
             });
@@ -112,14 +109,14 @@ export default function PainelServicosPage() {
                 const resUpload = await fetch("/api/upload", { method: "POST", body: data });
                 const uploadResult = await resUpload.json();
 
-                if (uploadResult.url) { // Ajuste para 'url' que é mais comum, verifique sua API
+                if (uploadResult.url) {
                     urlFinal = uploadResult.url;
                 } else {
                     alert("Erro ao subir a imagem.");
                     setUploading(false);
                     return;
                 }
-            } catch (error) { // Removido warning de variável não usada
+            } catch (error) {
                 console.error(error);
                 alert("Erro técnico no upload.");
                 setUploading(false);
@@ -140,7 +137,6 @@ export default function PainelServicosPage() {
         setUploading(false);
     };
 
-    // Ficha Técnica
     const handleSalvarInsumo = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!modalFichaTecnica || !novoInsumo.produtoId) return;
@@ -163,7 +159,6 @@ export default function PainelServicosPage() {
         setLoadingAcao(false);
     };
 
-    // Alternar Destaque
     const handleToggleDestaque = async (id: string, destaqueAtual: boolean) => {
         const res = await alternarDestaqueServico(id, !destaqueAtual);
         if (res.sucesso) recarregarServicosManualmente();
@@ -173,7 +168,6 @@ export default function PainelServicosPage() {
     const imagePlaceholder = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100%25' height='100%25'%3E%3Crect width='100%25' height='100%25' fill='%23f3f4f6'/%3E%3Ctext x='50%25' y='50%25' fill='%239ca3af' font-family='sans-serif' font-size='14' font-weight='bold' text-anchor='middle' dy='.3em'%3ESem Foto%3C/text%3E%3C/svg%3E";
     const produtoSelecionado = produtos.find(p => p.id === novoInsumo.produtoId);
 
-    // Filtro da Busca
     const servicosFiltrados = servicos.filter(s => s.nome.toLowerCase().includes(busca.toLowerCase()));
 
     return (
@@ -200,7 +194,6 @@ export default function PainelServicosPage() {
                 <Link href='/admin/clientes' className="bg-white text-[#5C4033] border border-[#e5d9c5] px-5 py-2 rounded shadow-sm font-bold text-sm hover:border-[#8B5A2B]">Base de Clientes</Link>
             </nav>
 
-            {/* Barra de Busca */}
             <div className="mb-6 bg-white p-4 rounded-lg shadow-sm border border-[#e5d9c5]">
                 <input
                     type="text"
@@ -211,7 +204,6 @@ export default function PainelServicosPage() {
                 />
             </div>
 
-            {/* Grid de Serviços */}
             <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
                 {servicosFiltrados.length === 0 ? (
                     <div className="col-span-full p-12 bg-white rounded-lg border border-dashed border-[#e5d9c5] text-center">
@@ -221,7 +213,6 @@ export default function PainelServicosPage() {
                     servicosFiltrados.map((s) => (
                         <div key={s.id} className="bg-white rounded-xl shadow-sm border border-[#e5d9c5] overflow-hidden hover:shadow-md transition-shadow group flex flex-col relative">
 
-                            {/* Botão de Estrela */}
                             <button
                                 onClick={() => handleToggleDestaque(s.id, s.destaque)}
                                 className={`absolute top-2 right-2 z-10 p-1.5 rounded-full backdrop-blur-md transition-colors shadow-sm ${s.destaque ? 'bg-yellow-400 text-white' : 'bg-white/70 text-gray-500 hover:bg-white'}`}
@@ -232,13 +223,12 @@ export default function PainelServicosPage() {
                                 </svg>
                             </button>
 
-                            {/* 3. Correção: next/image com layout fill */}
                             <div className="relative h-32 w-full bg-gray-100 overflow-hidden">
                                 <Image
                                     src={s.imagemUrl || imagePlaceholder}
                                     alt={s.nome}
                                     fill
-                                    unoptimized // Necessário para URLs externas ou data URIs sem config de domínios
+                                    unoptimized
                                     className="object-cover group-hover:scale-105 transition-transform duration-500"
                                 />
                             </div>
@@ -271,7 +261,6 @@ export default function PainelServicosPage() {
                 )}
             </div>
 
-            {/* MODAL: Criação de Serviço */}
             {isModalOpen && (
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 transition-opacity">
                     <div className="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-lg border-t-4 border-[#5C4033] transform transition-transform">
@@ -310,7 +299,6 @@ export default function PainelServicosPage() {
                 </div>
             )}
 
-            {/* MODAL: Ficha Técnica */}
             {modalFichaTecnica && (
                 <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
                     <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg border-t-4 border-[#8B5A2B] overflow-hidden flex flex-col max-h-[90vh]">
@@ -344,7 +332,6 @@ export default function PainelServicosPage() {
                                     <p className="text-sm text-gray-500 italic text-center py-4 bg-gray-50 rounded-lg">Nenhum custo interno atrelado.</p>
                                 ) : (
                                     <div className="space-y-2">
-                                        {/* 4. Correção: Tipagem explícita no map */}
                                         {modalFichaTecnica.insumos.map((insumo: Insumo) => (
                                             <div key={insumo.id} className="flex justify-between items-center p-3 bg-white border border-gray-200 rounded-lg shadow-sm">
                                                 <span className="font-semibold text-sm text-gray-700">{insumo.produto.nome}</span>
