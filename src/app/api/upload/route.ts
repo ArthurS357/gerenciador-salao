@@ -1,38 +1,45 @@
 import { NextResponse } from 'next/server';
-import { writeFile, mkdir } from 'fs/promises';
-import path from 'path';
+import { v2 as cloudinary } from 'cloudinary';
+
+// 1. Configuração de credenciais do Cloudinary
+cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET,
+});
 
 export async function POST(request: Request) {
     try {
-        const data = await request.formData();
-        const file: File | null = data.get('file') as unknown as File;
+        // 2. Extrair o ficheiro do FormData enviado pelo frontend
+        const formData = await request.formData();
+        const file = formData.get('file') as File;
 
         if (!file) {
-            return NextResponse.json({ sucesso: false, erro: 'Nenhum arquivo recebido.' }, { status: 400 });
+            return NextResponse.json({ error: 'Nenhum ficheiro recebido.' }, { status: 400 });
         }
 
-        // 1. Converte o ficheiro num formato que o Node.js consiga ler (Buffer)
+        // 3. Converter o ficheiro File (Web API) para um Buffer (Node.js)
         const bytes = await file.arrayBuffer();
         const buffer = Buffer.from(bytes);
 
-        // 2. Cria um nome único para não haver ficheiros sobrepostos (ex: 168439294_foto.jpg)
-        const filename = `${Date.now()}-${file.name.replace(/\s/g, '_')}`;
+        // 4. Enviar o Buffer para o Cloudinary através de uma Upload Stream
+        const uploadResult = await new Promise((resolve, reject) => {
+            const uploadStream = cloudinary.uploader.upload_stream(
+                { folder: 'gerenciador-salao' }, // Organiza os ficheiros numa pasta
+                (error, result) => {
+                    if (error) reject(error);
+                    else resolve(result);
+                }
+            );
 
-        // 3. Define o caminho onde a imagem será salva
-        const uploadDir = path.join(process.cwd(), 'public/uploads');
-        const filepath = path.join(uploadDir, filename);
+            // Finaliza a stream passando o buffer da imagem
+            uploadStream.end(buffer);
+        }) as any; // Type assertion rápido para aceder às propriedades de resposta
 
-        // 4. Garante que a pasta "uploads" existe; se não, cria-a automaticamente
-        await mkdir(uploadDir, { recursive: true });
-
-        // 5. Guarda o ficheiro fisicamente no disco
-        await writeFile(filepath, buffer);
-
-        // 6. Devolve o link relativo para ser salvo na base de dados
-        return NextResponse.json({ sucesso: true, url: `/uploads/${filename}` });
-
+        // 5. Retornar a URL segura gerada pelo Cloudinary
+        return NextResponse.json({ url: uploadResult.secure_url });
     } catch (error) {
-        console.error('Erro no upload:', error);
-        return NextResponse.json({ sucesso: false, erro: 'Erro interno ao processar a imagem.' }, { status: 500 });
+        console.error('Erro no upload para o Cloudinary:', error);
+        return NextResponse.json({ error: 'Falha ao processar o upload da imagem.' }, { status: 500 });
     }
 }
