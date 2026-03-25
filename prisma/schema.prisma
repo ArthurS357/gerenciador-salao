@@ -13,6 +13,8 @@ model Cliente {
   id           String        @id @default(uuid())
   nome         String
   telefone     String        @unique
+  email        String?
+  cpf          String?       @unique
   senhaHash    String?
   anonimizado  Boolean       @default(false)
   
@@ -38,7 +40,7 @@ model Funcionario {
   ativo             Boolean       @default(true)
 
   agendamentos     Agendamento[]
-  servicos         Servico[]      // Serviços que o profissional está apto a executar
+  servicos         Servico[]
   expedientes      Expediente[]
 
   createdAt        DateTime     @default(now())
@@ -48,14 +50,14 @@ model Funcionario {
 model Expediente {
   id             String      @id @default(uuid())
   funcionarioId  String
-  diaSemana      Int         // 0 = Domingo, 1 = Segunda, 2 = Terça, 3 = Quarta, 4 = Quinta, 5 = Sexta, 6 = Sábado
-  horaInicio     String      // Ex: "09:00"
-  horaFim        String      // Ex: "18:00"
-  ativo          Boolean     @default(false) // Se true, ele trabalha neste dia
+  diaSemana      Int
+  horaInicio     String
+  horaFim        String
+  ativo          Boolean     @default(false)
 
   funcionario    Funcionario @relation(fields: [funcionarioId], references: [id], onDelete: Cascade)
 
-  @@unique([funcionarioId, diaSemana]) // Garante que só existe 1 registo por dia da semana para cada funcionário
+  @@unique([funcionarioId, diaSemana])
 }
 
 // 2. CATÁLOGO, PORTFÓLIO E ESTOQUE
@@ -71,7 +73,7 @@ model Servico {
   destaque         Boolean  @default(false)
 
   itensAgendamento ItemServico[]
-  funcionarios     Funcionario[]  // Profissionais aptos a realizar este serviço
+  funcionarios     Funcionario[]
   insumos          InsumoServico[]
 }
 
@@ -79,24 +81,24 @@ model InsumoServico {
   id               String   @id @default(uuid())
   servicoId        String
   produtoId        String
-  quantidadeUsada  Int      // Quantidade gasta por atendimento (ex: 25)
+  quantidadeUsada  Int
 
   servico          Servico  @relation(fields: [servicoId], references: [id], onDelete: Cascade)
   produto          Produto  @relation(fields: [produtoId], references: [id], onDelete: Cascade)
 
-  @@unique([servicoId, produtoId]) // Evita que o mesmo produto seja cadastrado duas vezes no mesmo serviço
+  @@unique([servicoId, produtoId])
 }
 
 model Produto {
   id               String   @id @default(uuid())
   nome             String
   descricao        String?
-  precoCusto       Float?   // Preço pago por 1 frasco inteiro
-  precoVenda       Float    // Preço se for vendido inteiro (revenda)
+  precoCusto       Float?
+  precoVenda       Float
   
-  estoque          Int      @default(0)    // Total absoluto (em ml, g ou unidades)
-  unidadeMedida    String   @default("un") // "ml", "g", "un"
-  tamanhoUnidade   Int      @default(1)    // Capacidade de 1 frasco (ex: 700 para 700ml)
+  estoque          Int      @default(0)
+  unidadeMedida    String   @default("un")
+  tamanhoUnidade   Int      @default(1)
   
   ativo            Boolean  @default(true)
   
@@ -126,7 +128,7 @@ model Agendamento {
 
   servicos       ItemServico[]
   produtos       ItemProduto[]
-  avaliacao      Avaliacao?    // <-- NOVA RELAÇÃO (1 para 1)
+  avaliacao      Avaliacao?
 }
 
 model ItemServico {
@@ -172,7 +174,7 @@ model Notificacao {
 model Avaliacao {
   id            String      @id @default(uuid())
   agendamentoId String      @unique
-  nota          Int         // De 1 a 5
+  nota          Int
   comentario    String?
   criadoEm      DateTime    @default(now())
 

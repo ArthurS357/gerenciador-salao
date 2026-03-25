@@ -19,10 +19,110 @@ export type HistoricoAgendamentoItem = {
 }
 
 export type HistoricoClienteData = {
-    cliente: { nome: string; telefone: string | null; anonimizado: boolean }
+    cliente: { nome: string; telefone: string | null; email: string | null; cpf: string | null; anonimizado: boolean }
     totalGasto: number
     agendamentos: HistoricoAgendamentoItem[]
 }
+
+type DadosCliente = {
+    nome: string
+    telefone: string
+    email?: string | null
+    cpf?: string | null
+}
+
+// ── CRIAR CLIENTE (Admin) ────────────────────────────────────────────────────
+
+export async function criarCliente(dados: DadosCliente): Promise<ActionResult<{ cliente: Cliente }>> {
+    try {
+        // Validações básicas
+        const telefoneLimpo = dados.telefone.replace(/\D/g, '')
+        if (telefoneLimpo.length < 10 || telefoneLimpo.length > 11) {
+            return { sucesso: false, erro: 'Número de telefone inválido.' }
+        }
+
+        const existente = await prisma.cliente.findUnique({ where: { telefone: telefoneLimpo } })
+        if (existente) {
+            return { sucesso: false, erro: 'Já existe um cliente com este telefone.' }
+        }
+
+        // Verificar CPF único se fornecido
+        if (dados.cpf) {
+            const cpfLimpo = dados.cpf.replace(/\D/g, '')
+            if (cpfLimpo.length !== 11) {
+                return { sucesso: false, erro: 'CPF inválido. Informe os 11 dígitos.' }
+            }
+            const cpfExistente = await prisma.cliente.findFirst({ where: { cpf: cpfLimpo } })
+            if (cpfExistente) {
+                return { sucesso: false, erro: 'Já existe um cliente com este CPF.' }
+            }
+        }
+
+        const cliente = await prisma.cliente.create({
+            data: {
+                nome: dados.nome.trim(),
+                telefone: telefoneLimpo,
+                email: dados.email?.trim() || null,
+                cpf: dados.cpf ? dados.cpf.replace(/\D/g, '') : null,
+            }
+        })
+
+        return { sucesso: true, cliente: cliente as unknown as Cliente }
+    } catch (error) {
+        console.error('Erro ao criar cliente:', error)
+        return { sucesso: false, erro: 'Falha técnica ao criar o cliente.' }
+    }
+}
+
+// ── EDITAR CLIENTE (Admin) ───────────────────────────────────────────────────
+
+export async function editarCliente(id: string, dados: DadosCliente): Promise<ActionResult> {
+    try {
+        const telefoneLimpo = dados.telefone.replace(/\D/g, '')
+        if (telefoneLimpo.length < 10 || telefoneLimpo.length > 11) {
+            return { sucesso: false, erro: 'Número de telefone inválido.' }
+        }
+
+        // Verificar telefone único (excluindo o próprio cliente)
+        const telefoneExistente = await prisma.cliente.findFirst({
+            where: { telefone: telefoneLimpo, NOT: { id } }
+        })
+        if (telefoneExistente) {
+            return { sucesso: false, erro: 'Este telefone já está cadastrado em outro cliente.' }
+        }
+
+        // Verificar CPF único se fornecido
+        if (dados.cpf) {
+            const cpfLimpo = dados.cpf.replace(/\D/g, '')
+            if (cpfLimpo.length !== 11) {
+                return { sucesso: false, erro: 'CPF inválido. Informe os 11 dígitos.' }
+            }
+            const cpfExistente = await prisma.cliente.findFirst({
+                where: { cpf: cpfLimpo, NOT: { id } }
+            })
+            if (cpfExistente) {
+                return { sucesso: false, erro: 'Este CPF já está cadastrado em outro cliente.' }
+            }
+        }
+
+        await prisma.cliente.update({
+            where: { id },
+            data: {
+                nome: dados.nome.trim(),
+                telefone: telefoneLimpo,
+                email: dados.email?.trim() || null,
+                cpf: dados.cpf ? dados.cpf.replace(/\D/g, '') : null,
+            }
+        })
+
+        return { sucesso: true }
+    } catch (error) {
+        console.error('Erro ao editar cliente:', error)
+        return { sucesso: false, erro: 'Falha técnica ao atualizar o cliente.' }
+    }
+}
+
+// ── EXCLUSÃO / LGPD ──────────────────────────────────────────────────────────
 
 export async function excluirContaCliente(clienteId: string): Promise<ActionResult> {
     try {
@@ -33,8 +133,9 @@ export async function excluirContaCliente(clienteId: string): Promise<ActionResu
             where: { id: clienteId },
             data: {
                 nome: 'Cliente Excluído',
-                // Adicionamos um sufixo com ID para garantir que o telefone não dê conflito de unique
                 telefone: `EXCLUIDO-${clienteId.substring(0, 8)}`,
+                email: null,
+                cpf: null,
                 anonimizado: true,
                 senhaHash: null,
             }
@@ -64,14 +165,9 @@ export async function listarTodosClientes(): Promise<ActionResult<{ clientes: (C
     }
 }
 
-// ── NOVA FUNÇÃO: Obter Histórico do Cliente ───────────────────────────────────
-
 export async function obterHistoricoCliente(clienteId: string): Promise<ActionResult<{ dados: HistoricoClienteData }>> {
     try {
-        const cliente = await prisma.cliente.findUnique({
-            where: { id: clienteId }
-        })
-
+        const cliente = await prisma.cliente.findUnique({ where: { id: clienteId } })
         if (!cliente) return { sucesso: false, erro: 'Cliente não encontrado.' }
 
         const agendamentos = await prisma.agendamento.findMany({
@@ -84,7 +180,6 @@ export async function obterHistoricoCliente(clienteId: string): Promise<ActionRe
             }
         })
 
-        // Soma apenas o valor de comandas já concluídas (faturadas)
         const totalGasto = agendamentos
             .filter(ag => ag.concluido)
             .reduce((acc, ag) => acc + ag.valorBruto, 0)
@@ -92,7 +187,13 @@ export async function obterHistoricoCliente(clienteId: string): Promise<ActionRe
         return {
             sucesso: true,
             dados: {
-                cliente: { nome: cliente.nome, telefone: cliente.telefone, anonimizado: cliente.anonimizado },
+                cliente: {
+                    nome: cliente.nome,
+                    telefone: cliente.telefone,
+                    email: (cliente as any).email ?? null,
+                    cpf: (cliente as any).cpf ?? null,
+                    anonimizado: cliente.anonimizado
+                },
                 totalGasto,
                 agendamentos: agendamentos as unknown as HistoricoAgendamentoItem[]
             }
@@ -103,10 +204,10 @@ export async function obterHistoricoCliente(clienteId: string): Promise<ActionRe
     }
 }
 
-// Reproveitamos a função que já usa no admin de LGPD
 export async function anonimizarClienteLGPD(id: string): Promise<ActionResult> {
     return excluirContaCliente(id);
 }
+
 export async function excluirClientePermanente(id: string): Promise<ActionResult> {
     try {
         await prisma.cliente.delete({ where: { id } })
