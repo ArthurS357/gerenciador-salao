@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { salvarPerfilEExpediente } from '@/app/actions/profissional'
 import { useRouter } from 'next/navigation'
+import Image from 'next/image' // 1. Importação do componente de Imagem do Next.js
 
 const DIAS_SEMANA = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado']
 
@@ -29,8 +30,8 @@ export default function FormularioPerfil({ fotoUrlInicial, expedientesIniciais }
     const [fotoUrl, setFotoUrl] = useState<string | null>(fotoUrlInicial)
     const [expedientes, setExpedientes] = useState<Expediente[]>(expedientesIniciais)
 
-    // Atualiza um dia específico na lista de expedientes
-    const atualizarExpediente = (index: number, campo: keyof Expediente, valor: any) => {
+    // 2. CORREÇÃO DE TIPO: Usando Generics em vez de 'any'
+    const atualizarExpediente = <K extends keyof Expediente>(index: number, campo: K, valor: Expediente[K]) => {
         const novaEscala = [...expedientes]
         novaEscala[index] = { ...novaEscala[index], [campo]: valor }
         setExpedientes(novaEscala)
@@ -54,7 +55,8 @@ export default function FormularioPerfil({ fotoUrlInicial, expedientesIniciais }
             } else {
                 throw new Error()
             }
-        } catch (error) {
+        } catch {
+            // 3. CORREÇÃO: Remoção da variável de erro não utilizada
             setMensagem({ texto: 'Falha ao processar o upload da imagem.', tipo: 'erro' })
         }
     }
@@ -87,11 +89,18 @@ export default function FormularioPerfil({ fotoUrlInicial, expedientesIniciais }
 
                 <div className="w-40 h-40 rounded-full border-4 border-white shadow-md bg-gray-200 overflow-hidden relative group mb-4">
                     {fotoUrl ? (
-                        <img src={fotoUrl} alt="Perfil" className="w-full h-full object-cover" />
+                        // 4. CORREÇÃO DA IMAGEM: Uso do next/image (com unoptimized para evitar conflitos de domínio remoto nesta fase)
+                        <Image
+                            src={fotoUrl}
+                            alt="Perfil"
+                            fill
+                            className="object-cover"
+                            unoptimized
+                        />
                     ) : (
                         <svg className="w-full h-full text-gray-400 p-8" fill="currentColor" viewBox="0 0 24 24"><path d="M24 20.993V24H0v-2.996A14.977 14.977 0 0112.004 15c4.904 0 9.26 2.354 11.996 5.993zM16.002 8.999a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
                     )}
-                    <label className="absolute inset-0 bg-black/60 text-white flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 cursor-pointer transition-opacity">
+                    <label className="absolute inset-0 bg-black/60 text-white flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 cursor-pointer transition-opacity z-10">
                         <svg className="w-6 h-6 mb-1" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
                         <span className="text-xs font-bold uppercase tracking-wider">Alterar</span>
                         <input type="file" accept="image/*" onChange={handleUploadFoto} className="hidden" />

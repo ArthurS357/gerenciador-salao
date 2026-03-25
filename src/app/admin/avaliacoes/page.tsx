@@ -52,7 +52,7 @@ export default function AvaliacoesPage() {
                 )}
             </header>
 
-            {/* Navegação Horizontal (Adicionando o link de Avaliações) */}
+            {/* Navegação Horizontal */}
             <nav className="flex flex-wrap gap-3 mb-8">
                 <Link href='/admin/dashboard' className="bg-white text-[#5C4033] border border-[#e5d9c5] px-5 py-2 rounded shadow-sm font-bold text-sm hover:border-[#8B5A2B]">Equipa</Link>
                 <Link href='/admin/financeiro' className="bg-white text-[#5C4033] border border-[#e5d9c5] px-5 py-2 rounded shadow-sm font-bold text-sm hover:border-[#8B5A2B]">Financeiro</Link>
@@ -82,7 +82,7 @@ export default function AvaliacoesPage() {
                                 </div>
 
                                 {av.comentario ? (
-                                    <p className="text-gray-700 text-sm italic mb-6">"{av.comentario}"</p>
+                                    <p className="text-gray-700 text-sm italic mb-6">&quot;{av.comentario}&quot;</p>
                                 ) : (
                                     <p className="text-gray-400 text-sm italic mb-6">Sem comentário por escrito.</p>
                                 )}

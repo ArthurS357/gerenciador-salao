@@ -14,6 +14,11 @@ type EditState = Record<string, { comissao: number; podeVerComissao: boolean }>
 type Mensagem = { texto: string; tipo: 'sucesso' | 'erro' }
 type PeriodoFiltro = 'hoje' | 'semana' | 'mes' | 'tudo'
 
+// Extensão de tipagem para remover o 'any' do jsPDF
+interface jsPDFWithAutoTable extends jsPDF {
+    lastAutoTable: { finalY: number }
+}
+
 export default function PainelFinanceiroPage() {
     const [dados, setDados] = useState<FinanceiroResumo | null>(null)
     const [mensagem, setMensagem] = useState<Mensagem | null>(null)
@@ -26,7 +31,7 @@ export default function PainelFinanceiroPage() {
     const obterDatasDoFiltro = (periodo: PeriodoFiltro) => {
         const hoje = new Date()
         let dataInicio = new Date()
-        let dataFim = new Date(hoje.setHours(23, 59, 59, 999))
+        const dataFim = new Date(hoje.setHours(23, 59, 59, 999))
 
         switch (periodo) {
             case 'hoje':
@@ -47,7 +52,6 @@ export default function PainelFinanceiroPage() {
     }
 
     const carregarDados = useCallback(async (periodo: PeriodoFiltro) => {
-        setIsLoadingMetrics(true)
         const filtro = obterDatasDoFiltro(periodo)
 
         const res = await obterResumoFinanceiro(filtro)
@@ -64,8 +68,21 @@ export default function PainelFinanceiroPage() {
         setIsLoadingMetrics(false)
     }, [])
 
+    // CORREÇÃO: Função assíncrona encapsulada dentro do useEffect para respeitar a regra do linter
     useEffect(() => {
-        carregarDados(periodoAtual)
+        let isMounted = true;
+
+        const fetchFinanceiro = async () => {
+            await carregarDados(periodoAtual);
+        };
+
+        if (isMounted) {
+            fetchFinanceiro();
+        }
+
+        return () => {
+            isMounted = false;
+        };
     }, [carregarDados, periodoAtual])
 
     const handleAtualizarRegras = async (prof: FuncionarioResumo) => {
@@ -77,7 +94,8 @@ export default function PainelFinanceiroPage() {
         const res = await atualizarComissaoFuncionario(prof.id, estado.comissao, estado.podeVerComissao)
         if (res.sucesso) {
             setMensagem({ texto: `Regras de ${prof.nome} atualizadas com sucesso!`, tipo: 'sucesso' })
-            carregarDados(periodoAtual)
+            setIsLoadingMetrics(true)
+            await carregarDados(periodoAtual)
         } else {
             setMensagem({ texto: res.erro, tipo: 'erro' })
         }
@@ -105,7 +123,6 @@ export default function PainelFinanceiroPage() {
     const exportarParaExcel = () => {
         if (!dados) return
 
-        // Mapeia os dados financeiros absolutos
         const resumoData = [
             { Métrica: 'Faturamento Bruto', 'Valor (R$)': dados.faturamentoBruto },
             { Métrica: 'Custos (Insumos + Revenda)', 'Valor (R$)': dados.custoProdutos },
@@ -114,7 +131,6 @@ export default function PainelFinanceiroPage() {
         ]
         const wsResumo = XLSX.utils.json_to_sheet(resumoData)
 
-        // Mapeia os perfis de comissão da equipa
         const equipaData = dados.equipe.map(p => ({
             'Profissional': p.nome,
             'Taxa de Comissão (%)': p.comissao,
@@ -124,7 +140,7 @@ export default function PainelFinanceiroPage() {
 
         const wb = XLSX.utils.book_new()
         XLSX.utils.book_append_sheet(wb, wsResumo, 'Resumo Financeiro')
-        XLSX.utils.book_append_sheet(wb, wsEquipa, 'Equipa de Profissionais')
+        XLSX.utils.book_append_sheet(wb, wsEquipa, 'Equipe de Profissionais')
 
         XLSX.writeFile(wb, `Relatorio_Financeiro_${periodoAtual}.xlsx`)
     }
@@ -134,7 +150,6 @@ export default function PainelFinanceiroPage() {
 
         const doc = new jsPDF()
 
-        // Cabeçalho do Documento
         doc.setFontSize(20)
         doc.text('Relatório Financeiro do Salão', 14, 22)
 
@@ -143,7 +158,6 @@ export default function PainelFinanceiroPage() {
         doc.text(`Período de Análise: ${getNomePeriodo()}`, 14, 30)
         doc.text(`Data de Emissão: ${new Date().toLocaleDateString('pt-BR')}`, 14, 36)
 
-        // Bloco 1: Tabela de Totais Financeiros
         autoTable(doc, {
             startY: 45,
             head: [['Métrica Financeira', 'Valor (R$)']],
@@ -154,17 +168,16 @@ export default function PainelFinanceiroPage() {
                 ['Lucro Líquido (Real)', dados.lucroLiquido.toFixed(2)],
             ],
             theme: 'grid',
-            headStyles: { fillColor: [92, 64, 51] }, // Castanho escuro (#5C4033)
+            headStyles: { fillColor: [92, 64, 51] },
             styles: { fontSize: 10 }
         })
 
-        // Bloco 2: Tabela de Comissões por Profissional
         autoTable(doc, {
-            startY: (doc as any).lastAutoTable.finalY + 15,
+            startY: (doc as jsPDFWithAutoTable).lastAutoTable.finalY + 15,
             head: [['Profissional', 'Comissão (%)', 'Acesso Visível']],
             body: dados.equipe.map(p => [p.nome, `${p.comissao}%`, p.podeVerComissao ? 'Sim' : 'Não']),
             theme: 'striped',
-            headStyles: { fillColor: [139, 90, 43] }, // Castanho claro (#8B5A2B)
+            headStyles: { fillColor: [139, 90, 43] },
             styles: { fontSize: 10 }
         })
 
@@ -229,11 +242,16 @@ export default function PainelFinanceiroPage() {
                         {botoesFiltro.map(btn => (
                             <button
                                 key={btn.valor}
-                                onClick={() => setPeriodoAtual(btn.valor)}
+                                onClick={() => {
+                                    if (periodoAtual !== btn.valor) {
+                                        setIsLoadingMetrics(true)
+                                        setPeriodoAtual(btn.valor)
+                                    }
+                                }}
                                 disabled={isLoadingMetrics}
                                 className={`px-4 py-2 rounded text-sm font-bold transition-colors ${periodoAtual === btn.valor
-                                        ? 'bg-[#8B5A2B] text-white shadow-sm'
-                                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                    ? 'bg-[#8B5A2B] text-white shadow-sm'
+                                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                                     }`}
                             >
                                 {btn.label}
