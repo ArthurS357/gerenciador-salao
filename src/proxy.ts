@@ -5,13 +5,12 @@ import { jwtVerify } from 'jose'
 const REDIRECT_PROFISSIONAL = '/login-profissional'
 const REDIRECT_CLIENTE = '/login'
 
-// ── FUNÇÃO AUXILIAR: Obter a chave do .env com segurança ───────────────────
+// ── FUNÇÃO AUXILIAR ───────────────────────────────────────────────────────
 function getJwtSecret() {
     const secret = process.env.JWT_SECRET
 
     if (!secret) {
         if (process.env.NODE_ENV === 'production') {
-            // Em produção, a falta do JWT_SECRET no .env é uma falha crítica de segurança.
             throw new Error('FALHA CRÍTICA: Variável JWT_SECRET não configurada no ficheiro .env!')
         }
         console.warn('Aviso: Variável JWT_SECRET ausente no .env. A utilizar fallback de desenvolvimento.')
@@ -84,14 +83,9 @@ function applyRateLimit(request: NextRequest): NextResponse | null {
 // ── PROXY PRINCIPAL ───────────────────────────────────────────────────────
 export async function proxy(request: NextRequest): Promise<NextResponse> {
     const { pathname } = request.nextUrl
-
-    const rateLimitResponse = applyRateLimit(request)
-    if (rateLimitResponse) return rateLimitResponse
-
-    // Carrega a chave do .env a cada requisição
     const SECRET = getJwtSecret()
 
-    // Área Corporativa (/admin e /profissional)
+    // 1. Área Corporativa (/admin e /profissional) -> ISENTA DE RATE LIMIT
     if (pathname.startsWith('/admin') || pathname.startsWith('/profissional')) {
         const token = request.cookies.get('funcionario_session')?.value
 
@@ -119,7 +113,7 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
         }
     }
 
-    // Área do Cliente (/cliente)
+    // 2. Área do Cliente (/cliente)
     if (pathname.startsWith('/cliente')) {
         const token = request.cookies.get('cliente_session')?.value
 
@@ -127,7 +121,6 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
 
         try {
             const { payload } = await jwtVerify(token, SECRET)
-
             if (payload.role !== 'CLIENTE') return NextResponse.redirect(new URL(REDIRECT_CLIENTE, request.url))
 
             const requestHeaders = new Headers(request.headers)
@@ -141,6 +134,10 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
             return response
         }
     }
+
+    // 3. Aplica o Rate Limit APENAS nas rotas públicas (onde bots tentam fazer spam)
+    const rateLimitResponse = applyRateLimit(request)
+    if (rateLimitResponse) return rateLimitResponse
 
     return NextResponse.next()
 }
