@@ -8,7 +8,8 @@ import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, R
 import type { FinanceiroResumo, FuncionarioResumo } from '@/types/domain'
 import * as XLSX from 'xlsx'
 
-// Carrega o componente de PDF dinamicamente, forçando a NÃO renderizar no servidor (ssr: false)
+// Carregamos o componente de PDF dinamicamente, forçando a NÃO renderizar no servidor (ssr: false)
+// Isto previne os erros de build do Turbopack
 const BotaoExportarPDF = dynamic(() => import('@/components/BotaoExportarPDF'), {
     ssr: false,
     loading: () => <button disabled className="px-5 py-2.5 bg-gray-300 text-white rounded-lg text-sm font-bold opacity-50 cursor-not-allowed shadow-sm">PDF a carregar...</button>
@@ -21,11 +22,11 @@ type ChartData = { data: string; 'Faturamento (R$)': number; Atendimentos: numbe
 
 // Type guards para verificar os tipos de resposta
 function isSuccessResponse<T>(response: unknown): response is T & { sucesso: true } {
-    return typeof response === 'object' && response !== null && 'sucesso' in response && response.sucesso === true
+    return typeof response === 'object' && response !== null && 'sucesso' in response && (response as any).sucesso === true
 }
 
 function isErrorResponse(response: unknown): response is { sucesso: false; erro: string } {
-    return typeof response === 'object' && response !== null && 'sucesso' in response && response.sucesso === false && 'erro' in response
+    return typeof response === 'object' && response !== null && 'sucesso' in response && (response as any).sucesso === false && 'erro' in response
 }
 
 function isFinanceiroResumo(response: unknown): response is FinanceiroResumo {
@@ -45,6 +46,10 @@ export default function PainelFinanceiroPage() {
 
     const [periodoAtual, setPeriodoAtual] = useState<PeriodoFiltro>('mes')
     const [isLoadingMetrics, setIsLoadingMetrics] = useState(true)
+
+    // PREVENÇÃO DE ERRO NO RECHARTS: Garante que os gráficos só tentam ler as dimensões após a página estar montada no browser
+    const [mounted, setMounted] = useState(false)
+    useEffect(() => setMounted(true), [])
 
     const obterDatasDoFiltro = (periodo: PeriodoFiltro) => {
         const hoje = new Date()
@@ -233,7 +238,9 @@ export default function PainelFinanceiroPage() {
                             <button
                                 key={btn.valor}
                                 onClick={() => {
-                                    if (periodoAtual !== btn.valor) setPeriodoAtual(btn.valor)
+                                    if (periodoAtual !== btn.valor) {
+                                        setPeriodoAtual(btn.valor)
+                                    }
                                 }}
                                 disabled={isLoadingMetrics}
                                 className={`px-4 py-2 rounded text-sm font-bold transition-colors ${periodoAtual === btn.valor
@@ -271,8 +278,8 @@ export default function PainelFinanceiroPage() {
                 ))}
             </div>
 
-            {/* GRÁFICOS VISUAIS RECHARTS */}
-            {chartData.length > 0 && (
+            {/* GRÁFICOS VISUAIS RECHARTS (SÓ RENDERIZA DEPOIS DE MONTADO) */}
+            {mounted && chartData.length > 0 && (
                 <div className={`grid grid-cols-1 lg:grid-cols-2 gap-6 mb-10 transition-opacity duration-300 ${isLoadingMetrics ? 'opacity-40 pointer-events-none' : 'opacity-100'}`}>
                     <div className="bg-white p-6 rounded-lg shadow border border-[#e5d9c5]">
                         <h3 className="text-lg font-bold text-[#5C4033] mb-6">Tendência de Faturamento (Últimos 7 dias)</h3>
