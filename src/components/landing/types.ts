@@ -87,4 +87,5 @@ export interface FormularioReservaProps {
     mensagem: Mensagem
     handleAgendar: (e: React.FormEvent) => void
     profissionalSelecionado?: Profissional
+    toggleServico: (id: string) => void
 }

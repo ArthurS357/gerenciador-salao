@@ -56,6 +56,7 @@ const FormularioReserva = memo(function FormularioReserva({
     mensagem,
     handleAgendar,
     profissionalSelecionado,
+    toggleServico,
 }: FormularioReservaProps) {
     const [nome, setNome] = useState('')
     const [telefone, setTelefone] = useState('')
@@ -233,6 +234,31 @@ const FormularioReserva = memo(function FormularioReserva({
                                     disabled={sessao.logado}
                                 />
                             </div>
+                        </div>
+
+                        {/* 1.5. Seleção de Serviços */}
+                        <div className="mb-5">
+                            <label htmlFor="servicos" className="block font-sans text-[0.62rem] font-medium tracking-[0.2em] uppercase text-[rgba(197,168,124,0.75)] mb-2.5">
+                                Adicionar Serviço
+                            </label>
+                            <DarkSelect
+                                id="servicos"
+                                onChange={(e) => {
+                                    const idSelecionado = e.target.value;
+                                    if (idSelecionado) {
+                                        toggleServico(idSelecionado);
+                                        e.target.value = "";
+                                    }
+                                }}
+                                defaultValue=""
+                            >
+                                <option value="" disabled>Selecione um serviço pelo nome...</option>
+                                {catalogoServicos.map(s => (
+                                    <option key={s.id} value={s.id}>
+                                        {s.nome} - R$ {s.preco?.toFixed(2)}
+                                    </option>
+                                ))}
+                            </DarkSelect>
                         </div>
 
                         {/* 2. Seleção de Profissional e Data */}

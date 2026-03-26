@@ -112,6 +112,7 @@ export default function LandingInterativo({
                 mensagem={mensagem}
                 handleAgendar={handleAgendar}
                 profissionalSelecionado={profissionalSelecionado}
+                toggleServico={toggleServico}
             />
         </>
     )
