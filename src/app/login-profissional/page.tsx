@@ -27,7 +27,7 @@ export default function LoginProfissionalPage() {
                 if (res.role === 'ADMIN') {
                     router.push('/admin/dashboard');
                 } else {
-                    router.push('/profissional/agenda');
+                    router.push('/profissional/dashboard');
                 }
             } else {
                 setErro(res.error || 'Acesso negado.');
