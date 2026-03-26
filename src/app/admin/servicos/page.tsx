@@ -192,7 +192,7 @@ export default function PainelServicosPage() {
 
                 <nav className="flex flex-wrap gap-2 md:gap-3 p-1 md:p-1.5 bg-gray-100/60 backdrop-blur rounded-2xl w-fit">
                     {[
-                        { href: '/admin/dashboard', label: 'Equipa' },
+                        { href: '/admin/dashboard', label: 'Equipe' },
                         { href: '/admin/financeiro', label: 'Financeiro' },
                         { href: '/admin/estoque', label: 'Estoque' },
                         { href: '/admin/servicos', label: 'Serviços', ativo: true },
@@ -272,7 +272,7 @@ export default function PainelServicosPage() {
                                 <div className="mt-4 flex justify-between items-center border-t border-gray-100 pt-4">
                                     {s.tempoMinutos ? (
                                         <div className="flex items-center gap-1.5 text-gray-500">
-                                            <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                                            <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><path d="M12 6v6l4 2" /></svg>
                                             <span className="text-[11px] font-bold uppercase tracking-widest">{s.tempoMinutos} min</span>
                                         </div>
                                     ) : (
@@ -302,7 +302,7 @@ export default function PainelServicosPage() {
                                 <p className="text-sm text-gray-500 mt-1">Crie um novo serviço para sua vitrine.</p>
                             </div>
                             <button onClick={() => setIsModalOpen(false)} className="p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 rounded-full transition-colors">
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6L6 18M6 6l12 12" /></svg>
                             </button>
                         </div>
                         <form onSubmit={handleSalvarServico} className="space-y-5">
@@ -351,7 +351,7 @@ export default function PainelServicosPage() {
                                 <p className="text-sm text-gray-500 mt-1">Configure o consumo de produtos por serviço.</p>
                             </div>
                             <button type="button" onClick={() => setModalFichaTecnica(null)} className="p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 rounded-full transition-colors">
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6L6 18M6 6l12 12" /></svg>
                             </button>
                         </div>
                         <div className="p-8 overflow-y-auto flex-1 space-y-6">
@@ -385,7 +385,7 @@ export default function PainelServicosPage() {
                                                 <div className="flex items-center gap-4">
                                                     <span className="text-base font-black text-[#8B5A2B]">{insumo.quantidadeUsada} <span className="text-[10px] text-gray-500 uppercase tracking-widest">{insumo.produto.unidadeMedida}</span></span>
                                                     <button onClick={() => handleRemoverInsumo(insumo.id)} disabled={loadingAcao} className="text-red-400 hover:text-red-600 hover:bg-red-50 p-2 rounded-full transition-colors disabled:opacity-50" title="Remover insumo">
-                                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6L6 18M6 6l12 12" /></svg>
                                                     </button>
                                                 </div>
                                             </div>

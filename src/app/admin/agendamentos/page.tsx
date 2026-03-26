@@ -59,11 +59,11 @@ const permissoesSistema: {
     label: string
     desc: string
 }[] = [
-    { key: 'podeVerComissao', label: 'Ver Valores Financeiros', desc: 'Visualiza faturamento da comanda.' },
-    { key: 'podeAgendar', label: 'Criar Agendamentos', desc: 'Cria novas reservas na agenda.' },
-    { key: 'podeVerHistorico', label: 'Ver Histórico Financeiro', desc: 'Acessa comandas já faturadas.' },
-    { key: 'podeCancelar', label: 'Cancelar Agendamentos', desc: 'Pode excluir clientes e faturamentos.' },
-]
+        { key: 'podeVerComissao', label: 'Ver Valores Financeiros', desc: 'Visualiza faturamento da comanda.' },
+        { key: 'podeAgendar', label: 'Criar Agendamentos', desc: 'Cria novas reservas na agenda.' },
+        { key: 'podeVerHistorico', label: 'Ver Histórico Financeiro', desc: 'Acessa comandas já faturadas.' },
+        { key: 'podeCancelar', label: 'Cancelar Agendamentos', desc: 'Pode excluir clientes e faturamentos.' },
+    ]
 
 // ── Helper: Avatar ────────────────────────────────────────────────────────────
 
@@ -266,16 +266,16 @@ export default function AgendamentosGlobaisPage() {
 
     return (
         <div className="min-h-screen bg-[#fdfbf7] font-sans">
-            <AdminHeader 
+            <AdminHeader
                 titulo="Agendamentos Globais"
-                subtitulo="Calendário interativo e gestão de horários da equipa"
+                subtitulo="Calendário interativo e gestão de horários da equipe"
                 abaAtiva="Agendamentos"
                 botaoAcao={
                     <button
                         onClick={() => setIsModalNovoOpen(true)}
                         className="flex items-center justify-center gap-2 bg-[#5C4033] text-white px-5 py-2.5 rounded-xl font-bold text-sm hover:bg-[#3e2b22] transition-colors shadow-sm active:scale-[0.98]"
                     >
-                        <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+                        <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" /></svg>
                         Novo Agendamento
                     </button>
                 }
@@ -300,19 +300,19 @@ export default function AgendamentosGlobaisPage() {
                     {/* Cabeçalho do mês */}
                     <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
                         <button onClick={() => mudarMes(-1)} className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-800 transition-colors">
-                            <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>
+                            <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6" /></svg>
                         </button>
                         <h2 className="font-bold text-lg text-gray-800 capitalize">
                             {new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric' }).format(dataAtual)}
                         </h2>
                         <button onClick={() => mudarMes(1)} className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-800 transition-colors">
-                            <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>
+                            <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6" /></svg>
                         </button>
                     </div>
 
                     {loading ? (
                         <div className="h-72 flex items-center justify-center text-gray-400 text-sm font-medium">
-                            <svg className="animate-spin w-5 h-5 mr-2 text-[#8B5A2B]" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                            <svg className="animate-spin w-5 h-5 mr-2 text-[#8B5A2B]" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
                             A carregar agenda...
                         </div>
                     ) : (
@@ -341,7 +341,7 @@ export default function AgendamentosGlobaisPage() {
                                             className={`h-16 sm:h-20 p-1.5 rounded-xl border cursor-pointer flex flex-col transition-all
                                                 ${isSelecionado ? 'border-[#8B5A2B] bg-amber-50 shadow-sm ring-1 ring-[#8B5A2B]/30'
                                                     : isHoje ? 'border-[#8B5A2B]/40 bg-orange-50/30'
-                                                    : 'border-transparent hover:border-gray-200 hover:bg-gray-50'}`}
+                                                        : 'border-transparent hover:border-gray-200 hover:bg-gray-50'}`}
                                         >
                                             <span className={`text-xs font-bold ${isHoje ? 'text-[#8B5A2B]' : isSelecionado ? 'text-[#8B5A2B]' : 'text-gray-600'}`}>
                                                 {dia}
@@ -377,7 +377,7 @@ export default function AgendamentosGlobaisPage() {
                                 </p>
                             </div>
                             <button onClick={() => setDiaSelecionado(null)} className="text-gray-400 hover:text-gray-700 p-1 rounded-lg hover:bg-gray-100 transition-colors">
-                                <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>
+                                <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12" /></svg>
                             </button>
                         </div>
 
@@ -386,7 +386,7 @@ export default function AgendamentosGlobaisPage() {
 
                                 {/* Equipa do dia */}
                                 <div className="lg:col-span-1">
-                                    <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Equipa de Plantão</h3>
+                                    <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Equipe de Plantão</h3>
                                     {equipaDoDia.length === 0 ? (
                                         <div className="bg-white border border-dashed border-gray-200 rounded-xl p-6 text-center">
                                             <p className="text-xs text-gray-400">Nenhum profissional escalado.</p>
@@ -491,7 +491,7 @@ export default function AgendamentosGlobaisPage() {
                                 <p className="text-xs text-gray-500 mt-0.5">Preencha os dados do agendamento</p>
                             </div>
                             <button onClick={() => { setIsModalNovoOpen(false); formNovo.reset() }} className="text-gray-400 hover:text-gray-700 p-1 rounded-lg hover:bg-gray-100">
-                                <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>
+                                <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12" /></svg>
                             </button>
                         </div>
                         <form onSubmit={formNovo.handleSubmit(onSubmitNovo)} className="p-6 space-y-4">
@@ -551,7 +551,7 @@ export default function AgendamentosGlobaisPage() {
                                 <p className="text-xs text-gray-500 mt-0.5">Altere o profissional ou a data/hora</p>
                             </div>
                             <button onClick={() => { setAgendamentoEditandoId(null); formEditar.reset() }} className="text-gray-400 hover:text-gray-700 p-1 rounded-lg hover:bg-gray-100">
-                                <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>
+                                <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12" /></svg>
                             </button>
                         </div>
                         <form onSubmit={formEditar.handleSubmit(onSubmitEditar)} className="p-6 space-y-4">
@@ -595,7 +595,7 @@ export default function AgendamentosGlobaisPage() {
                                 <p className="text-xs text-gray-500">Permissões e escala de trabalho</p>
                             </div>
                             <button onClick={() => setModalAcessos(null)} className="text-gray-400 hover:text-gray-700 p-1 rounded-lg hover:bg-gray-100 transition-colors">
-                                <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>
+                                <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12" /></svg>
                             </button>
                         </div>
 

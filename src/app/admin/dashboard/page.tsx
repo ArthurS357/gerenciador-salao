@@ -128,7 +128,7 @@ export default function TorreControleDashboard() {
             const [resEq, resSv, resNotif] = await Promise.all([
                 listarEquipaAdmin(), listarServicosAdmin(), listarNotificacoesAdmin()
             ])
-            if (resEq.sucesso && 'equipa' in resEq) setEquipa(resEq.equipa as ProfissionalResumo[])
+            if (resEq.sucesso && 'equipe' in resEq) setEquipa(resEq.equipa as ProfissionalResumo[])
             if (resSv.sucesso && 'servicos' in resSv) setServicosDisponiveis(resSv.servicos as ServicoResumo[])
             if (resNotif.sucesso && 'notificacoes' in resNotif) setNotificacoes(resNotif.notificacoes as NotificacaoItem[])
         }
@@ -137,7 +137,7 @@ export default function TorreControleDashboard() {
 
     const recarregarDados = useCallback(async () => {
         const [resEq, resNotif] = await Promise.all([listarEquipaAdmin(), listarNotificacoesAdmin()])
-        if (resEq.sucesso && 'equipa' in resEq) setEquipa(resEq.equipa as ProfissionalResumo[])
+        if (resEq.sucesso && 'equipe' in resEq) setEquipa(resEq.equipa as ProfissionalResumo[])
         if (resNotif.sucesso && 'notificacoes' in resNotif) setNotificacoes(resNotif.notificacoes as NotificacaoItem[])
     }, [])
 
@@ -232,9 +232,9 @@ export default function TorreControleDashboard() {
 
     return (
         <div className="min-h-screen bg-[#fdfbf7] font-sans">
-            <AdminHeader 
+            <AdminHeader
                 titulo="Torre de Controlo"
-                subtitulo="Gestão de equipa, permissões e escalas de trabalho"
+                subtitulo="Gestão de equipe, permissões e escalas de trabalho"
                 abaAtiva="Equipa"
                 botaoAcao={
                     <button
@@ -305,7 +305,7 @@ export default function TorreControleDashboard() {
                 {/* ── MÉTRICAS ── */}
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-6">
                     {[
-                        { label: 'Total da Equipa', valor: equipa.length, cor: 'border-blue-400', bgGrad: 'from-blue-50 to-transparent', textCor: 'text-gray-800' },
+                        { label: 'Total da Equipe', valor: equipa.length, cor: 'border-blue-400', bgGrad: 'from-blue-50 to-transparent', textCor: 'text-gray-800' },
                         { label: 'Ativos', valor: totalAtivos, cor: 'border-emerald-400', bgGrad: 'from-emerald-50 to-transparent', textCor: 'text-emerald-700' },
                         { label: 'Inativos', valor: totalInativos, cor: 'border-red-400', bgGrad: 'from-red-50 to-transparent', textCor: 'text-red-600' },
                     ].map(({ label, valor, cor, bgGrad, textCor }) => (
@@ -331,7 +331,7 @@ export default function TorreControleDashboard() {
                     />
                 </div>
 
-                {/* ── TABELA DE EQUIPA ── */}
+                {/* ── TABELA DE EQUIPE ── */}
                 <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
                     <div className="px-6 md:px-8 py-5 border-b border-gray-100 bg-gray-50/50">
                         <h2 className="font-bold text-marrom-medio text-lg tracking-tight">Registo de Profissionais</h2>

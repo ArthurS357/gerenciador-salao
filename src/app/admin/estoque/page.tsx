@@ -36,10 +36,10 @@ const FORM_INICIAL: FormCriar = {
 }
 
 const NAV_LINKS = [
-    { href: '/admin/dashboard', label: 'Equipa' },
+    { href: '/admin/dashboard', label: 'Equipe' },
     { href: '/admin/financeiro', label: 'Financeiro' },
     { href: '/admin/estoque', label: 'Estoque', ativo: true },
-    { href: '/admin/servicos', label: 'Portfólio / Serviços' },
+    { href: '/admin/servicos', label: 'Serviços' },
     { href: '/admin/agendamentos', label: 'Agendamentos Globais' },
     { href: '/admin/clientes', label: 'Base de Clientes' },
 ] as const
@@ -557,7 +557,7 @@ export default function PainelEstoquePage() {
                                 onClick={() => { setModalCriar(false); setFormData(FORM_INICIAL) }}
                                 className="p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 rounded-full transition-colors disabled:opacity-50"
                             >
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6L6 18M6 6l12 12" /></svg>
                             </button>
                         </div>
 
@@ -706,7 +706,7 @@ export default function PainelEstoquePage() {
                                 onClick={() => setModalEntrada(null)}
                                 className="p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 rounded-full transition-colors"
                             >
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6L6 18M6 6l12 12" /></svg>
                             </button>
                         </div>
 

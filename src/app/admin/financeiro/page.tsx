@@ -210,7 +210,7 @@ export default function PainelFinanceiroPage() {
 
             <nav className="flex flex-wrap gap-2 md:gap-3 mb-10 p-1 md:p-1.5 bg-gray-100/60 backdrop-blur rounded-2xl w-fit">
                 {[
-                    { href: '/admin/dashboard', label: 'Equipa' },
+                    { href: '/admin/dashboard', label: 'Equipe' },
                     { href: '/admin/financeiro', label: 'Financeiro', ativo: true },
                     { href: '/admin/estoque', label: 'Estoque' },
                     { href: '/admin/servicos', label: 'Serviços' },
@@ -345,7 +345,7 @@ export default function PainelFinanceiroPage() {
             <section className={`bg-white rounded-2xl shadow-sm border border-gray-100 transition-opacity mb-10 ${isLoadingMetrics ? 'opacity-40' : 'opacity-100'}`}>
                 <div className="p-6 md:p-8 border-b border-gray-100">
                     <h2 className="text-xl font-bold text-[#5C4033] tracking-tight">Regras de Comissão</h2>
-                    <p className="text-sm text-gray-500 mt-1">Configuração de repasse financeiro por profissional na equipa.</p>
+                    <p className="text-sm text-gray-500 mt-1">Configuração de repasse financeiro por profissional na equipe.</p>
                 </div>
                 <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse">
@@ -396,13 +396,13 @@ export default function PainelFinanceiroPage() {
                                                 </label>
                                             </td>
                                             <td className="p-4 text-right">
-                                                    <button
-                                                        onClick={() => handleAtualizarRegras(p)}
-                                                        disabled={isSaving}
-                                                        className="bg-gray-100 text-[#5C4033] font-bold px-5 py-2 rounded-xl text-sm hover:bg-[#5C4033] hover:text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed border border-gray-200 hover:border-[#5C4033]"
-                                                    >
-                                                        {isSaving ? 'A Guardar...' : 'Atualizar'}
-                                                    </button>
+                                                <button
+                                                    onClick={() => handleAtualizarRegras(p)}
+                                                    disabled={isSaving}
+                                                    className="bg-gray-100 text-[#5C4033] font-bold px-5 py-2 rounded-xl text-sm hover:bg-[#5C4033] hover:text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed border border-gray-200 hover:border-[#5C4033]"
+                                                >
+                                                    {isSaving ? 'A Guardar...' : 'Atualizar'}
+                                                </button>
                                             </td>
                                         </tr>
                                     )
