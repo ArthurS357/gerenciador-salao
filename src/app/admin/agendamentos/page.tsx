@@ -2,6 +2,9 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
 import {
     listarAgendamentosGlobais,
     cancelarAgendamentoPendente,
@@ -11,48 +14,111 @@ import {
     type AgendamentoGlobalItem,
     type FuncionarioComExpedienteItem
 } from '@/app/actions/agendamento'
-
 import {
     atualizarFuncionarioCompleto,
     salvarEscalaFuncionarioAdmin,
     type ExpedienteInfo
 } from '@/app/actions/admin'
 
-// 1. Definição de Tipos para corrigir o erro de 'any'
-// Estendemos o tipo importado para incluir os campos de permissão que o modal utiliza
+// ── Schemas Zod ──────────────────────────────────────────────────────────────
+
+const schemaNovo = z.object({
+    clienteId: z.string().min(1, 'Informe o ID do cliente'),
+    funcionarioId: z.string().min(1, 'Selecione um profissional'),
+    servicoId: z.string().min(1, 'Informe o ID do serviço'),
+    dataHora: z.string().min(1, 'Informe a data e hora'),
+})
+
+const schemaEditar = z.object({
+    funcionarioId: z.string().min(1, 'Selecione um profissional'),
+    dataHora: z.string().min(1, 'Informe a nova data e hora'),
+})
+
+type FormNovo = z.infer<typeof schemaNovo>
+type FormEditar = z.infer<typeof schemaEditar>
+
+// ── Tipos ────────────────────────────────────────────────────────────────────
+
 interface FuncionarioGerenciavel extends FuncionarioComExpedienteItem {
-    comissao: number;
-    podeVerComissao: boolean;
-    podeAgendar: boolean;
-    podeVerHistorico: boolean;
-    podeCancelar: boolean;
+    comissao: number
+    podeVerComissao: boolean
+    podeAgendar: boolean
+    podeVerHistorico: boolean
+    podeCancelar: boolean
 }
 
-const DIAS_SEMANA = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
+type Mensagem = { texto: string; tipo: 'sucesso' | 'erro' | 'info' }
+
+// ── Constantes ───────────────────────────────────────────────────────────────
+
+const DIAS_SEMANA_CURTO = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
 const DIAS_SEMANA_COMPLETO = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado']
 
+const permissoesSistema: {
+    key: keyof Pick<FuncionarioGerenciavel, 'podeVerComissao' | 'podeAgendar' | 'podeVerHistorico' | 'podeCancelar'>
+    label: string
+    desc: string
+}[] = [
+    { key: 'podeVerComissao', label: 'Ver Valores Financeiros', desc: 'Visualiza faturamento da comanda.' },
+    { key: 'podeAgendar', label: 'Criar Agendamentos', desc: 'Cria novas reservas na agenda.' },
+    { key: 'podeVerHistorico', label: 'Ver Histórico Financeiro', desc: 'Acessa comandas já faturadas.' },
+    { key: 'podeCancelar', label: 'Cancelar Agendamentos', desc: 'Pode excluir clientes e faturamentos.' },
+]
+
+// ── Helper: Avatar ────────────────────────────────────────────────────────────
+
+function Avatar({ nome }: { nome: string }) {
+    const initials = nome.split(' ').slice(0, 2).map(n => n[0]).join('').toUpperCase()
+    const colors = ['bg-amber-100 text-amber-700', 'bg-orange-100 text-orange-700', 'bg-stone-100 text-stone-700', 'bg-yellow-100 text-yellow-700']
+    const color = colors[nome.charCodeAt(0) % colors.length]
+    return (
+        <div className={`w-8 h-8 ${color} rounded-full flex items-center justify-center font-bold text-xs flex-shrink-0`}>
+            {initials}
+        </div>
+    )
+}
+
+// ── Helper: Campo ─────────────────────────────────────────────────────────────
+
+function Campo({ label, erro, children, required }: { label: string; erro?: string; children: React.ReactNode; required?: boolean }) {
+    return (
+        <div>
+            <label className="block text-xs font-semibold text-stone-600 uppercase tracking-wide mb-1.5">
+                {label}{required && <span className="text-red-500 ml-0.5">*</span>}
+            </label>
+            {children}
+            {erro && <p className="mt-1 text-xs text-red-600 flex items-center gap-1">⚠ {erro}</p>}
+        </div>
+    )
+}
+
+// ── Componente Principal ──────────────────────────────────────────────────────
+
 export default function AgendamentosGlobaisPage() {
-    // ... (estados iniciais mantidos iguais)
     const [agendamentos, setAgendamentos] = useState<AgendamentoGlobalItem[]>([])
     const [equipa, setEquipa] = useState<FuncionarioComExpedienteItem[]>([])
     const [loading, setLoading] = useState(true)
+    const [mensagem, setMensagem] = useState<Mensagem | null>(null)
 
     const [dataAtual, setDataAtual] = useState(new Date())
     const [diaSelecionado, setDiaSelecionado] = useState<Date | null>(null)
 
     const [isModalNovoOpen, setIsModalNovoOpen] = useState(false)
     const [loadingSalvar, setLoadingSalvar] = useState(false)
-    const [novaReserva, setNovaReserva] = useState({ clienteId: '', funcionarioId: '', dataHora: '', servicoId: '' })
 
-    const [agendamentoEditando, setAgendamentoEditando] = useState<{ id: string; funcionarioId: string; dataHora: string } | null>(null)
+    const [agendamentoEditandoId, setAgendamentoEditandoId] = useState<string | null>(null)
     const [loadingEditar, setLoadingEditar] = useState(false)
 
-    // 2. Estado do Modal tipado corretamente (remove a necessidade de 'as any')
     const [modalAcessos, setModalAcessos] = useState<FuncionarioGerenciavel | null>(null)
     const [abaAtiva, setAbaAtiva] = useState<'permissoes' | 'escala'>('permissoes')
     const [loadingAcaoProfissional, setLoadingAcaoProfissional] = useState(false)
+    const [loadingCancelarId, setLoadingCancelarId] = useState<string | null>(null)
 
-    // ... (carregarDados e lógicas do calendário mantidos iguais)
+    const formNovo = useForm<FormNovo>({ resolver: zodResolver(schemaNovo) })
+    const formEditar = useForm<FormEditar>({ resolver: zodResolver(schemaEditar) })
+
+    // ── Dados ────────────────────────────────────────────────────────────────
+
     const carregarDados = useCallback(async () => {
         setLoading(true)
         const [resAg, resEq] = await Promise.all([
@@ -66,6 +132,13 @@ export default function AgendamentosGlobaisPage() {
 
     useEffect(() => { void carregarDados() }, [carregarDados])
 
+    const exibirMensagem = (texto: string, tipo: Mensagem['tipo'], ms = 4000) => {
+        setMensagem({ texto, tipo })
+        if (ms > 0) setTimeout(() => setMensagem(null), ms)
+    }
+
+    // ── Calendário ───────────────────────────────────────────────────────────
+
     const mes = dataAtual.getMonth()
     const ano = dataAtual.getFullYear()
     const diasNoMes = new Date(ano, mes + 1, 0).getDate()
@@ -76,39 +149,42 @@ export default function AgendamentosGlobaisPage() {
         setDiaSelecionado(null)
     }
 
-    const obterAgendamentosDoDia = (dia: number, mesAlvo: number, anoAlvo: number): AgendamentoGlobalItem[] => {
-        return agendamentos.filter(ag => {
+    const obterAgendamentosDoDia = (dia: number, mesAlvo: number, anoAlvo: number) =>
+        agendamentos.filter(ag => {
             const d = new Date(ag.dataHoraInicio)
             return d.getDate() === dia && d.getMonth() === mesAlvo && d.getFullYear() === anoAlvo
         })
-    }
+
+    // ── Ações ────────────────────────────────────────────────────────────────
 
     const handleCancelar = async (id: string) => {
-        if (!confirm("Deseja realmente cancelar/excluir este agendamento?")) return
+        setLoadingCancelarId(id)
         const res = await cancelarAgendamentoPendente(id)
         if (res.sucesso) {
-            alert("Agendamento excluído com sucesso.")
+            exibirMensagem('Agendamento cancelado com sucesso.', 'sucesso')
             void carregarDados()
         } else {
-            alert(res.erro || "Ocorreu um erro ao cancelar.")
+            exibirMensagem(res.erro || 'Erro ao cancelar agendamento.', 'erro')
         }
+        setLoadingCancelarId(null)
     }
 
-    const handleCriarAgendamento = async (e: React.FormEvent) => {
-        e.preventDefault()
+    const onSubmitNovo = async (data: FormNovo) => {
         setLoadingSalvar(true)
         try {
-            const dataFormatada = new Date(novaReserva.dataHora)
             const res = await criarAgendamentoMultiplo(
-                novaReserva.clienteId, novaReserva.funcionarioId, dataFormatada, [novaReserva.servicoId]
+                data.clienteId,
+                data.funcionarioId,
+                new Date(data.dataHora),
+                [data.servicoId]
             )
             if (res.sucesso) {
-                alert("Agendamento criado com sucesso!")
+                exibirMensagem('Agendamento criado com sucesso!', 'sucesso')
                 setIsModalNovoOpen(false)
-                setNovaReserva({ clienteId: '', funcionarioId: '', dataHora: '', servicoId: '' })
+                formNovo.reset()
                 void carregarDados()
             } else {
-                alert(res.erro || "Erro ao criar agendamento.")
+                exibirMensagem(res.erro || 'Erro ao criar agendamento.', 'erro')
             }
         } finally {
             setLoadingSalvar(false)
@@ -118,206 +194,242 @@ export default function AgendamentosGlobaisPage() {
     const abrirModalEdicao = (ag: AgendamentoGlobalItem) => {
         const d = new Date(ag.dataHoraInicio)
         d.setMinutes(d.getMinutes() - d.getTimezoneOffset())
-        setAgendamentoEditando({ id: ag.id, funcionarioId: ag.funcionarioId, dataHora: d.toISOString().slice(0, 16) })
+        formEditar.reset({
+            funcionarioId: ag.funcionarioId,
+            dataHora: d.toISOString().slice(0, 16),
+        })
+        setAgendamentoEditandoId(ag.id)
     }
 
-    const handleSalvarEdicao = async (e: React.FormEvent) => {
-        e.preventDefault()
-        if (!agendamentoEditando) return
+    const onSubmitEditar = async (data: FormEditar) => {
+        if (!agendamentoEditandoId) return
         setLoadingEditar(true)
         try {
-            const dataFormatada = new Date(agendamentoEditando.dataHora)
-            const res = await editarAgendamentoPendente(agendamentoEditando.id, agendamentoEditando.funcionarioId, dataFormatada)
+            const res = await editarAgendamentoPendente(
+                agendamentoEditandoId,
+                data.funcionarioId,
+                new Date(data.dataHora)
+            )
             if (res.sucesso) {
-                alert("Agendamento atualizado com sucesso!")
-                setAgendamentoEditando(null)
+                exibirMensagem('Agendamento atualizado com sucesso!', 'sucesso')
+                setAgendamentoEditandoId(null)
+                formEditar.reset()
                 void carregarDados()
             } else {
-                alert(res.erro || "Erro ao editar agendamento.")
+                exibirMensagem(res.erro || 'Erro ao editar agendamento.', 'erro')
             }
         } finally {
             setLoadingEditar(false)
         }
     }
 
-    // 3. Função de salvar limpa, usando o tipo correto
-    const handleSalvarGerenciamentoProfissional = async () => {
+    const handleSalvarProfissional = async () => {
         if (!modalAcessos) return
         setLoadingAcaoProfissional(true)
-
-        const { id, comissao, podeVerComissao, podeAgendar, podeVerHistorico, podeCancelar, expedientes } = modalAcessos;
-
-        const resPermissoes = await atualizarFuncionarioCompleto(id, {
-            comissao: Number(comissao || 0),
-            podeVerComissao: Boolean(podeVerComissao),
-            podeAgendar: Boolean(podeAgendar),
-            podeVerHistorico: Boolean(podeVerHistorico),
-            podeCancelar: Boolean(podeCancelar)
-        })
-
-        const resEscala = await salvarEscalaFuncionarioAdmin(id, expedientes)
-
-        if (resPermissoes.sucesso && resEscala.sucesso) {
-            alert('Perfil do profissional atualizado com sucesso!')
+        const { id, comissao, podeVerComissao, podeAgendar, podeVerHistorico, podeCancelar, expedientes } = modalAcessos
+        const [resP, resE] = await Promise.all([
+            atualizarFuncionarioCompleto(id, { comissao: Number(comissao), podeVerComissao, podeAgendar, podeVerHistorico, podeCancelar }),
+            salvarEscalaFuncionarioAdmin(id, expedientes)
+        ])
+        if (resP.sucesso && resE.sucesso) {
+            exibirMensagem('Perfil do profissional atualizado!', 'sucesso')
             setModalAcessos(null)
             void carregarDados()
         } else {
-            alert('Erro ao atualizar os dados do profissional.')
+            exibirMensagem('Erro ao atualizar dados do profissional.', 'erro')
         }
         setLoadingAcaoProfissional(false)
     }
 
     const atualizarExpedienteLocal = <K extends keyof ExpedienteInfo>(index: number, campo: K, valor: ExpedienteInfo[K]) => {
         if (!modalAcessos) return
-
-        const novosExpedientes = modalAcessos.expedientes.map((exp, i) => {
-            if (i === index) {
-                return { ...exp, [campo]: valor }
-            }
-            return exp
-        })
-
-        setModalAcessos({ ...modalAcessos, expedientes: novosExpedientes })
+        const novos = modalAcessos.expedientes.map((exp, i) => i === index ? { ...exp, [campo]: valor } : exp)
+        setModalAcessos({ ...modalAcessos, expedientes: novos })
     }
 
-    let agendamentosSelecionados: AgendamentoGlobalItem[] = []
-    let equipaDoDia: FuncionarioComExpedienteItem[] = []
+    // ── Derivações do dia selecionado ────────────────────────────────────────
 
-    if (diaSelecionado) {
-        agendamentosSelecionados = obterAgendamentosDoDia(diaSelecionado.getDate(), diaSelecionado.getMonth(), diaSelecionado.getFullYear())
+    const agendamentosSelecionados = diaSelecionado
+        ? obterAgendamentosDoDia(diaSelecionado.getDate(), diaSelecionado.getMonth(), diaSelecionado.getFullYear())
+        : []
 
-        const diaSemanaIndex = diaSelecionado.getDay()
-        equipaDoDia = equipa.filter(prof => {
-            const expediente = prof.expedientes?.find((e) => e.diaSemana === diaSemanaIndex)
-            return expediente && expediente.ativo
+    const equipaDoDia = diaSelecionado
+        ? equipa.filter(prof => {
+            const exp = prof.expedientes?.find(e => e.diaSemana === diaSelecionado.getDay())
+            return exp?.ativo
         })
-    }
+        : []
 
-    // 4. Tipagem correta das chaves para remover 'any' nas permissões
-    const permissoesSistema: { key: keyof Pick<FuncionarioGerenciavel, 'podeVerComissao' | 'podeAgendar' | 'podeVerHistorico' | 'podeCancelar'>, label: string, desc: string }[] = [
-        { key: 'podeVerComissao', label: 'Ver Valores Financeiros', desc: 'Pode visualizar o faturamento da comanda.' },
-        { key: 'podeAgendar', label: 'Criar Agendamentos', desc: 'Permite criar novas reservas na sua agenda.' },
-        { key: 'podeVerHistorico', label: 'Ver Histórico Financeiro', desc: 'Acesso às comandas já faturadas.' },
-        { key: 'podeCancelar', label: 'Cancelar Agendamentos', desc: 'Pode excluir clientes e faturamentos.' }
-    ]
+    const hoje = new Date()
+
+    // ── Render ───────────────────────────────────────────────────────────────
 
     return (
-        <div className="min-h-screen bg-[#fdfbf7] p-8 font-sans">
-            <header className="mb-6 border-b-2 border-[#5C4033] pb-4 flex justify-between items-center">
+        <div className="min-h-screen bg-stone-50 font-sans">
+
+            {/* ── TOPO ── */}
+            <div className="bg-white border-b border-stone-200 px-6 py-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
-                    <h1 className="text-3xl font-bold text-[#5C4033]">Agendamento Global</h1>
-                    <p className="text-gray-500 mt-1">Calendário interativo e gestão de horários.</p>
+                    <h1 className="text-2xl font-bold text-stone-800 tracking-tight">Agendamentos Globais</h1>
+                    <p className="text-sm text-stone-500 mt-0.5">Calendário interativo e gestão de horários da equipa</p>
                 </div>
                 <button
                     onClick={() => setIsModalNovoOpen(true)}
-                    className="bg-[#8B5A2B] text-white px-5 py-2.5 rounded font-bold hover:bg-[#704620] shadow-sm transition-colors"
+                    className="inline-flex items-center gap-2 bg-[#8B5A2B] hover:bg-[#704620] text-white px-5 py-2.5 rounded-lg font-semibold text-sm transition-colors shadow-sm"
                 >
-                    + Novo Agendamento
+                    <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+                    Novo Agendamento
                 </button>
-            </header>
+            </div>
 
-            {/* Navegação Horizontal */}
-            <nav className="flex flex-wrap gap-3 mb-8">
-                <Link href='/admin/dashboard' className="bg-white text-[#5C4033] border border-[#e5d9c5] px-5 py-2 rounded shadow-sm font-bold text-sm hover:border-[#8B5A2B]">Equipa (Atual)</Link>
-                <Link href='/admin/financeiro' className="bg-white text-[#5C4033] border border-[#e5d9c5] px-5 py-2 rounded shadow-sm font-bold text-sm hover:border-[#8B5A2B]">Financeiro</Link>
-                <Link href='/admin/estoque' className="bg-white text-[#5C4033] border border-[#e5d9c5] px-5 py-2 rounded shadow-sm font-bold text-sm hover:border-[#8B5A2B]">Estoque</Link>
-                <Link href='/admin/servicos' className="bg-white text-[#5C4033] border border-[#e5d9c5] px-5 py-2 rounded shadow-sm font-bold text-sm hover:border-[#8B5A2B]">Portfólio / Serviços</Link>
-                <Link href='/admin/agendamentos' className="bg-[#5C4033] text-white px-5 py-2 rounded shadow font-bold text-sm">Agendamentos Globais</Link>
-                <Link href='/admin/clientes' className="bg-white text-[#5C4033] border border-[#e5d9c5] px-5 py-2 rounded shadow-sm font-bold text-sm hover:border-[#8B5A2B]">Base de Clientes</Link>
+            {/* ── NAVEGAÇÃO ── */}
+            <nav className="bg-white border-b border-stone-200 px-6 py-2.5 overflow-x-auto">
+                <div className="flex gap-1 min-w-max">
+                    {[
+                        { href: '/admin/dashboard', label: 'Equipa' },
+                        { href: '/admin/financeiro', label: 'Financeiro' },
+                        { href: '/admin/estoque', label: 'Estoque' },
+                        { href: '/admin/servicos', label: 'Serviços' },
+                        { href: '/admin/agendamentos', label: 'Agendamentos', ativo: true },
+                        { href: '/admin/clientes', label: 'Clientes' },
+                        { href: '/admin/avaliacoes', label: 'Avaliações' },
+                    ].map(({ href, label, ativo }) => (
+                        <Link key={href} href={href}
+                            className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${ativo
+                                ? 'bg-[#5C4033] text-white'
+                                : 'text-stone-600 hover:bg-stone-100'}`}>
+                            {label}
+                        </Link>
+                    ))}
+                </div>
             </nav>
 
-            {/* CALENDÁRIO MENSAL */}
-            <section className="bg-white rounded-xl shadow-sm border border-[#e5d9c5] overflow-hidden mb-8">
-                <div className="flex items-center justify-between px-6 py-4 border-b border-[#e5d9c5] bg-gray-50/50">
-                    <button onClick={() => mudarMes(-1)} className="p-2 text-gray-600 hover:text-[#8B5A2B] hover:bg-orange-50 rounded transition-colors font-bold text-xl leading-none">&lt;</button>
-                    <h2 className="font-bold text-xl text-[#5C4033] capitalize">
-                        {new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric' }).format(dataAtual)}
-                    </h2>
-                    <button onClick={() => mudarMes(1)} className="p-2 text-gray-600 hover:text-[#8B5A2B] hover:bg-orange-50 rounded transition-colors font-bold text-xl leading-none">&gt;</button>
-                </div>
+            <div className="p-6 max-w-7xl mx-auto space-y-5">
 
-                {loading ? (
-                    <div className="p-20 text-center text-gray-400 font-bold uppercase tracking-widest text-sm">A carregar dados da agenda...</div>
-                ) : (
-                    <div className="p-6">
-                        <div className="grid grid-cols-7 gap-2 mb-2">
-                            {DIAS_SEMANA.map(dia => (
-                                <div key={dia} className="text-center font-bold text-xs text-gray-400 uppercase tracking-wider py-2">
-                                    {dia}
-                                </div>
-                            ))}
+                {/* ── FEEDBACK ── */}
+                {mensagem && (
+                    <div className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium border ${mensagem.tipo === 'erro'
+                        ? 'bg-red-50 text-red-700 border-red-200'
+                        : mensagem.tipo === 'info'
+                            ? 'bg-blue-50 text-blue-700 border-blue-200'
+                            : 'bg-emerald-50 text-emerald-700 border-emerald-200'}`}>
+                        <span>{mensagem.tipo === 'erro' ? '✕' : mensagem.tipo === 'info' ? '⋯' : '✓'}</span>
+                        {mensagem.texto}
+                    </div>
+                )}
+
+                {/* ── CALENDÁRIO ── */}
+                <div className="bg-white rounded-2xl shadow-sm border border-stone-200 overflow-hidden">
+                    {/* Cabeçalho do mês */}
+                    <div className="flex items-center justify-between px-6 py-4 border-b border-stone-100">
+                        <button onClick={() => mudarMes(-1)} className="p-2 rounded-lg text-stone-500 hover:bg-stone-100 hover:text-stone-800 transition-colors">
+                            <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>
+                        </button>
+                        <h2 className="font-bold text-lg text-stone-800 capitalize">
+                            {new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric' }).format(dataAtual)}
+                        </h2>
+                        <button onClick={() => mudarMes(1)} className="p-2 rounded-lg text-stone-500 hover:bg-stone-100 hover:text-stone-800 transition-colors">
+                            <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>
+                        </button>
+                    </div>
+
+                    {loading ? (
+                        <div className="h-72 flex items-center justify-center text-stone-400 text-sm font-medium">
+                            <svg className="animate-spin w-5 h-5 mr-2 text-[#8B5A2B]" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                            A carregar agenda...
                         </div>
+                    ) : (
+                        <div className="p-4">
+                            {/* Dias da semana */}
+                            <div className="grid grid-cols-7 mb-2">
+                                {DIAS_SEMANA_CURTO.map(d => (
+                                    <div key={d} className="text-center text-xs font-bold text-stone-400 uppercase tracking-wider py-2">{d}</div>
+                                ))}
+                            </div>
+                            {/* Células */}
+                            <div className="grid grid-cols-7 gap-1">
+                                {Array.from({ length: primeiroDiaDoMes }).map((_, i) => (
+                                    <div key={`empty-${i}`} className="h-16 sm:h-20 rounded-lg" />
+                                ))}
+                                {Array.from({ length: diasNoMes }).map((_, i) => {
+                                    const dia = i + 1
+                                    const agsDia = obterAgendamentosDoDia(dia, mes, ano)
+                                    const isHoje = dia === hoje.getDate() && mes === hoje.getMonth() && ano === hoje.getFullYear()
+                                    const isSelecionado = diaSelecionado?.getDate() === dia && diaSelecionado?.getMonth() === mes && diaSelecionado?.getFullYear() === ano
 
-                        <div className="grid grid-cols-7 gap-2">
-                            {Array.from({ length: primeiroDiaDoMes }).map((_, i) => (
-                                <div key={`empty-${i}`} className="h-24 bg-gray-50/30 rounded-lg border border-transparent"></div>
-                            ))}
-
-                            {Array.from({ length: diasNoMes }).map((_, i) => {
-                                const dia = i + 1
-                                const agendamentosNesteDia = obterAgendamentosDoDia(dia, mes, ano)
-                                const isHoje = dia === new Date().getDate() && mes === new Date().getMonth() && ano === new Date().getFullYear()
-
-                                return (
-                                    <div
-                                        key={dia}
-                                        onClick={() => setDiaSelecionado(new Date(ano, mes, dia))}
-                                        className={`relative h-24 p-2 rounded-lg border transition-all cursor-pointer flex flex-col 
-                                            ${isHoje ? 'border-[#8B5A2B] bg-orange-50/20 shadow-[inset_0_0_0_1px_rgba(139,90,43,0.3)]' : 'border-gray-100 hover:border-[#c5a87c] hover:bg-orange-50/10'}
-                                        `}
-                                    >
-                                        <span className={`text-sm font-bold ${isHoje ? 'text-[#8B5A2B]' : 'text-gray-700'}`}>{dia}</span>
-
-                                        <div className="mt-auto flex flex-col gap-1">
-                                            {agendamentosNesteDia.length > 0 && (
-                                                <div className="text-[10px] font-bold bg-[#8B5A2B] text-white px-1.5 py-0.5 rounded truncate text-center shadow-sm">
-                                                    {agendamentosNesteDia.length} Marcaç{agendamentosNesteDia.length > 1 ? 'ões' : 'ão'}
+                                    return (
+                                        <div
+                                            key={dia}
+                                            onClick={() => setDiaSelecionado(new Date(ano, mes, dia))}
+                                            className={`h-16 sm:h-20 p-1.5 rounded-xl border cursor-pointer flex flex-col transition-all
+                                                ${isSelecionado ? 'border-[#8B5A2B] bg-amber-50 shadow-sm ring-1 ring-[#8B5A2B]/30'
+                                                    : isHoje ? 'border-[#8B5A2B]/40 bg-orange-50/30'
+                                                    : 'border-transparent hover:border-stone-200 hover:bg-stone-50'}`}
+                                        >
+                                            <span className={`text-xs font-bold ${isHoje ? 'text-[#8B5A2B]' : isSelecionado ? 'text-[#8B5A2B]' : 'text-stone-600'}`}>
+                                                {dia}
+                                            </span>
+                                            {agsDia.length > 0 && (
+                                                <div className="mt-auto">
+                                                    <span className="text-[9px] font-bold bg-[#8B5A2B] text-white px-1.5 py-0.5 rounded-full block text-center">
+                                                        {agsDia.length}
+                                                    </span>
                                                 </div>
                                             )}
                                         </div>
-                                    </div>
-                                )
-                            })}
+                                    )
+                                })}
+                            </div>
                         </div>
-                    </div>
-                )}
-            </section>
+                    )}
+                </div>
+            </div>
 
-            {/* POP-UP: DETALHES DO DIA SELECIONADO */}
+            {/* ── PAINEL LATERAL: DIA SELECIONADO ── */}
             {diaSelecionado && !modalAcessos && (
-                <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-40 backdrop-blur-sm">
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl border-t-4 border-[#8B5A2B] flex flex-col max-h-[90vh]">
-                        <div className="px-6 py-5 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-40 backdrop-blur-sm">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl flex flex-col max-h-[90vh] overflow-hidden">
+                        {/* Header */}
+                        <div className="px-6 py-5 border-b border-stone-100 flex items-start justify-between bg-stone-50/50">
                             <div>
-                                <h2 className="text-2xl font-bold text-[#5C4033] capitalize">
+                                <h2 className="text-xl font-bold text-stone-800 capitalize">
                                     {new Intl.DateTimeFormat('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' }).format(diaSelecionado)}
                                 </h2>
-                                <p className="text-sm text-gray-500 mt-1">Gestão de marcações e profissionais do dia.</p>
+                                <p className="text-xs text-stone-500 mt-1">
+                                    {agendamentosSelecionados.length} agendamento{agendamentosSelecionados.length !== 1 ? 's' : ''} · {equipaDoDia.length} profissional{equipaDoDia.length !== 1 ? 'is' : ''} escalado{equipaDoDia.length !== 1 ? 's' : ''}
+                                </p>
                             </div>
-                            <button onClick={() => setDiaSelecionado(null)} className="text-gray-400 hover:text-[#8B5A2B] text-3xl leading-none transition-colors">&times;</button>
+                            <button onClick={() => setDiaSelecionado(null)} className="text-stone-400 hover:text-stone-700 p-1 rounded-lg hover:bg-stone-100 transition-colors">
+                                <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>
+                            </button>
                         </div>
 
-                        <div className="p-6 overflow-y-auto flex-1 bg-[#fdfbf7]">
+                        <div className="flex-1 overflow-y-auto p-6 bg-stone-50/30">
                             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
+                                {/* Equipa do dia */}
                                 <div className="lg:col-span-1">
-                                    <h3 className="font-bold text-gray-800 text-sm uppercase tracking-wider mb-3 border-b border-gray-200 pb-2">Equipa de Plantão</h3>
+                                    <h3 className="text-xs font-bold text-stone-500 uppercase tracking-wider mb-3">Equipa de Plantão</h3>
                                     {equipaDoDia.length === 0 ? (
-                                        <p className="text-xs text-gray-500 italic bg-white p-3 rounded border border-gray-100">Nenhum profissional escalado.</p>
+                                        <div className="bg-white border border-dashed border-stone-200 rounded-xl p-6 text-center">
+                                            <p className="text-xs text-stone-400">Nenhum profissional escalado.</p>
+                                        </div>
                                     ) : (
-                                        <div className="space-y-3">
+                                        <div className="space-y-2">
                                             {equipaDoDia.map(prof => {
-                                                const exp = prof.expedientes?.find((e) => e.diaSemana === diaSelecionado.getDay())
+                                                const exp = prof.expedientes?.find(e => e.diaSemana === diaSelecionado.getDay())
                                                 return (
-                                                    <div key={prof.id} className="bg-white p-4 rounded-xl border border-[#e5d9c5] shadow-sm flex flex-col gap-3 group hover:border-[#8B5A2B] transition-colors">
-                                                        <div>
-                                                            <p className="font-bold text-sm text-[#5C4033]">{prof.nome}</p>
-                                                            <p className="text-xs text-gray-500 mt-0.5 font-mono">{exp?.horaInicio} - {exp?.horaFim}</p>
+                                                    <div key={prof.id} className="bg-white border border-stone-200 rounded-xl p-4 flex flex-col gap-3 hover:border-[#c5a87c] transition-colors">
+                                                        <div className="flex items-center gap-2.5">
+                                                            <Avatar nome={prof.nome} />
+                                                            <div>
+                                                                <p className="font-semibold text-sm text-stone-800 leading-tight">{prof.nome}</p>
+                                                                <p className="text-xs text-stone-400 font-mono mt-0.5">{exp?.horaInicio} – {exp?.horaFim}</p>
+                                                            </div>
                                                         </div>
-                                                        {/* Botão ajustado para fazer cast seguro ao abrir o modal */}
                                                         <button
                                                             onClick={() => setModalAcessos(prof as FuncionarioGerenciavel)}
-                                                            className="w-full py-1.5 bg-orange-50 text-[#8B5A2B] border border-orange-100 rounded text-xs font-bold hover:bg-orange-100 transition-colors"
+                                                            className="w-full py-1.5 bg-stone-50 text-stone-700 border border-stone-200 rounded-lg text-xs font-semibold hover:bg-stone-100 transition-colors"
                                                         >
                                                             Editar Perfil / Horários
                                                         </button>
@@ -328,43 +440,61 @@ export default function AgendamentosGlobaisPage() {
                                     )}
                                 </div>
 
+                                {/* Agenda do dia */}
                                 <div className="lg:col-span-2">
-                                    <h3 className="font-bold text-gray-800 text-sm uppercase tracking-wider mb-3 border-b border-gray-200 pb-2">Agenda de Clientes ({agendamentosSelecionados.length})</h3>
-
+                                    <h3 className="text-xs font-bold text-stone-500 uppercase tracking-wider mb-3">
+                                        Agenda de Clientes ({agendamentosSelecionados.length})
+                                    </h3>
                                     {agendamentosSelecionados.length === 0 ? (
-                                        <div className="bg-white border border-dashed border-gray-300 rounded-lg p-8 text-center">
-                                            <p className="text-gray-400 text-sm">Sem clientes agendados para este dia.</p>
+                                        <div className="bg-white border border-dashed border-stone-200 rounded-xl p-10 text-center">
+                                            <p className="text-sm text-stone-400">Sem clientes agendados para este dia.</p>
                                         </div>
                                     ) : (
                                         <div className="space-y-3">
-                                            {agendamentosSelecionados.sort((a, b) => new Date(a.dataHoraInicio).getTime() - new Date(b.dataHoraInicio).getTime()).map(ag => (
-                                                <div key={ag.id} className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm flex flex-col gap-3">
-                                                    <div className="flex justify-between items-start">
-                                                        <div>
-                                                            <span className="inline-block bg-orange-50 text-[#8B5A2B] border border-orange-100 font-black text-sm px-2 py-0.5 rounded mb-2">
-                                                                {new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' }).format(new Date(ag.dataHoraInicio))}
-                                                            </span>
-                                                            <h4 className="font-bold text-gray-800 leading-tight">{ag.cliente.nome}</h4>
-                                                            <p className="text-xs text-gray-500 font-mono mt-0.5">{ag.cliente.telefone}</p>
-                                                        </div>
-                                                        <span className={`px-2 py-1 text-[10px] font-bold rounded uppercase tracking-wider ${ag.concluido ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
-                                                            {ag.concluido ? 'Faturado' : 'Pendente'}
-                                                        </span>
-                                                    </div>
-
-                                                    <div className="flex items-center justify-between pt-3 border-t border-gray-50">
-                                                        <p className="text-xs text-gray-500">
-                                                            Com: <strong className="text-[#5C4033]">{ag.funcionario.nome}</strong>
-                                                        </p>
-                                                        {!ag.concluido && (
-                                                            <div className="flex gap-2">
-                                                                <button onClick={() => abrirModalEdicao(ag)} className="text-xs font-bold text-blue-600 hover:underline">Editar</button>
-                                                                <button onClick={() => handleCancelar(ag.id)} className="text-xs font-bold text-red-600 hover:underline">Cancelar</button>
+                                            {[...agendamentosSelecionados]
+                                                .sort((a, b) => new Date(a.dataHoraInicio).getTime() - new Date(b.dataHoraInicio).getTime())
+                                                .map(ag => (
+                                                    <div key={ag.id} className="bg-white border border-stone-200 rounded-xl p-4 flex flex-col gap-3 hover:border-stone-300 transition-colors">
+                                                        <div className="flex items-start justify-between gap-2">
+                                                            <div className="flex items-start gap-3">
+                                                                <span className="text-xs font-bold bg-amber-50 text-[#8B5A2B] border border-amber-200 px-2.5 py-1 rounded-lg whitespace-nowrap">
+                                                                    {new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' }).format(new Date(ag.dataHoraInicio))}
+                                                                </span>
+                                                                <div>
+                                                                    <p className="font-semibold text-stone-800 text-sm leading-tight">{ag.cliente.nome}</p>
+                                                                    <p className="text-xs text-stone-400 font-mono mt-0.5">{ag.cliente.telefone}</p>
+                                                                </div>
                                                             </div>
-                                                        )}
+                                                            <span className={`text-[10px] font-bold px-2 py-1 rounded-full uppercase tracking-wider flex-shrink-0 ${ag.concluido
+                                                                ? 'bg-emerald-100 text-emerald-700'
+                                                                : 'bg-stone-100 text-stone-500'}`}>
+                                                                {ag.concluido ? 'Faturado' : 'Pendente'}
+                                                            </span>
+                                                        </div>
+                                                        <div className="flex items-center justify-between pt-2.5 border-t border-stone-100">
+                                                            <p className="text-xs text-stone-500">
+                                                                Com: <strong className="text-stone-700">{ag.funcionario.nome}</strong>
+                                                            </p>
+                                                            {!ag.concluido && (
+                                                                <div className="flex gap-2">
+                                                                    <button
+                                                                        onClick={() => abrirModalEdicao(ag)}
+                                                                        className="text-xs font-semibold text-blue-600 hover:text-blue-800 px-2 py-1 rounded hover:bg-blue-50 transition-colors"
+                                                                    >
+                                                                        Editar
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={() => handleCancelar(ag.id)}
+                                                                        disabled={loadingCancelarId === ag.id}
+                                                                        className="text-xs font-semibold text-red-600 hover:text-red-800 px-2 py-1 rounded hover:bg-red-50 transition-colors disabled:opacity-50"
+                                                                    >
+                                                                        {loadingCancelarId === ag.id ? '...' : 'Cancelar'}
+                                                                    </button>
+                                                                </div>
+                                                            )}
+                                                        </div>
                                                     </div>
-                                                </div>
-                                            ))}
+                                                ))}
                                         </div>
                                     )}
                                 </div>
@@ -374,60 +504,186 @@ export default function AgendamentosGlobaisPage() {
                 </div>
             )}
 
-            {/* MODAL: GERIR ACESSOS E ESCALAS (Tipagem Corrigida) */}
+            {/* ── MODAL: NOVO AGENDAMENTO ── */}
+            {isModalNovoOpen && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+                        <div className="px-6 py-5 border-b border-stone-100 flex items-center justify-between">
+                            <div>
+                                <h2 className="font-bold text-stone-800">Nova Reserva Global</h2>
+                                <p className="text-xs text-stone-500 mt-0.5">Preencha os dados do agendamento</p>
+                            </div>
+                            <button onClick={() => { setIsModalNovoOpen(false); formNovo.reset() }} className="text-stone-400 hover:text-stone-700 p-1 rounded-lg hover:bg-stone-100">
+                                <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>
+                            </button>
+                        </div>
+                        <form onSubmit={formNovo.handleSubmit(onSubmitNovo)} className="p-6 space-y-4">
+                            <Campo label="ID do Cliente" erro={formNovo.formState.errors.clienteId?.message} required>
+                                <input
+                                    {...formNovo.register('clienteId')}
+                                    type="text"
+                                    placeholder="UUID do cliente"
+                                    className={`w-full border rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[#8B5A2B]/20 focus:border-[#8B5A2B] transition-all ${formNovo.formState.errors.clienteId ? 'border-red-400 bg-red-50' : 'border-stone-300'}`}
+                                />
+                            </Campo>
+                            <Campo label="ID do Profissional" erro={formNovo.formState.errors.funcionarioId?.message} required>
+                                <input
+                                    {...formNovo.register('funcionarioId')}
+                                    type="text"
+                                    placeholder="UUID do profissional"
+                                    className={`w-full border rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[#8B5A2B]/20 focus:border-[#8B5A2B] transition-all ${formNovo.formState.errors.funcionarioId ? 'border-red-400 bg-red-50' : 'border-stone-300'}`}
+                                />
+                            </Campo>
+                            <Campo label="ID do Serviço" erro={formNovo.formState.errors.servicoId?.message} required>
+                                <input
+                                    {...formNovo.register('servicoId')}
+                                    type="text"
+                                    placeholder="UUID do serviço"
+                                    className={`w-full border rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[#8B5A2B]/20 focus:border-[#8B5A2B] transition-all ${formNovo.formState.errors.servicoId ? 'border-red-400 bg-red-50' : 'border-stone-300'}`}
+                                />
+                            </Campo>
+                            <Campo label="Data e Hora" erro={formNovo.formState.errors.dataHora?.message} required>
+                                <input
+                                    {...formNovo.register('dataHora')}
+                                    type="datetime-local"
+                                    className={`w-full border rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[#8B5A2B]/20 focus:border-[#8B5A2B] transition-all ${formNovo.formState.errors.dataHora ? 'border-red-400 bg-red-50' : 'border-stone-300'}`}
+                                />
+                            </Campo>
+                            <div className="flex gap-3 pt-2 border-t border-stone-100">
+                                <button type="button" onClick={() => { setIsModalNovoOpen(false); formNovo.reset() }}
+                                    className="flex-1 py-2.5 border border-stone-300 text-stone-700 font-semibold rounded-xl hover:bg-stone-50 text-sm transition-colors">
+                                    Cancelar
+                                </button>
+                                <button type="submit" disabled={loadingSalvar}
+                                    className="flex-1 py-2.5 bg-[#5C4033] text-white font-semibold rounded-xl hover:bg-[#3e2b22] disabled:opacity-60 text-sm transition-colors">
+                                    {loadingSalvar ? 'A salvar...' : 'Confirmar Agenda'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* ── MODAL: EDITAR AGENDAMENTO ── */}
+            {agendamentoEditandoId && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+                        <div className="px-6 py-5 border-b border-stone-100 flex items-center justify-between">
+                            <div>
+                                <h2 className="font-bold text-stone-800">Reagendar Reserva</h2>
+                                <p className="text-xs text-stone-500 mt-0.5">Altere o profissional ou a data/hora</p>
+                            </div>
+                            <button onClick={() => { setAgendamentoEditandoId(null); formEditar.reset() }} className="text-stone-400 hover:text-stone-700 p-1 rounded-lg hover:bg-stone-100">
+                                <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>
+                            </button>
+                        </div>
+                        <form onSubmit={formEditar.handleSubmit(onSubmitEditar)} className="p-6 space-y-4">
+                            <Campo label="ID do Profissional" erro={formEditar.formState.errors.funcionarioId?.message} required>
+                                <input
+                                    {...formEditar.register('funcionarioId')}
+                                    type="text"
+                                    className={`w-full border rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[#8B5A2B]/20 focus:border-[#8B5A2B] transition-all ${formEditar.formState.errors.funcionarioId ? 'border-red-400 bg-red-50' : 'border-stone-300'}`}
+                                />
+                            </Campo>
+                            <Campo label="Nova Data e Hora" erro={formEditar.formState.errors.dataHora?.message} required>
+                                <input
+                                    {...formEditar.register('dataHora')}
+                                    type="datetime-local"
+                                    className={`w-full border rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[#8B5A2B]/20 focus:border-[#8B5A2B] transition-all ${formEditar.formState.errors.dataHora ? 'border-red-400 bg-red-50' : 'border-stone-300'}`}
+                                />
+                            </Campo>
+                            <div className="flex gap-3 pt-2 border-t border-stone-100">
+                                <button type="button" onClick={() => { setAgendamentoEditandoId(null); formEditar.reset() }}
+                                    className="flex-1 py-2.5 border border-stone-300 text-stone-700 font-semibold rounded-xl hover:bg-stone-50 text-sm transition-colors">
+                                    Cancelar
+                                </button>
+                                <button type="submit" disabled={loadingEditar}
+                                    className="flex-1 py-2.5 bg-[#8B5A2B] text-white font-semibold rounded-xl hover:bg-[#704620] disabled:opacity-60 text-sm transition-colors">
+                                    {loadingEditar ? 'A salvar...' : 'Atualizar Agenda'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* ── MODAL: GERIR PERFIL DO PROFISSIONAL ── */}
             {modalAcessos && (
                 <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[60] backdrop-blur-sm">
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg border-t-4 border-[#8B5A2B] overflow-hidden flex flex-col max-h-[95vh]">
-                        <div className="px-6 py-5 border-b border-gray-100 flex justify-between items-center">
-                            <div><h2 className="text-xl font-bold text-[#5C4033]">Gerir Perfil</h2><p className="text-sm text-gray-500">{modalAcessos.nome}</p></div>
-                            <button onClick={() => setModalAcessos(null)} className="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
-                        </div>
-                        <div className="flex border-b border-gray-200 px-6 pt-2 gap-4">
-                            <button onClick={() => setAbaAtiva('permissoes')} className={`pb-2 text-sm font-bold border-b-2 ${abaAtiva === 'permissoes' ? 'border-[#8B5A2B] text-[#8B5A2B]' : 'border-transparent text-gray-400'}`}>Permissões</button>
-                            <button onClick={() => setAbaAtiva('escala')} className={`pb-2 text-sm font-bold border-b-2 ${abaAtiva === 'escala' ? 'border-[#8B5A2B] text-[#8B5A2B]' : 'border-transparent text-gray-400'}`}>Escala de Trabalho</button>
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col max-h-[92vh] overflow-hidden">
+                        <div className="px-6 py-5 border-b border-stone-100 flex items-center gap-3">
+                            <Avatar nome={modalAcessos.nome} />
+                            <div className="flex-1 min-w-0">
+                                <h2 className="font-bold text-stone-800 truncate">{modalAcessos.nome}</h2>
+                                <p className="text-xs text-stone-500">Permissões e escala de trabalho</p>
+                            </div>
+                            <button onClick={() => setModalAcessos(null)} className="text-stone-400 hover:text-stone-700 p-1 rounded-lg hover:bg-stone-100 transition-colors">
+                                <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>
+                            </button>
                         </div>
 
-                        <div className="p-6 overflow-y-auto flex-1 space-y-6 bg-gray-50/30">
+                        <div className="flex border-b border-stone-200 px-6">
+                            {(['permissoes', 'escala'] as const).map(aba => (
+                                <button key={aba} onClick={() => setAbaAtiva(aba)}
+                                    className={`py-3 px-1 mr-5 text-sm font-semibold border-b-2 transition-colors ${abaAtiva === aba
+                                        ? 'border-[#8B5A2B] text-[#8B5A2B]'
+                                        : 'border-transparent text-stone-400 hover:text-stone-600'}`}>
+                                    {aba === 'permissoes' ? 'Permissões' : 'Escala de Trabalho'}
+                                </button>
+                            ))}
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-stone-50/50">
                             {abaAtiva === 'permissoes' && (
-                                <div className="space-y-6 fade-in">
+                                <div className="space-y-5">
                                     <div>
-                                        <label className="block text-xs font-bold text-gray-600 uppercase mb-2">Comissão (%)</label>
-                                        {/* Removido 'as any', uso direto da propriedade tipada */}
+                                        <label className="block text-xs font-bold text-stone-600 uppercase tracking-wide mb-1.5">Comissão (%)</label>
                                         <input
-                                            type="number"
-                                            value={modalAcessos.comissao || 0}
-                                            onChange={(e) => setModalAcessos({ ...modalAcessos, comissao: Number(e.target.value) })}
-                                            className="w-full border rounded-lg px-4 py-2"
+                                            type="number" min={0} max={100}
+                                            value={modalAcessos.comissao ?? 0}
+                                            onChange={e => setModalAcessos({ ...modalAcessos, comissao: Number(e.target.value) })}
+                                            className="w-full border border-stone-300 rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[#8B5A2B]/20 focus:border-[#8B5A2B] bg-white"
                                         />
                                     </div>
-                                    <div className="space-y-3">
-                                        {permissoesSistema.map(({ key, label }) => (
-                                            <label key={key} className="flex items-center justify-between p-3 bg-white border rounded-xl cursor-pointer">
-                                                <span className="text-sm font-bold text-gray-800">{label}</span>
-                                                {/* Removido 'as any', uso de chave tipada */}
+                                    <div className="space-y-2">
+                                        {permissoesSistema.map(({ key, label, desc }) => (
+                                            <label key={key} className="flex items-center gap-3 p-3.5 bg-white border border-stone-200 rounded-xl cursor-pointer hover:border-stone-300 transition-colors">
                                                 <input
                                                     type="checkbox"
                                                     checked={Boolean(modalAcessos[key])}
-                                                    onChange={(e) => setModalAcessos({ ...modalAcessos, [key]: e.target.checked })}
+                                                    onChange={e => setModalAcessos({ ...modalAcessos, [key]: e.target.checked })}
+                                                    className="w-4 h-4 accent-[#8B5A2B]"
                                                 />
+                                                <div>
+                                                    <p className="text-sm font-semibold text-stone-800">{label}</p>
+                                                    <p className="text-xs text-stone-400 mt-0.5">{desc}</p>
+                                                </div>
                                             </label>
                                         ))}
                                     </div>
                                 </div>
                             )}
-
                             {abaAtiva === 'escala' && (
-                                <div className="space-y-3 fade-in">
-                                    {/* Removido 'any', usado tipo ExpedienteInfo importado */}
+                                <div className="space-y-2">
                                     {modalAcessos.expedientes.map((exp: ExpedienteInfo, index: number) => (
-                                        <div key={exp.diaSemana} className={`flex items-center justify-between p-3 rounded-xl border shadow-sm ${exp.ativo ? 'bg-orange-50/50 border-orange-200' : 'bg-white'}`}>
-                                            <label className="flex items-center cursor-pointer min-w-[100px]">
-                                                <input type="checkbox" checked={exp.ativo} onChange={(e) => atualizarExpedienteLocal(index, 'ativo', e.target.checked)} className="mr-2" />
-                                                <span className="text-xs font-bold uppercase">{DIAS_SEMANA_COMPLETO[exp.diaSemana]}</span>
+                                        <div key={exp.diaSemana} className={`flex items-center gap-3 p-3.5 rounded-xl border ${exp.ativo ? 'bg-amber-50/70 border-amber-200' : 'bg-white border-stone-200'}`}>
+                                            <label className="flex items-center gap-2 min-w-[110px] cursor-pointer">
+                                                <input type="checkbox" checked={exp.ativo}
+                                                    onChange={e => atualizarExpedienteLocal(index, 'ativo', e.target.checked)}
+                                                    className="w-4 h-4 accent-[#8B5A2B]"
+                                                />
+                                                <span className="text-xs font-bold text-stone-700 uppercase tracking-wide">{DIAS_SEMANA_COMPLETO[exp.diaSemana]}</span>
                                             </label>
-                                            <div className={`flex gap-2 ${exp.ativo ? '' : 'opacity-30 pointer-events-none'}`}>
-                                                <input type="time" value={exp.horaInicio} onChange={(e) => atualizarExpedienteLocal(index, 'horaInicio', e.target.value)} className="border rounded px-2 py-1 text-xs" />
-                                                <input type="time" value={exp.horaFim} onChange={(e) => atualizarExpedienteLocal(index, 'horaFim', e.target.value)} className="border rounded px-2 py-1 text-xs" />
+                                            <div className={`flex gap-2 flex-1 justify-end ${exp.ativo ? '' : 'opacity-30 pointer-events-none'}`}>
+                                                <input type="time" value={exp.horaInicio}
+                                                    onChange={e => atualizarExpedienteLocal(index, 'horaInicio', e.target.value)}
+                                                    className="border border-stone-300 rounded-lg px-2.5 py-1.5 text-xs bg-white outline-none focus:border-[#8B5A2B]"
+                                                />
+                                                <span className="text-stone-400 self-center text-xs">até</span>
+                                                <input type="time" value={exp.horaFim}
+                                                    onChange={e => atualizarExpedienteLocal(index, 'horaFim', e.target.value)}
+                                                    className="border border-stone-300 rounded-lg px-2.5 py-1.5 text-xs bg-white outline-none focus:border-[#8B5A2B]"
+                                                />
                                             </div>
                                         </div>
                                     ))}
@@ -435,52 +691,16 @@ export default function AgendamentosGlobaisPage() {
                             )}
                         </div>
 
-                        <div className="px-6 py-4 bg-gray-50 flex flex-col gap-3">
-                            <button onClick={handleSalvarGerenciamentoProfissional} disabled={loadingAcaoProfissional} className="w-full py-3 bg-[#5C4033] text-white font-bold rounded-xl">{loadingAcaoProfissional ? 'A Guardar...' : 'Salvar Perfil'}</button>
+                        <div className="px-6 py-4 bg-white border-t border-stone-100 flex gap-3">
+                            <button onClick={() => setModalAcessos(null)} className="flex-1 py-2.5 border border-stone-300 text-stone-700 font-semibold rounded-xl hover:bg-stone-50 text-sm transition-colors">Cancelar</button>
+                            <button onClick={handleSalvarProfissional} disabled={loadingAcaoProfissional}
+                                className="flex-1 py-2.5 bg-[#5C4033] text-white font-semibold rounded-xl hover:bg-[#3e2b22] disabled:opacity-60 text-sm transition-colors">
+                                {loadingAcaoProfissional ? 'A salvar...' : 'Salvar Perfil'}
+                            </button>
                         </div>
                     </div>
                 </div>
             )}
-
-            {/* Modais de Criação e Edição mantidos iguais */}
-            {isModalNovoOpen && (
-                <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
-                    <div className="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-md border-t-4 border-[#5C4033]">
-                        <h2 className="text-2xl font-bold text-[#5C4033] mb-6">Nova Reserva Global</h2>
-                        <form onSubmit={handleCriarAgendamento} className="space-y-4">
-                            <div><label className="block text-sm font-semibold text-gray-700 mb-1">ID do Cliente *</label><input required type="text" className="w-full border border-gray-300 rounded-lg px-4 py-2.5 outline-none focus:border-[#8B5A2B]" value={novaReserva.clienteId} onChange={(e) => setNovaReserva({ ...novaReserva, clienteId: e.target.value })} /></div>
-                            <div><label className="block text-sm font-semibold text-gray-700 mb-1">ID do Profissional *</label><input required type="text" className="w-full border border-gray-300 rounded-lg px-4 py-2.5 outline-none focus:border-[#8B5A2B]" value={novaReserva.funcionarioId} onChange={(e) => setNovaReserva({ ...novaReserva, funcionarioId: e.target.value })} /></div>
-                            <div><label className="block text-sm font-semibold text-gray-700 mb-1">ID do Serviço Principal *</label><input required type="text" className="w-full border border-gray-300 rounded-lg px-4 py-2.5 outline-none focus:border-[#8B5A2B]" value={novaReserva.servicoId} onChange={(e) => setNovaReserva({ ...novaReserva, servicoId: e.target.value })} /></div>
-                            <div><label className="block text-sm font-semibold text-gray-700 mb-1">Data e Hora *</label><input required type="datetime-local" className="w-full border border-gray-300 rounded-lg px-4 py-2.5 outline-none focus:border-[#8B5A2B]" value={novaReserva.dataHora} onChange={(e) => setNovaReserva({ ...novaReserva, dataHora: e.target.value })} /></div>
-                            <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-gray-100">
-                                <button type="button" onClick={() => setIsModalNovoOpen(false)} className="px-5 py-2.5 text-gray-600 font-bold hover:bg-gray-100 rounded-lg transition-colors">Cancelar</button>
-                                <button type="submit" disabled={loadingSalvar} className="px-6 py-2.5 bg-[#5C4033] text-white font-bold rounded-lg hover:bg-[#3e2b22] disabled:opacity-70 transition-colors">{loadingSalvar ? "A Salvar..." : "Confirmar Agenda"}</button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            )}
-
-            {agendamentoEditando && (
-                <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
-                    <div className="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-md border-t-4 border-[#8B5A2B]">
-                        <h2 className="text-2xl font-bold text-[#5C4033] mb-6">Reagendar Reserva</h2>
-                        <form onSubmit={handleSalvarEdicao} className="space-y-4">
-                            <div><label className="block text-sm font-semibold text-gray-700 mb-1">ID do Profissional *</label><input required type="text" className="w-full border border-gray-300 rounded-lg px-4 py-2.5 outline-none focus:border-[#8B5A2B]" value={agendamentoEditando.funcionarioId} onChange={(e) => setAgendamentoEditando({ ...agendamentoEditando, funcionarioId: e.target.value })} /></div>
-                            <div><label className="block text-sm font-semibold text-gray-700 mb-1">Nova Data e Hora *</label><input required type="datetime-local" className="w-full border border-gray-300 rounded-lg px-4 py-2.5 outline-none focus:border-[#8B5A2B]" value={agendamentoEditando.dataHora} onChange={(e) => setAgendamentoEditando({ ...agendamentoEditando, dataHora: e.target.value })} /></div>
-                            <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-gray-100">
-                                <button type="button" onClick={() => setAgendamentoEditando(null)} className="px-5 py-2.5 text-gray-600 font-bold hover:bg-gray-100 rounded-lg transition-colors">Cancelar</button>
-                                <button type="submit" disabled={loadingEditar} className="px-6 py-2.5 bg-[#8B5A2B] text-white font-bold rounded-lg hover:bg-[#704620] disabled:opacity-70 transition-colors">{loadingEditar ? "A Salvar..." : "Atualizar Agenda"}</button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            )}
-
-            <style jsx>{`
-                .fade-in { animation: fadeIn 0.3s ease-in-out; }
-                @keyframes fadeIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
-            `}</style>
         </div>
     )
 }

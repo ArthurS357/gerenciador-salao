@@ -58,23 +58,23 @@ function statusEstoque(produto: Produto): StatusEstoque {
 const STATUS_CONFIG: Record<StatusEstoque, { label: string; badge: string; row: string }> = {
     esgotado: {
         label: 'Esgotado',
-        badge: 'bg-red-100 text-red-700 border border-red-200',
-        row: 'bg-red-50/40',
+        badge: 'bg-red-50 text-red-600 border border-red-100 shadow-sm rounded-full',
+        row: 'bg-red-50/20',
     },
     critico: {
         label: 'Crítico',
-        badge: 'bg-orange-100 text-orange-700 border border-orange-200',
-        row: 'bg-orange-50/30',
+        badge: 'bg-orange-50 text-orange-600 border border-orange-100 shadow-sm rounded-full',
+        row: 'bg-orange-50/20',
     },
     baixo: {
-        label: 'Baixo',
-        badge: 'bg-yellow-100 text-yellow-700 border border-yellow-200',
-        row: '',
+        label: 'Atenção',
+        badge: 'bg-amber-50 text-amber-600 border border-amber-100 shadow-sm rounded-full',
+        row: 'bg-amber-50/10',
     },
     ok: {
-        label: 'OK',
-        badge: 'bg-green-100 text-green-700 border border-green-200',
-        row: '',
+        label: 'Normal',
+        badge: 'bg-emerald-50 text-emerald-600 border border-emerald-100 shadow-sm rounded-full',
+        row: 'hover:bg-gray-50',
     },
 }
 
@@ -258,45 +258,42 @@ export default function PainelEstoquePage() {
 
     return (
         <div className="min-h-screen bg-[#fdfbf7] font-sans">
-
-            {/* Topo com gradiente sutil */}
-            <div className="bg-white border-b border-[#e5d9c5] px-8 pt-8 pb-0">
-                <div className="max-w-7xl mx-auto">
-                    <div className="flex justify-between items-start mb-6">
-                        <div>
-                            <h1 className="text-3xl font-bold text-[#5C4033]">Gestão de Estoque</h1>
-                            <p className="text-gray-500 mt-1 text-sm">Produtos, custos, margens e ficha técnica</p>
-                        </div>
-                        <button
-                            onClick={() => setModalCriar(true)}
-                            className="flex items-center gap-2 bg-[#5C4033] text-white px-5 py-2.5 rounded-lg font-semibold text-sm hover:bg-[#3e2b22] transition-colors shadow-sm active:scale-[0.98]"
-                        >
-                            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
-                                <path d="M7 1v12M1 7h12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                            </svg>
-                            Novo Produto
-                        </button>
+            {/* Topo com navegação */}
+            <div className="px-4 md:px-8 pt-8 max-w-7xl mx-auto">
+                <header className="mb-8 flex flex-col md:flex-row md:justify-between md:items-end gap-4">
+                    <div>
+                        <h1 className="text-3xl md:text-4xl font-black text-[#5C4033] tracking-tight">Gestão de Estoque</h1>
+                        <p className="text-gray-500 mt-2 text-sm md:text-base">Controle de repasses, margens de lucro e portfólio de base.</p>
                     </div>
+                    <button
+                        onClick={() => setModalCriar(true)}
+                        className="flex items-center justify-center gap-2 bg-[#5C4033] text-white px-5 py-2.5 rounded-xl font-bold text-sm hover:bg-[#3e2b22] transition-colors shadow-sm active:scale-[0.98]"
+                    >
+                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+                            <path d="M7 1v12M1 7h12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                        </svg>
+                        Novo Produto
+                    </button>
+                </header>
 
-                    {/* Nav */}
-                    <nav className="flex gap-1 overflow-x-auto">
-                        {NAV_LINKS.map((link) => (
-                            <Link
-                                key={link.href}
-                                href={link.href}
-                                className={`px-4 py-2.5 text-sm font-semibold whitespace-nowrap border-b-2 transition-colors ${'ativo' in link
-                                    ? 'border-[#8B5A2B] text-[#5C4033]'
-                                    : 'border-transparent text-gray-500 hover:text-[#5C4033] hover:border-[#e5d9c5]'
-                                    }`}
-                            >
-                                {link.label}
-                            </Link>
-                        ))}
-                    </nav>
-                </div>
+                <nav className="flex flex-wrap gap-2 md:gap-3 mb-10 p-1 md:p-1.5 bg-gray-100/60 backdrop-blur rounded-2xl w-fit">
+                    {NAV_LINKS.map((link) => (
+                        <Link
+                            key={link.href}
+                            href={link.href}
+                            className={
+                                'ativo' in link
+                                    ? 'bg-white text-[#5C4033] px-5 py-2 md:py-2.5 rounded-xl shadow-sm font-bold text-[13px] md:text-sm tracking-wide'
+                                    : 'text-gray-500 px-5 py-2 md:py-2.5 rounded-xl font-semibold text-[13px] md:text-sm tracking-wide hover:bg-white/50 hover:text-gray-900 transition-all'
+                            }
+                        >
+                            {link.label}
+                        </Link>
+                    ))}
+                </nav>
             </div>
 
-            <div className="max-w-7xl mx-auto px-8 py-8 space-y-6">
+            <div className="max-w-7xl mx-auto px-4 md:px-8 space-y-6">
 
                 {/* Feedback */}
                 {mensagem && (
@@ -317,84 +314,89 @@ export default function PainelEstoquePage() {
                 )}
 
                 {/* Cards de métricas */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
                     {[
                         {
                             label: 'Total de SKUs',
                             valor: produtos.length.toString(),
                             sub: 'produtos ativos',
-                            cor: 'border-[#8B5A2B]',
+                            cor: 'border-sky-400',
+                            bgGrad: 'from-sky-50 to-transparent',
                             icon: '📦',
                         },
                         {
                             label: 'Alertas de Estoque',
                             valor: alertas.toString(),
                             sub: alertas === 0 ? 'tudo em ordem' : 'itens a repor',
-                            cor: alertas > 0 ? 'border-orange-500' : 'border-green-500',
+                            cor: alertas > 0 ? 'border-orange-400' : 'border-emerald-400',
+                            bgGrad: alertas > 0 ? 'from-orange-50 to-transparent' : 'from-emerald-50 to-transparent',
                             icon: alertas > 0 ? '⚠️' : '✅',
                         },
                         {
                             label: 'Valor em Estoque',
                             valor: `R$ ${valorTotalEstoque.toFixed(0)}`,
                             sub: 'custo total imobilizado',
-                            cor: 'border-blue-500',
+                            cor: 'border-[#8B5A2B]',
+                            bgGrad: 'from-[#8B5A2B]/10 to-transparent',
                             icon: '💰',
                         },
                         {
                             label: 'Margem Média',
                             valor: `${margemMedia.toFixed(1)}%`,
                             sub: 'sobre todos os produtos',
-                            cor: margemMedia >= 40 ? 'border-green-500' : 'border-yellow-500',
+                            cor: margemMedia >= 40 ? 'border-emerald-400' : 'border-amber-400',
+                            bgGrad: margemMedia >= 40 ? 'from-emerald-50 to-transparent' : 'from-amber-50 to-transparent',
                             icon: '📈',
                         },
-                    ].map(({ label, valor, sub, cor, icon }) => (
-                        <div key={label} className={`bg-white rounded-xl border-l-4 ${cor} p-5 shadow-sm`}>
-                            <div className="flex items-start justify-between">
+                    ].map(({ label, valor, sub, cor, bgGrad, icon }) => (
+                        <div key={label} className={`relative bg-white p-6 rounded-2xl shadow-sm hover:shadow-md transition-shadow border border-t-[3px] border-x-gray-100 border-b-gray-100 ${cor} overflow-hidden group`}>
+                            <div className={`absolute inset-0 bg-gradient-to-br ${bgGrad} opacity-50 group-hover:opacity-100 transition-opacity duration-500`} />
+                            <div className="relative z-10 flex items-start justify-between">
                                 <div>
-                                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{label}</p>
-                                    <p className="text-2xl font-bold text-gray-800 mt-1">{valor}</p>
-                                    <p className="text-xs text-gray-400 mt-1">{sub}</p>
+                                    <p className="text-[11px] md:text-xs font-bold text-gray-400 uppercase tracking-[0.15em]">{label}</p>
+                                    <p className="text-2xl md:text-3xl font-black text-gray-800 mt-2 tracking-tight">{valor}</p>
+                                    <p className="text-xs text-gray-400 mt-1 font-medium">{sub}</p>
                                 </div>
-                                <span className="text-2xl">{icon}</span>
+                                <span className="text-2xl opacity-80">{icon}</span>
                             </div>
                         </div>
                     ))}
                 </div>
 
                 {/* Tabela */}
-                <div className="bg-white rounded-xl shadow-sm border border-[#e5d9c5] overflow-hidden">
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-12">
 
                     {/* Barra de filtros e busca */}
-                    <div className="flex flex-col md:flex-row items-center justify-between px-6 py-4 border-b border-[#e5d9c5] bg-gray-50/50 gap-4">
-                        <h2 className="font-bold text-gray-700 text-sm">Catálogo de Produtos</h2>
+                    <div className="flex flex-col md:flex-row items-center justify-between px-6 md:px-8 py-5 border-b border-gray-100 bg-gray-50/50 gap-4">
+                        <h2 className="font-bold text-[#5C4033] text-lg tracking-tight">Catálogo Interno</h2>
 
-                        <div className="flex items-center gap-3 w-full md:w-auto">
+                        <div className="flex flex-col md:flex-row items-center gap-3 w-full md:w-auto">
                             <div className="relative w-full md:w-64">
                                 <input
                                     type="text"
                                     placeholder="Pesquisar produto..."
                                     value={busca}
                                     onChange={(e) => setBusca(e.target.value)}
-                                    className="w-full pl-9 pr-3 py-1.5 text-sm border border-gray-300 rounded-lg outline-none focus:border-[#8B5A2B] transition-colors"
+                                    className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-xl outline-none focus:border-[#8B5A2B] focus:ring-2 focus:ring-[#8B5A2B]/10 transition-colors"
                                 />
                                 <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
                             </div>
 
-                            <div className="flex gap-2">
+                            <div className="flex gap-2 bg-gray-200/50 p-1 rounded-full w-full md:w-auto">
                                 <button
                                     onClick={() => setFiltro('todos')}
-                                    className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${filtro === 'todos'
-                                        ? 'bg-[#5C4033] text-white'
-                                        : 'bg-white text-gray-600 border border-gray-200 hover:border-[#8B5A2B]'
+                                    className={`flex-1 md:flex-none px-4 py-1.5 text-xs font-bold rounded-full transition-all ${filtro === 'todos'
+                                        ? 'bg-white text-[#5C4033] shadow-sm'
+                                        : 'text-gray-500 hover:text-gray-800'
                                         }`}
                                 >
                                     Todos ({produtos.length})
                                 </button>
                                 <button
                                     onClick={() => setFiltro('alerta')}
-                                    className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${filtro === 'alerta'
-                                        ? 'bg-orange-600 text-white'
-                                        : 'bg-white text-gray-600 border border-gray-200 hover:border-orange-400'
+                                    className={`flex-1 md:flex-none px-4 py-1.5 text-xs font-bold rounded-full transition-all ${filtro === 'alerta'
+                                        ? 'bg-orange-600 text-white shadow-sm'
+                                        : 'text-gray-500 hover:text-gray-800'
                                         }`}
                                 >
                                     Alertas ({alertas})
@@ -406,13 +408,13 @@ export default function PainelEstoquePage() {
                     <div className="overflow-x-auto">
                         <table className="w-full text-left border-collapse">
                             <thead>
-                                <tr className="bg-[#5C4033] text-white text-xs uppercase tracking-wider">
-                                    <th className="px-5 py-3.5 font-semibold">Produto</th>
-                                    <th className="px-5 py-3.5 font-semibold text-center">Tamanho Un.</th>
-                                    <th className="px-5 py-3.5 font-semibold text-center">Custo/Venda</th>
-                                    <th className="px-5 py-3.5 font-semibold text-center">Estoque Visível</th>
-                                    <th className="px-5 py-3.5 font-semibold text-center">Status</th>
-                                    <th className="px-5 py-3.5 font-semibold text-right">Ações</th>
+                                <tr className="bg-gray-50/50 text-gray-400 text-xs uppercase tracking-widest border-b border-gray-100">
+                                    <th className="px-6 py-4 font-bold">Produto</th>
+                                    <th className="px-6 py-4 font-bold text-center">Tamanho Un.</th>
+                                    <th className="px-6 py-4 font-bold text-center">Custo/Venda</th>
+                                    <th className="px-6 py-4 font-bold text-center">Estoque Visível</th>
+                                    <th className="px-6 py-4 font-bold text-center">Status</th>
+                                    <th className="px-6 py-4 font-bold text-right">Ações</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -542,17 +544,27 @@ export default function PainelEstoquePage() {
 
             {/* ── MODAL: Criar Produto/Insumo ──────────────────────────────────────── */}
             {modalCriar && (
-                <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg border-t-4 border-[#5C4033] animate-in fade-in slide-in-from-bottom-4 duration-300">
-                        <div className="px-8 pt-8 pb-4 border-b border-gray-100">
-                            <h2 className="text-xl font-bold text-[#5C4033]">Cadastrar Novo Produto</h2>
-                            <p className="text-sm text-gray-500 mt-1">Insira os dados da ficha técnica e financeiro.</p>
+                <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50 backdrop-blur-md">
+                    <div className="bg-white rounded-[24px] shadow-2xl w-full max-w-lg border border-gray-100 animate-in fade-in zoom-in-95 duration-300">
+                        <div className="px-8 pt-8 pb-5 border-b border-gray-100 flex justify-between items-start">
+                            <div>
+                                <h2 className="text-xl font-bold text-[#5C4033] tracking-tight">Cadastrar Novo Produto</h2>
+                                <p className="text-sm text-gray-500 mt-1">Insira os dados da ficha técnica e financeiro.</p>
+                            </div>
+                            <button
+                                type="button"
+                                disabled={criando}
+                                onClick={() => { setModalCriar(false); setFormData(FORM_INICIAL) }}
+                                className="p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 rounded-full transition-colors disabled:opacity-50"
+                            >
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                            </button>
                         </div>
 
-                        <form onSubmit={handleCriar} className="p-8 space-y-5">
-                            <div className="grid grid-cols-1 gap-4">
+                        <form onSubmit={handleCriar} className="p-8 space-y-6">
+                            <div className="grid grid-cols-1 gap-5">
                                 <div>
-                                    <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1.5">
+                                    <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-2">
                                         Nome do Produto *
                                     </label>
                                     <input
@@ -562,11 +574,11 @@ export default function PainelEstoquePage() {
                                         placeholder="Ex: Óleo de Argan Premium"
                                         value={formData.nome}
                                         onChange={campo('nome')}
-                                        className="w-full border border-gray-200 rounded-lg px-3.5 py-2.5 text-sm outline-none focus:border-[#8B5A2B] focus:ring-2 focus:ring-[#8B5A2B]/10 transition-all disabled:bg-gray-50"
+                                        className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#8B5A2B] focus:ring-4 focus:ring-[#8B5A2B]/10 transition-all disabled:bg-gray-50 placeholder:text-gray-300 font-medium text-gray-800"
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1.5">
+                                    <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-2">
                                         Descrição (Opcional)
                                     </label>
                                     <input
@@ -575,55 +587,61 @@ export default function PainelEstoquePage() {
                                         placeholder="Uso interno no salão"
                                         value={formData.descricao}
                                         onChange={campo('descricao')}
-                                        className="w-full border border-gray-200 rounded-lg px-3.5 py-2.5 text-sm outline-none focus:border-[#8B5A2B] focus:ring-2 focus:ring-[#8B5A2B]/10 transition-all disabled:bg-gray-50"
+                                        className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#8B5A2B] focus:ring-4 focus:ring-[#8B5A2B]/10 transition-all disabled:bg-gray-50 placeholder:text-gray-300 font-medium text-gray-800"
                                     />
                                 </div>
                             </div>
 
                             {/* Preços */}
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-2 gap-5">
                                 <div>
-                                    <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1.5">
+                                    <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-2">
                                         Custo (R$) *
                                     </label>
-                                    <input
-                                        required
-                                        disabled={criando}
-                                        type="number"
-                                        step="0.01"
-                                        min="0"
-                                        value={formData.precoCusto}
-                                        onChange={campo('precoCusto')}
-                                        className="w-full border border-gray-200 rounded-lg px-3.5 py-2.5 text-sm outline-none focus:border-[#8B5A2B] focus:ring-2 focus:ring-[#8B5A2B]/10 transition-all disabled:bg-gray-50"
-                                    />
+                                    <div className="relative">
+                                        <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-gray-400 text-sm">R$</span>
+                                        <input
+                                            required
+                                            disabled={criando}
+                                            type="number"
+                                            step="0.01"
+                                            min="0"
+                                            value={formData.precoCusto}
+                                            onChange={campo('precoCusto')}
+                                            className="w-full border border-gray-200 rounded-xl pl-10 pr-4 py-3 text-sm outline-none focus:border-[#8B5A2B] focus:ring-4 focus:ring-[#8B5A2B]/10 transition-all disabled:bg-gray-50 font-bold text-gray-800"
+                                        />
+                                    </div>
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-1.5">
+                                    <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-2">
                                         Venda (R$) *
                                     </label>
-                                    <input
-                                        required
-                                        disabled={criando}
-                                        type="number"
-                                        step="0.01"
-                                        min="0"
-                                        value={formData.precoVenda}
-                                        onChange={campo('precoVenda')}
-                                        className="w-full border border-gray-200 rounded-lg px-3.5 py-2.5 text-sm outline-none focus:border-[#8B5A2B] focus:ring-2 focus:ring-[#8B5A2B]/10 transition-all disabled:bg-gray-50"
-                                    />
+                                    <div className="relative">
+                                        <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-gray-400 text-sm">R$</span>
+                                        <input
+                                            required
+                                            disabled={criando}
+                                            type="number"
+                                            step="0.01"
+                                            min="0"
+                                            value={formData.precoVenda}
+                                            onChange={campo('precoVenda')}
+                                            className="w-full border border-gray-200 rounded-xl pl-10 pr-4 py-3 text-sm outline-none focus:border-[#8B5A2B] focus:ring-4 focus:ring-[#8B5A2B]/10 transition-all disabled:bg-gray-50 font-bold text-[#8B5A2B]"
+                                        />
+                                    </div>
                                 </div>
                             </div>
 
                             {/* Configuração de Medidas */}
-                            <div className="grid grid-cols-3 gap-4 p-4 bg-orange-50/50 border border-orange-100 rounded-xl">
+                            <div className="grid grid-cols-3 gap-5 p-5 bg-orange-50/50 border border-orange-100 rounded-2xl">
                                 <div className="col-span-3">
                                     <h4 className="font-bold text-[#8B5A2B] text-sm">Ficha Técnica (Medidas)</h4>
-                                    <p className="text-[11px] text-gray-500">Como este produto é consumido nos serviços?</p>
+                                    <p className="text-[11px] text-gray-500 mt-1">Como este produto é consumido nos serviços?</p>
                                 </div>
                                 <div className="col-span-1">
                                     <label className="block text-[10px] font-bold text-gray-600 uppercase tracking-wider mb-1.5">Medida</label>
                                     <select
-                                        className="w-full border border-gray-300 rounded-lg px-2 py-2 text-sm font-semibold outline-none focus:border-[#8B5A2B]"
+                                        className="w-full border border-gray-300 bg-white rounded-xl px-2 py-2.5 text-sm font-semibold outline-none focus:border-[#8B5A2B] transition-colors"
                                         value={formData.unidadeMedida}
                                         onChange={campo('unidadeMedida')}
                                     >
@@ -634,46 +652,38 @@ export default function PainelEstoquePage() {
                                 </div>
                                 <div className="col-span-2">
                                     <label className="block text-[10px] font-bold text-gray-600 uppercase tracking-wider mb-1.5">Tamanho de 1 Frasco</label>
-                                    <div className="flex items-center gap-2">
+                                    <div className="flex items-center gap-3">
                                         <input
                                             required
                                             type="number"
                                             min="1"
-                                            className="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-[#8B5A2B]"
+                                            className="w-full border border-gray-300 rounded-xl px-4 py-2.5 outline-none focus:border-[#8B5A2B] font-bold transition-colors"
                                             value={formData.tamanhoUnidade}
                                             onChange={campo('tamanhoUnidade')}
                                         />
-                                        <span className="text-sm font-bold text-[#8B5A2B] w-6">{formData.unidadeMedida}</span>
+                                        <span className="text-sm font-black text-[#8B5A2B] w-6">{formData.unidadeMedida}</span>
                                     </div>
                                 </div>
-                                <div className="col-span-3 mt-2 border-t border-orange-100 pt-3">
-                                    <label className="block text-xs font-semibold text-gray-800 mb-1">Quantos frascos tens em estoque agora?</label>
+                                <div className="col-span-3 mt-2 border-t border-orange-100/60 pt-4">
+                                    <label className="block text-[11px] font-bold text-gray-600 uppercase tracking-wider mb-2">Frascos em Estoque Agora</label>
                                     <input
                                         required
                                         type="number"
                                         min="0"
-                                        className="w-full border border-gray-300 rounded-lg px-4 py-2.5 outline-none focus:border-[#8B5A2B] font-bold"
+                                        className="w-full border border-gray-300 rounded-xl px-4 py-3 outline-none focus:border-[#8B5A2B] font-black text-lg transition-colors"
                                         value={formData.estoqueInicialEmFrascos}
                                         onChange={campo('estoqueInicialEmFrascos')}
                                     />
                                 </div>
                             </div>
 
-                            <div className="flex justify-end gap-3 pt-2">
-                                <button
-                                    type="button"
-                                    disabled={criando}
-                                    onClick={() => { setModalCriar(false); setFormData(FORM_INICIAL) }}
-                                    className="px-5 py-2.5 text-sm text-gray-600 font-semibold hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
-                                >
-                                    Cancelar
-                                </button>
+                            <div className="flex justify-end pt-4">
                                 <button
                                     type="submit"
                                     disabled={criando}
-                                    className="px-5 py-2.5 text-sm bg-[#5C4033] text-white font-semibold rounded-lg hover:bg-[#3e2b22] transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                                    className="w-full md:w-auto px-8 py-3.5 text-sm bg-gray-900 text-white font-bold rounded-xl hover:bg-black transition-colors shadow-lg shadow-black/10 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                                 >
-                                    {criando ? 'Salvando...' : 'Adicionar ao Catálogo'}
+                                    {criando ? 'Salvando...' : 'Adicionar Produto ao Catálogo'}
                                 </button>
                             </div>
                         </form>
@@ -683,16 +693,26 @@ export default function PainelEstoquePage() {
 
             {/* ── MODAL: Entrada de Mercadoria (Frascos) ─────────────────────────────── */}
             {modalEntrada && (
-                <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm border-t-4 border-[#8B5A2B] animate-in zoom-in-95 duration-200">
-                        <div className="px-8 pt-8 pb-4 border-b border-gray-100">
-                            <p className="text-xs font-semibold text-[#8B5A2B] uppercase tracking-wider mb-1">Entrada de Mercadoria</p>
-                            <h2 className="text-lg font-bold text-gray-800">{modalEntrada.nomeProduto}</h2>
+                <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50 backdrop-blur-md">
+                    <div className="bg-white rounded-[24px] shadow-2xl w-full max-w-sm border border-gray-100 animate-in zoom-in-95 duration-200">
+                        <div className="px-8 pt-8 pb-5 border-b border-gray-100 flex items-start justify-between">
+                            <div>
+                                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">Entrada em Lote</p>
+                                <h2 className="text-xl font-bold text-[#5C4033] tracking-tight">{modalEntrada.nomeProduto}</h2>
+                            </div>
+                            <button
+                                type="button"
+                                disabled={entradando}
+                                onClick={() => setModalEntrada(null)}
+                                className="p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 rounded-full transition-colors"
+                            >
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                            </button>
                         </div>
 
                         <form onSubmit={(e) => { e.preventDefault(); void handleEntrada() }} className="p-8 space-y-6">
                             <div>
-                                <label className="block text-sm font-semibold text-gray-700 mb-3 text-center">
+                                <label className="block text-sm font-bold text-gray-700 mb-4 text-center">
                                     Quantos frascos completos chegaram?
                                 </label>
                                 <div className="flex items-center justify-center gap-3">
@@ -704,34 +724,26 @@ export default function PainelEstoquePage() {
                                         autoFocus
                                         value={modalEntrada.quantidadeFrascos}
                                         onChange={e => setModalEntrada(prev => prev ? { ...prev, quantidadeFrascos: Math.max(1, Number(e.target.value)) } : null)}
-                                        className="w-24 border-2 border-[#8B5A2B]/30 rounded-xl px-4 py-3 text-3xl font-black text-center text-[#5C4033] outline-none focus:border-[#8B5A2B] transition-all"
+                                        className="w-28 border border-gray-200 rounded-2xl px-4 py-3 text-3xl font-black text-center text-[#5C4033] outline-none focus:border-[#8B5A2B] focus:ring-4 focus:ring-[#8B5A2B]/10 transition-all shadow-sm"
                                     />
-                                    <span className="font-bold text-gray-500">un.</span>
+                                    <span className="font-bold text-gray-400 text-lg">un.</span>
                                 </div>
 
-                                <div className="bg-orange-50 border border-orange-100 rounded-lg p-3 mt-6 text-center">
-                                    <p className="text-[10px] text-orange-600 font-bold uppercase tracking-wider mb-1">Conversão Automática no Banco</p>
-                                    <p className="text-lg font-black text-[#8B5A2B]">
+                                <div className="bg-orange-50/50 border border-orange-100 rounded-xl p-4 mt-8 text-center flex flex-col items-center justify-center">
+                                    <p className="text-[10px] text-orange-600 font-bold uppercase tracking-widest mb-2">Conversão Automática no Banco</p>
+                                    <p className="text-xl font-black text-[#8B5A2B]">
                                         + {modalEntrada.quantidadeFrascos * modalEntrada.tamanhoUnidade} {modalEntrada.unidadeMedida}
                                     </p>
                                 </div>
                             </div>
 
-                            <div className="flex justify-end gap-3 pt-2 border-t border-gray-100">
-                                <button
-                                    type="button"
-                                    disabled={entradando}
-                                    onClick={() => setModalEntrada(null)}
-                                    className="px-5 py-2.5 text-sm text-gray-600 font-semibold hover:bg-gray-100 rounded-lg transition-colors"
-                                >
-                                    Cancelar
-                                </button>
+                            <div className="flex justify-end pt-2">
                                 <button
                                     type="submit"
                                     disabled={entradando || modalEntrada.quantidadeFrascos <= 0}
-                                    className="px-5 py-2.5 text-sm bg-[#8B5A2B] text-white font-semibold rounded-lg hover:bg-[#704620] transition-colors shadow-sm disabled:opacity-50"
+                                    className="w-full px-5 py-3.5 text-sm bg-gray-900 text-white font-bold rounded-xl hover:bg-black transition-colors shadow-lg shadow-black/10 disabled:opacity-50"
                                 >
-                                    {entradando ? 'A Processar...' : 'Confirmar'}
+                                    {entradando ? 'A Processar...' : 'Confirmar Entrada'}
                                 </button>
                             </div>
                         </form>

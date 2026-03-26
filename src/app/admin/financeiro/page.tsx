@@ -22,11 +22,11 @@ type ChartData = { data: string; 'Faturamento (R$)': number; Atendimentos: numbe
 
 // Type guards para verificar os tipos de resposta
 function isSuccessResponse<T>(response: unknown): response is T & { sucesso: true } {
-    return typeof response === 'object' && response !== null && 'sucesso' in response && (response as any).sucesso === true
+    return typeof response === 'object' && response !== null && 'sucesso' in response && (response as Record<string, unknown>).sucesso === true
 }
 
 function isErrorResponse(response: unknown): response is { sucesso: false; erro: string } {
-    return typeof response === 'object' && response !== null && 'sucesso' in response && (response as any).sucesso === false && 'erro' in response
+    return typeof response === 'object' && response !== null && 'sucesso' in response && (response as Record<string, unknown>).sucesso === false && 'erro' in response
 }
 
 function isFinanceiroResumo(response: unknown): response is FinanceiroResumo {
@@ -49,7 +49,10 @@ export default function PainelFinanceiroPage() {
 
     // PREVENÇÃO DE ERRO NO RECHARTS: Garante que os gráficos só tentam ler as dimensões após a página estar montada no browser
     const [mounted, setMounted] = useState(false)
-    useEffect(() => setMounted(true), [])
+    useEffect(() => {
+        const timeoutId = setTimeout(() => setMounted(true), 0)
+        return () => clearTimeout(timeoutId)
+    }, [])
 
     const obterDatasDoFiltro = (periodo: PeriodoFiltro) => {
         const hoje = new Date()
@@ -190,38 +193,37 @@ export default function PainelFinanceiroPage() {
     if (!dados) return null
 
     const cards = [
-        { label: 'Faturamento Bruto', valor: dados.faturamentoBruto, cor: 'border-blue-500', textCor: 'text-gray-800' },
-        { label: 'Custos (Insumos + Revenda)', valor: dados.custoProdutos, cor: 'border-red-500', textCor: 'text-red-600' },
-        { label: 'Comissões Pagas', valor: dados.totalComissoes, cor: 'border-orange-500', textCor: 'text-orange-600' },
-        { label: 'Lucro Líquido (Real)', valor: dados.lucroLiquido, cor: 'border-green-500', textCor: 'text-green-600' },
+        { label: 'Faturamento Bruto', valor: dados.faturamentoBruto, cor: 'border-blue-400', textCor: 'text-gray-900', bgGrad: 'from-blue-50 to-transparent' },
+        { label: 'Custos Operacionais', valor: dados.custoProdutos, cor: 'border-rose-400', textCor: 'text-rose-600', bgGrad: 'from-rose-50 to-transparent' },
+        { label: 'Comissões Repassadas', valor: dados.totalComissoes, cor: 'border-orange-400', textCor: 'text-orange-600', bgGrad: 'from-orange-50 to-transparent' },
+        { label: 'Lucro Líquido Real', valor: dados.lucroLiquido, cor: 'border-emerald-400', textCor: 'text-emerald-700', bgGrad: 'from-emerald-50 to-transparent' },
     ] as const
 
     return (
-        <div className="min-h-screen bg-[#fdfbf7] p-8 font-sans">
-            <header className="mb-6 border-b-2 border-[#5C4033] pb-4 flex justify-between items-center">
+        <div className="min-h-screen bg-[#fdfbf7] p-4 md:p-8 font-sans">
+            <header className="mb-8 flex flex-col md:flex-row md:justify-between md:items-end gap-4">
                 <div>
-                    <h1 className="text-3xl font-bold text-[#5C4033]">Painel Financeiro</h1>
-                    <p className="text-gray-500 mt-1">Visão global de faturamento, gráficos e metas da equipa.</p>
+                    <h1 className="text-3xl md:text-4xl font-black text-[#5C4033] tracking-tight">Visão Financeira</h1>
+                    <p className="text-gray-500 mt-2 text-sm md:text-base">Análise de métricas, lucros e evolução do seu salão.</p>
                 </div>
             </header>
 
-            <nav className="flex flex-wrap gap-3 mb-8">
+            <nav className="flex flex-wrap gap-2 md:gap-3 mb-10 p-1 md:p-1.5 bg-gray-100/60 backdrop-blur rounded-2xl w-fit">
                 {[
-                    { href: '/admin/dashboard', label: 'Equipa (Atual)' },
+                    { href: '/admin/dashboard', label: 'Equipa' },
                     { href: '/admin/financeiro', label: 'Financeiro', ativo: true },
-                    { href: '/admin/estoque', label: 'Estoque de Produtos' },
-                    { href: '/admin/servicos', label: 'Portfólio / Serviços' },
-                    { href: '/admin/agendamentos', label: 'Agendamentos Globais' },
-                    { href: '/admin/clientes', label: 'Base de Clientes' },
-                    { href: '/admin/avaliacoes', label: 'Avaliações' },
+                    { href: '/admin/estoque', label: 'Estoque' },
+                    { href: '/admin/servicos', label: 'Serviços' },
+                    { href: '/admin/agendamentos', label: 'Agendamentos' },
+                    { href: '/admin/clientes', label: 'Clientes' },
                 ].map(({ href, label, ativo }) => (
                     <Link
                         key={href}
                         href={href}
                         className={
                             ativo
-                                ? 'bg-[#5C4033] text-white px-5 py-2 rounded shadow font-bold text-sm'
-                                : 'bg-white text-[#5C4033] border border-[#e5d9c5] px-5 py-2 rounded shadow-sm font-bold text-sm hover:border-[#8B5A2B] hover:bg-orange-50 transition-colors'
+                                ? 'bg-white text-[#5C4033] px-5 py-2 md:py-2.5 rounded-xl shadow-sm font-bold text-[13px] md:text-sm tracking-wide'
+                                : 'text-gray-500 px-5 py-2 md:py-2.5 rounded-xl font-semibold text-[13px] md:text-sm tracking-wide hover:bg-white/50 hover:text-gray-900 transition-all'
                         }
                     >
                         {label}
@@ -230,10 +232,9 @@ export default function PainelFinanceiroPage() {
             </nav>
 
             {/* BARRA DE FILTROS E EXPORTAÇÃO */}
-            <div className="flex flex-col xl:flex-row items-start xl:items-center justify-between bg-white p-5 rounded-lg shadow-sm border border-[#e5d9c5] mb-6 gap-4">
-                <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full xl:w-auto">
-                    <span className="text-sm font-bold text-gray-600 uppercase tracking-wider">Período de Análise:</span>
-                    <div className="flex flex-wrap gap-2">
+            <div className="flex flex-col xl:flex-row items-start xl:items-center justify-between mb-8 gap-4">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-4 w-full xl:w-auto">
+                    <div className="flex flex-wrap gap-2 p-1 bg-gray-200/50 rounded-full">
                         {botoesFiltro.map(btn => (
                             <button
                                 key={btn.valor}
@@ -243,9 +244,9 @@ export default function PainelFinanceiroPage() {
                                     }
                                 }}
                                 disabled={isLoadingMetrics}
-                                className={`px-4 py-2 rounded text-sm font-bold transition-colors ${periodoAtual === btn.valor
-                                    ? 'bg-[#8B5A2B] text-white shadow-sm'
-                                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                className={`px-5 py-2 rounded-full text-[13px] font-bold transition-all ${periodoAtual === btn.valor
+                                    ? 'bg-white text-[#5C4033] shadow-sm'
+                                    : 'text-gray-500 hover:text-gray-800'
                                     }`}
                             >
                                 {btn.label}
@@ -254,11 +255,11 @@ export default function PainelFinanceiroPage() {
                     </div>
                 </div>
 
-                <div className="flex gap-3 w-full sm:w-auto mt-2 xl:mt-0 pt-4 xl:pt-0 border-t xl:border-0 border-gray-100">
+                <div className="flex gap-3 w-full sm:w-auto mt-2 xl:mt-0 xl:pt-0">
                     <button
                         onClick={exportarParaExcel}
                         disabled={isLoadingMetrics || !dados}
-                        className="flex-1 sm:flex-none flex justify-center items-center gap-2 px-5 py-2.5 bg-green-600 text-white rounded-lg font-bold hover:bg-green-700 transition-colors disabled:opacity-50 text-sm shadow-sm"
+                        className="flex-1 sm:flex-none flex justify-center items-center gap-2 px-5 py-2.5 bg-emerald-600/10 text-emerald-700 border border-emerald-200 rounded-xl font-bold hover:bg-emerald-600 hover:text-white transition-all disabled:opacity-50 text-sm shadow-sm"
                     >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
                         Excel
@@ -269,11 +270,17 @@ export default function PainelFinanceiroPage() {
             </div>
 
             {/* MÉTRICAS (CARDS) */}
-            <div className={`grid grid-cols-1 md:grid-cols-4 gap-6 mb-8 transition-opacity duration-300 ${isLoadingMetrics ? 'opacity-40 pointer-events-none' : 'opacity-100'}`}>
-                {cards.map(({ label, valor, cor, textCor }) => (
-                    <div key={label} className={`bg-white p-6 rounded-lg shadow border-l-4 ${cor}`}>
-                        <p className="text-sm font-semibold text-gray-500 uppercase tracking-wide">{label}</p>
-                        <p className={`text-2xl font-bold mt-2 ${textCor}`}>R$ {valor.toFixed(2)}</p>
+            <div className={`grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-10 transition-opacity duration-300 ${isLoadingMetrics ? 'opacity-40 pointer-events-none' : 'opacity-100'}`}>
+                {cards.map(({ label, valor, cor, textCor, bgGrad }) => (
+                    <div key={label} className={`relative bg-white p-6 rounded-2xl shadow-sm hover:shadow-md transition-shadow border border-t-[3px] border-x-gray-100 border-b-gray-100 ${cor} overflow-hidden group`}>
+                        <div className={`absolute inset-0 bg-gradient-to-br ${bgGrad} opacity-50 group-hover:opacity-100 transition-opacity duration-500`} />
+                        <div className="relative z-10">
+                            <p className="text-[11px] md:text-xs font-bold text-gray-400 uppercase tracking-[0.15em]">{label}</p>
+                            <p className={`text-2xl md:text-3xl font-black mt-3 tracking-tight ${textCor}`}>
+                                <span className="text-base md:text-lg opacity-70 font-semibold mr-1">R$</span>
+                                {valor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </p>
+                        </div>
                     </div>
                 ))}
             </div>
@@ -281,8 +288,11 @@ export default function PainelFinanceiroPage() {
             {/* GRÁFICOS VISUAIS RECHARTS (SÓ RENDERIZA DEPOIS DE MONTADO) */}
             {mounted && chartData.length > 0 && (
                 <div className={`grid grid-cols-1 lg:grid-cols-2 gap-6 mb-10 transition-opacity duration-300 ${isLoadingMetrics ? 'opacity-40 pointer-events-none' : 'opacity-100'}`}>
-                    <div className="bg-white p-6 rounded-lg shadow border border-[#e5d9c5]">
-                        <h3 className="text-lg font-bold text-[#5C4033] mb-6">Tendência de Faturamento (Últimos 7 dias)</h3>
+                    <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-100">
+                        <h3 className="text-base font-bold text-[#5C4033] tracking-wide mb-6 flex items-center gap-2">
+                            <span className="w-2 h-2 rounded-full bg-[#8B5A2B]"></span>
+                            Faturamento Consolidado
+                        </h3>
                         <div className="h-72 w-full">
                             <ResponsiveContainer width="100%" height="100%">
                                 <LineChart data={chartData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
@@ -290,7 +300,7 @@ export default function PainelFinanceiroPage() {
                                     <XAxis dataKey="data" tick={{ fontSize: 12, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
                                     <YAxis tick={{ fontSize: 12, fill: '#9ca3af' }} axisLine={false} tickLine={false} tickFormatter={(value) => `R$${value}`} />
                                     <Tooltip
-                                        contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                                        contentStyle={{ borderRadius: '12px', border: '1px solid #f3f4f6', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)' }}
                                         formatter={(value: unknown) => {
                                             const numericValue = typeof value === 'number' ? value : 0
                                             return [`R$ ${numericValue.toFixed(2)}`, 'Faturamento'] as [string, string]
@@ -302,8 +312,11 @@ export default function PainelFinanceiroPage() {
                         </div>
                     </div>
 
-                    <div className="bg-white p-6 rounded-lg shadow border border-[#e5d9c5]">
-                        <h3 className="text-lg font-bold text-[#5C4033] mb-6">Volume de Atendimentos (Últimos 7 dias)</h3>
+                    <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-100">
+                        <h3 className="text-base font-bold text-[#5C4033] tracking-wide mb-6 flex items-center gap-2">
+                            <span className="w-2 h-2 rounded-full bg-[#c5a87c]"></span>
+                            Volume de Atendimentos
+                        </h3>
                         <div className="h-72 w-full">
                             <ResponsiveContainer width="100%" height="100%">
                                 <BarChart data={chartData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
@@ -329,18 +342,19 @@ export default function PainelFinanceiroPage() {
             )}
 
             {/* TABELA DE COMISSÕES */}
-            <section className={`bg-white rounded-lg shadow overflow-hidden border border-[#e5d9c5] transition-opacity ${isLoadingMetrics ? 'opacity-40' : 'opacity-100'}`}>
-                <h2 className="bg-[#5C4033] text-white p-4 text-lg font-bold">
-                    Gestão de Comissões por Profissional
-                </h2>
+            <section className={`bg-white rounded-2xl shadow-sm border border-gray-100 transition-opacity mb-10 ${isLoadingMetrics ? 'opacity-40' : 'opacity-100'}`}>
+                <div className="p-6 md:p-8 border-b border-gray-100">
+                    <h2 className="text-xl font-bold text-[#5C4033] tracking-tight">Regras de Comissão</h2>
+                    <p className="text-sm text-gray-500 mt-1">Configuração de repasse financeiro por profissional na equipa.</p>
+                </div>
                 <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse">
                         <thead>
-                            <tr className="bg-gray-50 border-b border-gray-200">
-                                <th className="p-4 text-sm font-semibold text-gray-700 uppercase tracking-wider">Profissional</th>
-                                <th className="p-4 text-sm font-semibold text-center text-gray-700 uppercase tracking-wider">Taxa (%)</th>
-                                <th className="p-4 text-sm font-semibold text-center text-gray-700 uppercase tracking-wider">Acesso Visível?</th>
-                                <th className="p-4 text-sm font-semibold text-right text-gray-700 uppercase tracking-wider">Ações</th>
+                            <tr className="bg-gray-50/50">
+                                <th className="p-5 text-xs font-bold text-gray-400 uppercase tracking-widest border-b border-gray-100">Profissional</th>
+                                <th className="p-5 text-xs font-bold text-center text-gray-400 uppercase tracking-widest border-b border-gray-100">Taxa (%)</th>
+                                <th className="p-5 text-xs font-bold text-center text-gray-400 uppercase tracking-widest border-b border-gray-100">Acesso Visível?</th>
+                                <th className="p-5 text-xs font-bold text-right text-gray-400 uppercase tracking-widest border-b border-gray-100">Ações</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -382,13 +396,13 @@ export default function PainelFinanceiroPage() {
                                                 </label>
                                             </td>
                                             <td className="p-4 text-right">
-                                                <button
-                                                    onClick={() => handleAtualizarRegras(p)}
-                                                    disabled={isSaving}
-                                                    className="bg-[#8B5A2B] text-white px-5 py-2 rounded text-sm font-bold shadow-sm hover:bg-[#704620] hover:shadow transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                                                >
-                                                    {isSaving ? 'A Guardar...' : 'Salvar Regras'}
-                                                </button>
+                                                    <button
+                                                        onClick={() => handleAtualizarRegras(p)}
+                                                        disabled={isSaving}
+                                                        className="bg-gray-100 text-[#5C4033] font-bold px-5 py-2 rounded-xl text-sm hover:bg-[#5C4033] hover:text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed border border-gray-200 hover:border-[#5C4033]"
+                                                    >
+                                                        {isSaving ? 'A Guardar...' : 'Atualizar'}
+                                                    </button>
                                             </td>
                                         </tr>
                                     )

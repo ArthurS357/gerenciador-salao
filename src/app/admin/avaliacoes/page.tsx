@@ -4,13 +4,49 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { listarAvaliacoesAdmin, type AvaliacaoAdminItem } from '@/app/actions/avaliacao'
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function Estrelas({ nota }: { nota: number }) {
+    return (
+        <div className="flex gap-0.5">
+            {[1, 2, 3, 4, 5].map(n => (
+                <svg key={n} width="16" height="16" viewBox="0 0 24 24"
+                    fill={nota >= n ? '#f59e0b' : 'none'}
+                    stroke={nota >= n ? '#f59e0b' : '#d1d5db'}
+                    strokeWidth="1.5">
+                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                </svg>
+            ))}
+        </div>
+    )
+}
+
+function corNota(nota: number): string {
+    if (nota >= 5) return 'bg-emerald-100 text-emerald-700 border-emerald-200'
+    if (nota >= 4) return 'bg-green-100 text-green-700 border-green-200'
+    if (nota >= 3) return 'bg-yellow-100 text-yellow-700 border-yellow-200'
+    if (nota >= 2) return 'bg-orange-100 text-orange-700 border-orange-200'
+    return 'bg-red-100 text-red-700 border-red-200'
+}
+
+function labelNota(nota: number): string {
+    if (nota >= 5) return 'Excelente'
+    if (nota >= 4) return 'Ótimo'
+    if (nota >= 3) return 'Bom'
+    if (nota >= 2) return 'Regular'
+    return 'Ruim'
+}
+
+// ── Componente Principal ──────────────────────────────────────────────────────
+
 export default function AvaliacoesPage() {
     const [avaliacoes, setAvaliacoes] = useState<AvaliacaoAdminItem[]>([])
     const [mediaGeral, setMediaGeral] = useState(0)
     const [loading, setLoading] = useState(true)
+    const [filtroNota, setFiltroNota] = useState<number | null>(null)
 
     useEffect(() => {
-        const carregarDados = async () => {
+        const carregar = async () => {
             const res = await listarAvaliacoesAdmin()
             if (res.sucesso && res.avaliacoes) {
                 setAvaliacoes(res.avaliacoes)
@@ -18,88 +54,199 @@ export default function AvaliacoesPage() {
             }
             setLoading(false)
         }
-        carregarDados()
+        carregar()
     }, [])
 
-    const renderEstrelas = (nota: number) => {
-        return (
-            <div className="flex gap-1">
-                {[1, 2, 3, 4, 5].map((estrela) => (
-                    <span key={estrela} className={`text-lg ${nota >= estrela ? 'text-yellow-400' : 'text-gray-200'}`}>
-                        ★
-                    </span>
-                ))}
-            </div>
-        )
-    }
+    // ── Derivações ────────────────────────────────────────────────────────────
+
+    const distribuicao = [5, 4, 3, 2, 1].map(n => ({
+        nota: n,
+        total: avaliacoes.filter(a => a.nota === n).length,
+        pct: avaliacoes.length > 0 ? Math.round((avaliacoes.filter(a => a.nota === n).length / avaliacoes.length) * 100) : 0,
+    }))
+
+    const avaliacoesFiltradas = filtroNota !== null
+        ? avaliacoes.filter(a => a.nota === filtroNota)
+        : avaliacoes
+
+    // ── Render ────────────────────────────────────────────────────────────────
 
     return (
-        <div className="min-h-screen bg-[#fdfbf7] p-8 font-sans">
-            <header className="mb-6 border-b-2 border-[#5C4033] pb-4 flex justify-between items-center">
-                <div>
-                    <h1 className="text-3xl font-bold text-[#5C4033]">Satisfação dos Clientes</h1>
-                    <p className="text-gray-500 mt-1">Acompanhe o feedback e a nota NPS do salão.</p>
-                </div>
+        <div className="min-h-screen bg-stone-50 font-sans">
 
-                {/* Badge da Média Geral */}
-                {!loading && avaliacoes.length > 0 && (
-                    <div className="bg-white px-6 py-3 rounded-xl border border-[#e5d9c5] shadow-sm flex items-center gap-4">
-                        <div>
-                            <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">Média do Salão</p>
-                            <p className="text-2xl font-black text-[#5C4033] mt-1">{mediaGeral.toFixed(1)} <span className="text-yellow-400 text-xl">★</span></p>
-                        </div>
-                    </div>
-                )}
-            </header>
+            {/* ── TOPO ── */}
+            <div className="bg-white border-b border-stone-200 px-6 py-5">
+                <h1 className="text-2xl font-bold text-stone-800 tracking-tight">Satisfação dos Clientes</h1>
+                <p className="text-sm text-stone-500 mt-0.5">Acompanhe o feedback e o NPS do salão</p>
+            </div>
 
-            {/* Navegação Horizontal */}
-            <nav className="flex flex-wrap gap-3 mb-8">
-                <Link href='/admin/dashboard' className="bg-white text-[#5C4033] border border-[#e5d9c5] px-5 py-2 rounded shadow-sm font-bold text-sm hover:border-[#8B5A2B]">Equipa</Link>
-                <Link href='/admin/financeiro' className="bg-white text-[#5C4033] border border-[#e5d9c5] px-5 py-2 rounded shadow-sm font-bold text-sm hover:border-[#8B5A2B]">Financeiro</Link>
-                <Link href='/admin/agendamentos' className="bg-white text-[#5C4033] border border-[#e5d9c5] px-5 py-2 rounded shadow-sm font-bold text-sm hover:border-[#8B5A2B]">Agendamentos</Link>
-                <Link href='/admin/avaliacoes' className="bg-[#5C4033] text-white px-5 py-2 rounded shadow font-bold text-sm">Avaliações</Link>
-            </nav>
-
-            {loading ? (
-                <div className="flex justify-center p-20 text-gray-400 font-bold uppercase tracking-widest text-sm">
-                    A carregar avaliações...
-                </div>
-            ) : avaliacoes.length === 0 ? (
-                <div className="bg-white rounded-xl border border-dashed border-[#e5d9c5] p-16 text-center">
-                    <span className="text-4xl">⭐</span>
-                    <p className="text-gray-500 font-bold mt-4">Nenhuma avaliação recebida ainda.</p>
-                </div>
-            ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {avaliacoes.map((av) => (
-                        <div key={av.id} className="bg-white rounded-xl p-6 shadow-sm border border-[#e5d9c5] flex flex-col justify-between">
-                            <div>
-                                <div className="flex justify-between items-start mb-4">
-                                    {renderEstrelas(av.nota)}
-                                    <span className="text-xs font-semibold text-gray-400">
-                                        {new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short' }).format(new Date(av.criadoEm))}
-                                    </span>
-                                </div>
-
-                                {av.comentario ? (
-                                    <p className="text-gray-700 text-sm italic mb-6">&quot;{av.comentario}&quot;</p>
-                                ) : (
-                                    <p className="text-gray-400 text-sm italic mb-6">Sem comentário por escrito.</p>
-                                )}
-                            </div>
-
-                            <div className="pt-4 border-t border-gray-100 flex flex-col gap-1">
-                                <p className="text-xs text-gray-500">
-                                    Cliente: <strong className="text-gray-800">{av.agendamento.cliente.nome}</strong>
-                                </p>
-                                <p className="text-xs text-gray-500">
-                                    Profissional: <strong className="text-[#8B5A2B]">{av.agendamento.funcionario.nome}</strong>
-                                </p>
-                            </div>
-                        </div>
+            {/* ── NAVEGAÇÃO ── */}
+            <nav className="bg-white border-b border-stone-200 px-6 py-2.5 overflow-x-auto">
+                <div className="flex gap-1 min-w-max">
+                    {[
+                        { href: '/admin/dashboard', label: 'Equipa' },
+                        { href: '/admin/financeiro', label: 'Financeiro' },
+                        { href: '/admin/estoque', label: 'Estoque' },
+                        { href: '/admin/servicos', label: 'Serviços' },
+                        { href: '/admin/agendamentos', label: 'Agendamentos' },
+                        { href: '/admin/clientes', label: 'Clientes' },
+                        { href: '/admin/avaliacoes', label: 'Avaliações', ativo: true },
+                    ].map(({ href, label, ativo }) => (
+                        <Link key={href} href={href}
+                            className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${ativo
+                                ? 'bg-[#5C4033] text-white'
+                                : 'text-stone-600 hover:bg-stone-100'}`}>
+                            {label}
+                        </Link>
                     ))}
                 </div>
-            )}
+            </nav>
+
+            <div className="p-6 max-w-7xl mx-auto space-y-6">
+
+                {loading ? (
+                    <div className="flex items-center justify-center py-32 text-stone-400 gap-3">
+                        <svg className="animate-spin w-6 h-6 text-[#8B5A2B]" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                        </svg>
+                        <span className="text-sm font-medium">A carregar avaliações...</span>
+                    </div>
+                ) : avaliacoes.length === 0 ? (
+                    <div className="bg-white rounded-2xl border border-dashed border-stone-200 p-20 text-center">
+                        <svg className="w-12 h-12 text-stone-200 mx-auto mb-4" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
+                            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                        </svg>
+                        <p className="text-stone-500 font-semibold">Nenhuma avaliação recebida ainda</p>
+                        <p className="text-stone-400 text-sm mt-1">As avaliações aparecerão aqui após os atendimentos concluídos</p>
+                    </div>
+                ) : (
+                    <>
+                        {/* ── PAINEL DE MÉTRICAS ── */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+
+                            {/* Nota média */}
+                            <div className="bg-white rounded-2xl border border-stone-200 shadow-sm p-6 flex items-center gap-5">
+                                <div className="w-16 h-16 bg-amber-50 border border-amber-200 rounded-2xl flex items-center justify-center flex-shrink-0">
+                                    <svg width="28" height="28" viewBox="0 0 24 24" fill="#f59e0b" stroke="#f59e0b" strokeWidth="1">
+                                        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                                    </svg>
+                                </div>
+                                <div>
+                                    <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide">Nota Média</p>
+                                    <p className="text-4xl font-black text-stone-800 mt-1 leading-none">{mediaGeral.toFixed(1)}</p>
+                                    <Estrelas nota={Math.round(mediaGeral)} />
+                                </div>
+                            </div>
+
+                            {/* Total de avaliações */}
+                            <div className="bg-white rounded-2xl border border-stone-200 shadow-sm p-6 flex items-center gap-5">
+                                <div className="w-16 h-16 bg-blue-50 border border-blue-200 rounded-2xl flex items-center justify-center flex-shrink-0">
+                                    <svg width="28" height="28" fill="none" stroke="#3b82f6" strokeWidth="1.5" viewBox="0 0 24 24">
+                                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
+                                        <path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                                    </svg>
+                                </div>
+                                <div>
+                                    <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide">Total de Avaliações</p>
+                                    <p className="text-4xl font-black text-stone-800 mt-1 leading-none">{avaliacoes.length}</p>
+                                    <p className="text-xs text-stone-400 mt-1">respostas recebidas</p>
+                                </div>
+                            </div>
+
+                            {/* Distribuição por nota */}
+                            <div className="bg-white rounded-2xl border border-stone-200 shadow-sm p-5">
+                                <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-3">Distribuição</p>
+                                <div className="space-y-2">
+                                    {distribuicao.map(({ nota, total, pct }) => (
+                                        <button
+                                            key={nota}
+                                            onClick={() => setFiltroNota(filtroNota === nota ? null : nota)}
+                                            className={`w-full flex items-center gap-2 group rounded-lg px-2 py-1 transition-colors ${filtroNota === nota ? 'bg-amber-50' : 'hover:bg-stone-50'}`}
+                                        >
+                                            <span className="text-xs font-bold text-stone-600 w-4">{nota}</span>
+                                            <svg width="10" height="10" viewBox="0 0 24 24" fill="#f59e0b"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                                            <div className="flex-1 h-2 bg-stone-100 rounded-full overflow-hidden">
+                                                <div className="h-full bg-amber-400 rounded-full transition-all duration-500" style={{ width: `${pct}%` }} />
+                                            </div>
+                                            <span className="text-xs font-semibold text-stone-500 w-8 text-right">{total}</span>
+                                        </button>
+                                    ))}
+                                </div>
+                                {filtroNota !== null && (
+                                    <button onClick={() => setFiltroNota(null)} className="mt-3 w-full text-xs text-stone-400 hover:text-stone-600 underline transition-colors">
+                                        Limpar filtro
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* ── FILTRO ATIVO ── */}
+                        {filtroNota !== null && (
+                            <div className="flex items-center gap-2">
+                                <span className="text-sm text-stone-500">Filtrando por:</span>
+                                <span className={`text-xs font-bold px-2.5 py-1 rounded-full border ${corNota(filtroNota)}`}>
+                                    {filtroNota} estrela{filtroNota !== 1 ? 's' : ''} · {labelNota(filtroNota)}
+                                </span>
+                                <span className="text-xs text-stone-400">({avaliacoesFiltradas.length} resultado{avaliacoesFiltradas.length !== 1 ? 's' : ''})</span>
+                            </div>
+                        )}
+
+                        {/* ── LISTA DE AVALIAÇÕES ── */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {avaliacoesFiltradas.map(av => (
+                                <div key={av.id} className="bg-white rounded-2xl border border-stone-200 shadow-sm p-5 flex flex-col gap-4 hover:shadow-md transition-shadow">
+                                    {/* Header do card */}
+                                    <div className="flex items-start justify-between">
+                                        <div className="flex flex-col gap-1.5">
+                                            <Estrelas nota={av.nota} />
+                                            <span className={`text-xs font-bold px-2 py-0.5 rounded-full border w-fit ${corNota(av.nota)}`}>
+                                                {labelNota(av.nota)}
+                                            </span>
+                                        </div>
+                                        <span className="text-xs text-stone-400 font-medium">
+                                            {new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(av.criadoEm))}
+                                        </span>
+                                    </div>
+
+                                    {/* Comentário */}
+                                    <div className="flex-1">
+                                        {av.comentario ? (
+                                            <p className="text-sm text-stone-600 italic leading-relaxed">
+                                                &ldquo;{av.comentario}&rdquo;
+                                            </p>
+                                        ) : (
+                                            <p className="text-xs text-stone-300 italic">Sem comentário escrito.</p>
+                                        )}
+                                    </div>
+
+                                    {/* Rodapé do card */}
+                                    <div className="pt-3 border-t border-stone-100 space-y-1.5">
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-6 h-6 bg-stone-100 rounded-full flex items-center justify-center flex-shrink-0">
+                                                <svg width="12" height="12" fill="none" stroke="#6b7280" strokeWidth="2" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                                            </div>
+                                            <p className="text-xs text-stone-500">
+                                                <span className="text-stone-400">Cliente: </span>
+                                                <strong className="text-stone-700">{av.agendamento.cliente.nome}</strong>
+                                            </p>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-6 h-6 bg-amber-50 rounded-full flex items-center justify-center flex-shrink-0">
+                                                <svg width="12" height="12" fill="none" stroke="#92400e" strokeWidth="2" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                                            </div>
+                                            <p className="text-xs text-stone-500">
+                                                <span className="text-stone-400">Profissional: </span>
+                                                <strong className="text-[#8B5A2B]">{av.agendamento.funcionario.nome}</strong>
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </>
+                )}
+            </div>
         </div>
     )
 }
