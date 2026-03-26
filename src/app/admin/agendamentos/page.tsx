@@ -5,6 +5,8 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import AdminHeader from '@/components/admin/AdminHeader'
+import { listarTodosClientes } from '@/app/actions/cliente'
+import { listarServicosAdmin } from '@/app/actions/servico'
 import {
     listarAgendamentosGlobais,
     cancelarAgendamentoPendente,
@@ -97,6 +99,8 @@ function Campo({ label, erro, children, required }: { label: string; erro?: stri
 export default function AgendamentosGlobaisPage() {
     const [agendamentos, setAgendamentos] = useState<AgendamentoGlobalItem[]>([])
     const [equipa, setEquipa] = useState<FuncionarioComExpedienteItem[]>([])
+    const [clientesList, setClientesList] = useState<{id: string, nome: string}[]>([])
+    const [servicosList, setServicosList] = useState<{id: string, nome: string}[]>([])
     const [loading, setLoading] = useState(true)
     const [mensagem, setMensagem] = useState<Mensagem | null>(null)
 
@@ -121,12 +125,16 @@ export default function AgendamentosGlobaisPage() {
 
     const carregarDados = useCallback(async () => {
         setLoading(true)
-        const [resAg, resEq] = await Promise.all([
+        const [resAg, resEq, resCli, resServ] = await Promise.all([
             listarAgendamentosGlobais(),
-            listarEquipaComExpediente()
+            listarEquipaComExpediente(),
+            listarTodosClientes(),
+            listarServicosAdmin()
         ])
         if (resAg.sucesso && resAg.agendamentos) setAgendamentos(resAg.agendamentos)
         if (resEq.sucesso && resEq.equipa) setEquipa(resEq.equipa)
+        if (resCli.sucesso && 'clientes' in resCli) setClientesList(resCli.clientes as {id: string, nome: string}[])
+        if (resServ.sucesso && 'servicos' in resServ) setServicosList(resServ.servicos as {id: string, nome: string}[])
         setLoading(false)
     }, [])
 
@@ -495,29 +503,32 @@ export default function AgendamentosGlobaisPage() {
                             </button>
                         </div>
                         <form onSubmit={formNovo.handleSubmit(onSubmitNovo)} className="p-6 space-y-4">
-                            <Campo label="ID do Cliente" erro={formNovo.formState.errors.clienteId?.message} required>
-                                <input
+                            <Campo label="Cliente" erro={formNovo.formState.errors.clienteId?.message} required>
+                                <select
                                     {...formNovo.register('clienteId')}
-                                    type="text"
-                                    placeholder="UUID do cliente"
-                                    className={`w-full border rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[#8B5A2B]/20 focus:border-[#8B5A2B] transition-all ${formNovo.formState.errors.clienteId ? 'border-red-400 bg-red-50' : 'border-gray-300'}`}
-                                />
+                                    className={`w-full border rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[#8B5A2B]/20 focus:border-[#8B5A2B] bg-white transition-all ${formNovo.formState.errors.clienteId ? 'border-red-400 bg-red-50' : 'border-gray-300'}`}
+                                >
+                                    <option value="">Selecione um cliente...</option>
+                                    {clientesList.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                                </select>
                             </Campo>
-                            <Campo label="ID do Profissional" erro={formNovo.formState.errors.funcionarioId?.message} required>
-                                <input
+                            <Campo label="Profissional" erro={formNovo.formState.errors.funcionarioId?.message} required>
+                                <select
                                     {...formNovo.register('funcionarioId')}
-                                    type="text"
-                                    placeholder="UUID do profissional"
-                                    className={`w-full border rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[#8B5A2B]/20 focus:border-[#8B5A2B] transition-all ${formNovo.formState.errors.funcionarioId ? 'border-red-400 bg-red-50' : 'border-gray-300'}`}
-                                />
+                                    className={`w-full border rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[#8B5A2B]/20 focus:border-[#8B5A2B] bg-white transition-all ${formNovo.formState.errors.funcionarioId ? 'border-red-400 bg-red-50' : 'border-gray-300'}`}
+                                >
+                                    <option value="">Selecione o profissional...</option>
+                                    {equipa.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
+                                </select>
                             </Campo>
-                            <Campo label="ID do Serviço" erro={formNovo.formState.errors.servicoId?.message} required>
-                                <input
+                            <Campo label="Serviço" erro={formNovo.formState.errors.servicoId?.message} required>
+                                <select
                                     {...formNovo.register('servicoId')}
-                                    type="text"
-                                    placeholder="UUID do serviço"
-                                    className={`w-full border rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[#8B5A2B]/20 focus:border-[#8B5A2B] transition-all ${formNovo.formState.errors.servicoId ? 'border-red-400 bg-red-50' : 'border-gray-300'}`}
-                                />
+                                    className={`w-full border rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[#8B5A2B]/20 focus:border-[#8B5A2B] bg-white transition-all ${formNovo.formState.errors.servicoId ? 'border-red-400 bg-red-50' : 'border-gray-300'}`}
+                                >
+                                    <option value="">Selecione o serviço...</option>
+                                    {servicosList.map(s => <option key={s.id} value={s.id}>{s.nome}</option>)}
+                                </select>
                             </Campo>
                             <Campo label="Data e Hora" erro={formNovo.formState.errors.dataHora?.message} required>
                                 <input
@@ -555,12 +566,14 @@ export default function AgendamentosGlobaisPage() {
                             </button>
                         </div>
                         <form onSubmit={formEditar.handleSubmit(onSubmitEditar)} className="p-6 space-y-4">
-                            <Campo label="ID do Profissional" erro={formEditar.formState.errors.funcionarioId?.message} required>
-                                <input
+                            <Campo label="Profissional" erro={formEditar.formState.errors.funcionarioId?.message} required>
+                                <select
                                     {...formEditar.register('funcionarioId')}
-                                    type="text"
-                                    className={`w-full border rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[#8B5A2B]/20 focus:border-[#8B5A2B] transition-all ${formEditar.formState.errors.funcionarioId ? 'border-red-400 bg-red-50' : 'border-gray-300'}`}
-                                />
+                                    className={`w-full border rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[#8B5A2B]/20 focus:border-[#8B5A2B] bg-white transition-all ${formEditar.formState.errors.funcionarioId ? 'border-red-400 bg-red-50' : 'border-gray-300'}`}
+                                >
+                                    <option value="">Selecione o novo profissional...</option>
+                                    {equipa.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
+                                </select>
                             </Campo>
                             <Campo label="Nova Data e Hora" erro={formEditar.formState.errors.dataHora?.message} required>
                                 <input

@@ -12,6 +12,8 @@ import {
     type HistoricoClienteData
 } from '@/app/actions/cliente'
 import { criarAgendamentoMultiplo } from '@/app/actions/agendamento'
+import { listarEquipaAdmin } from '@/app/actions/admin'
+import { listarServicosAdmin } from '@/app/actions/servico'
 import type { Cliente } from '@/types/domain'
 import { AlertCircle, Loader2, X } from 'lucide-react'
 import AdminHeader from '@/components/admin/AdminHeader'
@@ -103,6 +105,18 @@ export default function GestaoClientesAdminPage() {
     const [busca, setBusca] = useState('')
     const [loading, setLoading] = useState(true)
     const [acaoLoading, setAcaoLoading] = useState<string | null>(null)
+
+    const [profissionaisList, setProfissionaisList] = useState<{id: string, nome: string}[]>([])
+    const [servicosList, setServicosList] = useState<{id: string, nome: string}[]>([])
+
+    useEffect(() => {
+        const fetchAuxiliares = async () => {
+            const [resProf, resServ] = await Promise.all([listarEquipaAdmin(), listarServicosAdmin()])
+            if (resProf.sucesso && 'equipa' in resProf) setProfissionaisList(resProf.equipa as {id: string, nome: string}[])
+            if (resServ.sucesso && 'servicos' in resServ) setServicosList(resServ.servicos as {id: string, nome: string}[])
+        }
+        void fetchAuxiliares()
+    }, [])
 
     // Modal: Histórico
     const [modalHistoricoOpen, setModalHistoricoOpen] = useState(false)
@@ -752,26 +766,28 @@ export default function GestaoClientesAdminPage() {
 
                         <form onSubmit={handleConfirmarAgendamento} className="space-y-4 mt-6">
                             <div>
-                                <label className="block text-sm font-semibold text-gray-700 mb-2">ID do Profissional *</label>
-                                <input
+                                <label className="block text-sm font-semibold text-gray-700 mb-2">Profissional *</label>
+                                <select
                                     required
-                                    type="text"
-                                    placeholder="Cole o ID do profissional..."
                                     value={novaReserva.funcionarioId}
                                     onChange={(e) => setNovaReserva({ ...novaReserva, funcionarioId: e.target.value })}
-                                    className="w-full border border-gray-300 rounded-lg px-4 py-2.5 outline-none focus:border-[#8B5A2B] focus:ring-2 focus:ring-[#8B5A2B]/10 transition-colors"
-                                />
+                                    className="w-full border border-gray-300 bg-white rounded-lg px-4 py-2.5 outline-none focus:border-[#8B5A2B] focus:ring-2 focus:ring-[#8B5A2B]/10 transition-colors"
+                                >
+                                    <option value="">Selecione o profissional...</option>
+                                    {profissionaisList.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
+                                </select>
                             </div>
                             <div>
-                                <label className="block text-sm font-semibold text-gray-700 mb-2">ID do Serviço *</label>
-                                <input
+                                <label className="block text-sm font-semibold text-gray-700 mb-2">Serviço *</label>
+                                <select
                                     required
-                                    type="text"
-                                    placeholder="Cole o ID do serviço..."
                                     value={novaReserva.servicoId}
                                     onChange={(e) => setNovaReserva({ ...novaReserva, servicoId: e.target.value })}
-                                    className="w-full border border-gray-300 rounded-lg px-4 py-2.5 outline-none focus:border-[#8B5A2B] focus:ring-2 focus:ring-[#8B5A2B]/10 transition-colors"
-                                />
+                                    className="w-full border border-gray-300 bg-white rounded-lg px-4 py-2.5 outline-none focus:border-[#8B5A2B] focus:ring-2 focus:ring-[#8B5A2B]/10 transition-colors"
+                                >
+                                    <option value="">Selecione o serviço...</option>
+                                    {servicosList.map(s => <option key={s.id} value={s.id}>{s.nome}</option>)}
+                                </select>
                             </div>
                             <div>
                                 <label className="block text-sm font-semibold text-gray-700 mb-2">Data e Hora *</label>
