@@ -3,6 +3,7 @@
 import { prisma } from '@/lib/prisma'
 import { cookies } from 'next/headers'
 import { jwtVerify } from 'jose'
+import { hash } from 'bcrypt'
 import type { AgendamentoProfissional } from '@/types/domain'
 
 const JWT_SECRET = new TextEncoder().encode(
@@ -209,3 +210,26 @@ export async function salvarPerfilEExpediente(
         return { sucesso: false, erro: 'Erro ao salvar o horário de trabalho.' }
     }
 }
+
+export async function alterarSenhaProfissional(novaSenha: string): Promise<ActionResult> {
+    try {
+        const cookieStore = await cookies()
+        const token = cookieStore.get('funcionario_session')?.value
+        if (!token) return { sucesso: false, erro: 'Não autenticado.' }
+
+        const { payload } = await jwtVerify(token, JWT_SECRET)
+        const funcionarioId = payload.sub as string
+
+        const senhaHasheada = await hash(novaSenha, 12)
+
+        await prisma.funcionario.update({
+            where: { id: funcionarioId },
+            data: { senhaHash: senhaHasheada }
+        })
+
+        return { sucesso: true }
+    } catch (error) {
+        console.error('Erro ao alterar senha:', error)
+        return { sucesso: false, erro: 'Falha ao comunicar com o servidor.' }
+    }
+}
