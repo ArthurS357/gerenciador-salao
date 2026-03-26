@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import Link from 'next/link'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -16,7 +15,7 @@ import {
     type NotificacaoItem
 } from '@/app/actions/admin'
 import { listarServicosAdmin } from '@/app/actions/servico'
-
+import AdminHeader from '@/components/admin/AdminHeader'
 // ── Schemas Zod ──────────────────────────────────────────────────────────────
 
 const schemaCadastro = z.object({
@@ -74,7 +73,7 @@ const permissoesSistema: { key: PermissaoKey; label: string; desc: string }[] = 
 
 function Avatar({ nome, size = 'md' }: { nome: string; size?: 'sm' | 'md' }) {
     const initials = nome.split(' ').slice(0, 2).map(n => n[0]).join('').toUpperCase()
-    const colors = ['bg-amber-100 text-amber-700', 'bg-orange-100 text-orange-700', 'bg-stone-100 text-stone-700', 'bg-yellow-100 text-yellow-700']
+    const colors = ['bg-amber-100 text-amber-700', 'bg-orange-100 text-orange-700', 'bg-gray-100 text-gray-700', 'bg-yellow-100 text-yellow-700']
     const color = colors[nome.charCodeAt(0) % colors.length]
     const sizeClass = size === 'sm' ? 'w-8 h-8 text-xs' : 'w-10 h-10 text-sm'
     return (
@@ -232,47 +231,25 @@ export default function TorreControleDashboard() {
     // ── Render ───────────────────────────────────────────────────────────────
 
     return (
-        <div className="min-h-screen bg-stone-50 font-sans">
+        <div className="min-h-screen bg-[#fdfbf7] font-sans">
+            <AdminHeader 
+                titulo="Torre de Controlo"
+                subtitulo="Gestão de equipa, permissões e escalas de trabalho"
+                abaAtiva="Equipa"
+                botaoAcao={
+                    <button
+                        onClick={() => { setCredenciaisNovo(null); setIsModalOpen(true) }}
+                        className="flex items-center justify-center gap-2 bg-[#5C4033] text-white px-5 py-2.5 rounded-xl font-bold text-sm hover:bg-[#3e2b22] transition-colors shadow-sm active:scale-[0.98]"
+                    >
+                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+                            <path d="M7 1v12M1 7h12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                        </svg>
+                        Novo Profissional
+                    </button>
+                }
+            />
 
-            {/* ── TOPO ── */}
-            <div className="bg-white border-b border-stone-200 px-6 py-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div>
-                    <h1 className="text-2xl font-bold text-stone-800 tracking-tight">Torre de Controlo</h1>
-                    <p className="text-sm text-stone-500 mt-0.5">Gestão de equipa, permissões e escalas de trabalho</p>
-                </div>
-                <button
-                    onClick={() => { setCredenciaisNovo(null); setIsModalOpen(true) }}
-                    className="inline-flex items-center gap-2 bg-[#8B5A2B] hover:bg-[#704620] text-white px-5 py-2.5 rounded-lg font-semibold text-sm transition-colors shadow-sm"
-                >
-                    <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" /></svg>
-                    Novo Profissional
-                </button>
-            </div>
-
-            {/* ── NAVEGAÇÃO ── */}
-            <nav className="bg-white border-b border-stone-200 px-6 py-2.5 overflow-x-auto">
-                <div className="flex gap-1 min-w-max">
-                    {[
-                        { href: '/admin/dashboard', label: 'Equipa', ativo: true },
-                        { href: '/admin/financeiro', label: 'Financeiro' },
-                        { href: '/admin/estoque', label: 'Estoque' },
-                        { href: '/admin/servicos', label: 'Serviços' },
-                        { href: '/admin/agendamentos', label: 'Agendamentos' },
-                        { href: '/admin/clientes', label: 'Clientes' },
-                        { href: '/admin/avaliacoes', label: 'Avaliações' },
-                    ].map(({ href, label, ativo }) => (
-                        <Link key={href} href={href}
-                            className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${ativo
-                                ? 'bg-[#5C4033] text-white'
-                                : 'text-stone-600 hover:bg-stone-100'}`}>
-                            {label}
-                        </Link>
-                    ))}
-                </div>
-            </nav>
-
-            <div className="p-6 space-y-6 max-w-7xl mx-auto">
-
+            <div className="px-4 md:px-8 space-y-6 max-w-7xl mx-auto pb-12">
                 {/* ── ALERTAS ── */}
                 {notificacoes.length > 0 && (
                     <div className="space-y-2">
@@ -315,95 +292,98 @@ export default function TorreControleDashboard() {
                         <div className="flex flex-wrap gap-3">
                             <div className="bg-white border border-amber-200 rounded-lg px-4 py-2.5">
                                 <span className="text-[10px] text-amber-600 uppercase font-bold block mb-0.5">E-mail</span>
-                                <span className="font-mono text-sm font-bold text-stone-800">{credenciaisNovo.email}</span>
+                                <span className="font-mono text-sm font-bold text-gray-800">{credenciaisNovo.email}</span>
                             </div>
                             <div className="bg-white border border-amber-200 rounded-lg px-4 py-2.5">
                                 <span className="text-[10px] text-amber-600 uppercase font-bold block mb-0.5">Senha Temporária</span>
-                                <span className="font-mono text-sm font-bold text-stone-800">{credenciaisNovo.senhaTemp}</span>
+                                <span className="font-mono text-sm font-bold text-gray-800">{credenciaisNovo.senhaTemp}</span>
                             </div>
                         </div>
                     </div>
                 )}
 
                 {/* ── MÉTRICAS ── */}
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-6">
                     {[
-                        { label: 'Total da Equipa', valor: equipa.length, cor: 'border-stone-300', textCor: 'text-stone-800' },
-                        { label: 'Ativos', valor: totalAtivos, cor: 'border-emerald-400', textCor: 'text-emerald-700' },
-                        { label: 'Inativos', valor: totalInativos, cor: 'border-red-300', textCor: 'text-red-600' },
-                    ].map(({ label, valor, cor, textCor }) => (
-                        <div key={label} className={`bg-white border-l-4 ${cor} rounded-xl px-5 py-4 shadow-sm`}>
-                            <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide">{label}</p>
-                            <p className={`text-3xl font-bold mt-1 ${textCor}`}>{valor}</p>
+                        { label: 'Total da Equipa', valor: equipa.length, cor: 'border-blue-400', bgGrad: 'from-blue-50 to-transparent', textCor: 'text-gray-800' },
+                        { label: 'Ativos', valor: totalAtivos, cor: 'border-emerald-400', bgGrad: 'from-emerald-50 to-transparent', textCor: 'text-emerald-700' },
+                        { label: 'Inativos', valor: totalInativos, cor: 'border-red-400', bgGrad: 'from-red-50 to-transparent', textCor: 'text-red-600' },
+                    ].map(({ label, valor, cor, bgGrad, textCor }) => (
+                        <div key={label} className={`relative bg-white p-6 rounded-2xl shadow-sm border border-t-[3px] border-x-gray-100 border-b-gray-100 ${cor} overflow-hidden group`}>
+                            <div className={`absolute inset-0 bg-linear-to-br ${bgGrad} opacity-50 transition-opacity duration-500`} />
+                            <div className="relative z-10">
+                                <p className="text-[11px] md:text-xs font-bold text-gray-400 uppercase tracking-[0.15em]">{label}</p>
+                                <p className={`text-2xl md:text-3xl font-black mt-2 tracking-tight ${textCor}`}>{valor}</p>
+                            </div>
                         </div>
                     ))}
                 </div>
 
                 {/* ── PESQUISA ── */}
-                <div className="relative">
-                    <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-400" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" /></svg>
+                <div className="relative bg-white rounded-xl shadow-sm border border-gray-100 p-1">
+                    <svg className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" /></svg>
                     <input
                         type="text"
                         placeholder="Pesquisar por nome ou e-mail..."
                         value={busca}
                         onChange={e => setBusca(e.target.value)}
-                        className="w-full pl-10 pr-4 py-2.5 bg-white border border-stone-300 rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#8B5A2B]/20 focus:border-[#8B5A2B] transition-all"
+                        className="w-full pl-11 pr-4 py-3 bg-transparent text-sm outline-none focus:ring-0 transition-all"
                     />
                 </div>
 
                 {/* ── TABELA DE EQUIPA ── */}
-                <div className="bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden">
-                    <div className="px-5 py-4 border-b border-stone-100 flex items-center justify-between">
-                        <h2 className="font-bold text-stone-800">Profissionais ({equipaFiltrada.length})</h2>
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                    <div className="px-6 md:px-8 py-5 border-b border-gray-100 bg-gray-50/50">
+                        <h2 className="font-bold text-marrom-medio text-lg tracking-tight">Registo de Profissionais</h2>
                     </div>
                     <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
+                        <table className="w-full text-left border-collapse">
                             <thead>
-                                <tr className="bg-stone-50 border-b border-stone-200">
-                                    <th className="px-5 py-3 text-left font-semibold text-stone-600 uppercase text-xs tracking-wider">Profissional</th>
-                                    <th className="px-5 py-3 text-left font-semibold text-stone-600 uppercase text-xs tracking-wider">Especialidade</th>
-                                    <th className="px-5 py-3 text-center font-semibold text-stone-600 uppercase text-xs tracking-wider">Status</th>
-                                    <th className="px-5 py-3 text-right font-semibold text-stone-600 uppercase text-xs tracking-wider">Ações</th>
+                                <tr className="bg-gray-50/50 text-gray-400 text-xs uppercase tracking-widest border-b border-gray-100">
+                                    <th className="px-6 py-4 font-bold">Profissional</th>
+                                    <th className="px-6 py-4 font-bold">Especialidade</th>
+                                    <th className="px-6 py-4 font-bold text-center">Status</th>
+                                    <th className="px-6 py-4 font-bold text-right">Ações</th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-stone-100">
+                            <tbody>
                                 {equipaFiltrada.length === 0 ? (
                                     <tr>
-                                        <td colSpan={4} className="px-5 py-12 text-center text-stone-400 text-sm">
+                                        <td colSpan={4} className="px-5 py-12 text-center text-gray-500 text-sm">
                                             {busca ? 'Nenhum profissional encontrado para a pesquisa.' : 'Nenhum profissional cadastrado.'}
                                         </td>
                                     </tr>
                                 ) : (
                                     equipaFiltrada.map(prof => (
-                                        <tr key={prof.id} className="hover:bg-stone-50 transition-colors">
-                                            <td className="px-5 py-3.5">
+                                        <tr key={prof.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                                            <td className="px-6 py-4">
                                                 <div className="flex items-center gap-3">
                                                     <Avatar nome={prof.nome} />
                                                     <div>
-                                                        <p className="font-semibold text-stone-800 leading-tight">{prof.nome}</p>
-                                                        <p className="text-xs text-stone-400 mt-0.5">{prof.email}</p>
+                                                        <p className="font-semibold text-gray-800 text-sm">{prof.nome}</p>
+                                                        <p className="text-xs text-gray-400 mt-0.5">{prof.email}</p>
                                                     </div>
                                                 </div>
                                             </td>
-                                            <td className="px-5 py-3.5 text-stone-500 text-sm">{prof.especialidade || '—'}</td>
-                                            <td className="px-5 py-3.5 text-center">
-                                                <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-bold ${prof.ativo
-                                                    ? 'bg-emerald-100 text-emerald-700'
-                                                    : 'bg-red-100 text-red-600'}`}>
+                                            <td className="px-6 py-4 text-gray-500 text-sm font-medium">{prof.especialidade || '—'}</td>
+                                            <td className="px-6 py-4 text-center">
+                                                <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold ${prof.ativo
+                                                    ? 'bg-emerald-50 text-emerald-600 border border-emerald-100'
+                                                    : 'bg-red-50 text-red-600 border border-red-100'}`}>
                                                     {prof.ativo ? 'Ativo' : 'Inativo'}
                                                 </span>
                                             </td>
-                                            <td className="px-5 py-3.5">
+                                            <td className="px-6 py-4 text-right">
                                                 <div className="flex justify-end gap-2">
                                                     <button
                                                         onClick={() => setModalServicos({ id: prof.id, nome: prof.nome, servicosIds: prof.servicos.map(s => s.id) })}
-                                                        className="px-3 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
+                                                        className="px-3 py-1.5 text-xs font-bold text-gray-700 bg-gray-100 hover:bg-gray-200 border border-gray-200 rounded-lg transition-colors"
                                                     >
                                                         Portfólio
                                                     </button>
                                                     <button
                                                         onClick={() => setModalAcessos({ ...prof })}
-                                                        className="px-3 py-1.5 text-xs font-semibold text-stone-700 bg-stone-100 hover:bg-stone-200 rounded-lg transition-colors"
+                                                        className="px-3 py-1.5 text-xs font-bold text-gray-700 bg-gray-100 hover:bg-gray-200 border border-gray-200 rounded-lg transition-colors"
                                                     >
                                                         Gerir Acessos
                                                     </button>
@@ -422,29 +402,29 @@ export default function TorreControleDashboard() {
             {modalAcessos && (
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
                     <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col max-h-[92vh] overflow-hidden">
-                        <div className="px-6 py-5 border-b border-stone-100 flex items-center gap-3">
+                        <div className="px-6 py-5 border-b border-gray-100 flex items-center gap-3">
                             <Avatar nome={modalAcessos.nome} />
                             <div className="flex-1 min-w-0">
-                                <h2 className="font-bold text-stone-800 truncate">{modalAcessos.nome}</h2>
-                                <p className="text-xs text-stone-500">Editar permissões e escala de trabalho</p>
+                                <h2 className="font-bold text-gray-800 truncate">{modalAcessos.nome}</h2>
+                                <p className="text-xs text-gray-500">Editar permissões e escala de trabalho</p>
                             </div>
-                            <button onClick={() => setModalAcessos(null)} className="text-stone-400 hover:text-stone-700 p-1 rounded-lg hover:bg-stone-100 transition-colors">
+                            <button onClick={() => setModalAcessos(null)} className="text-gray-400 hover:text-gray-700 p-1 rounded-lg hover:bg-gray-100 transition-colors">
                                 <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12" /></svg>
                             </button>
                         </div>
 
-                        <div className="flex border-b border-stone-200 px-6">
+                        <div className="flex border-b border-gray-200 px-6">
                             {(['permissoes', 'escala'] as const).map(aba => (
                                 <button key={aba} onClick={() => setAbaAtiva(aba)}
                                     className={`py-3 px-1 mr-5 text-sm font-semibold border-b-2 transition-colors ${abaAtiva === aba
                                         ? 'border-[#8B5A2B] text-[#8B5A2B]'
-                                        : 'border-transparent text-stone-400 hover:text-stone-600'}`}>
+                                        : 'border-transparent text-gray-400 hover:text-gray-600'}`}>
                                     {aba === 'permissoes' ? 'Permissões' : 'Escala de Trabalho'}
                                 </button>
                             ))}
                         </div>
 
-                        <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-stone-50/50">
+                        <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-gray-50/50">
                             {abaAtiva === 'permissoes' && (
                                 <div className="space-y-5">
                                     <Campo label="Comissão (%)">
@@ -452,12 +432,12 @@ export default function TorreControleDashboard() {
                                             type="number" min={0} max={100}
                                             value={modalAcessos.comissao}
                                             onChange={e => setModalAcessos({ ...modalAcessos, comissao: Number(e.target.value) })}
-                                            className="w-full border border-stone-300 rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[#8B5A2B]/20 focus:border-[#8B5A2B] bg-white"
+                                            className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[#8B5A2B]/20 focus:border-[#8B5A2B] bg-white"
                                         />
                                     </Campo>
                                     <div className="space-y-2">
                                         {permissoesSistema.map(({ key, label, desc }) => (
-                                            <label key={key} className="flex items-center gap-3 p-3.5 bg-white border border-stone-200 rounded-xl cursor-pointer hover:border-stone-300 transition-colors">
+                                            <label key={key} className="flex items-center gap-3 p-3.5 bg-white border border-gray-200 rounded-xl cursor-pointer hover:border-gray-300 transition-colors">
                                                 <input
                                                     type="checkbox"
                                                     checked={modalAcessos[key]}
@@ -465,8 +445,8 @@ export default function TorreControleDashboard() {
                                                     className="w-4 h-4 accent-[#8B5A2B] rounded"
                                                 />
                                                 <div>
-                                                    <p className="text-sm font-semibold text-stone-800">{label}</p>
-                                                    <p className="text-xs text-stone-400 mt-0.5">{desc}</p>
+                                                    <p className="text-sm font-semibold text-gray-800">{label}</p>
+                                                    <p className="text-xs text-gray-400 mt-0.5">{desc}</p>
                                                 </div>
                                             </label>
                                         ))}
@@ -476,24 +456,24 @@ export default function TorreControleDashboard() {
                             {abaAtiva === 'escala' && (
                                 <div className="space-y-2">
                                     {modalAcessos.expedientes.map((exp, index) => (
-                                        <div key={exp.diaSemana} className={`flex items-center gap-3 p-3.5 rounded-xl border ${exp.ativo ? 'bg-amber-50/70 border-amber-200' : 'bg-white border-stone-200'}`}>
+                                        <div key={exp.diaSemana} className={`flex items-center gap-3 p-3.5 rounded-xl border ${exp.ativo ? 'bg-amber-50/70 border-amber-200' : 'bg-white border-gray-200'}`}>
                                             <label className="flex items-center gap-2 min-w-[110px] cursor-pointer">
                                                 <input
                                                     type="checkbox" checked={exp.ativo}
                                                     onChange={e => atualizarExpedienteLocal(index, 'ativo', e.target.checked)}
                                                     className="w-4 h-4 accent-[#8B5A2B] rounded"
                                                 />
-                                                <span className="text-xs font-bold text-stone-700 uppercase tracking-wide">{DIAS_SEMANA[exp.diaSemana]}</span>
+                                                <span className="text-xs font-bold text-gray-700 uppercase tracking-wide">{DIAS_SEMANA[exp.diaSemana]}</span>
                                             </label>
                                             <div className={`flex gap-2 flex-1 justify-end ${exp.ativo ? '' : 'opacity-30 pointer-events-none'}`}>
                                                 <input type="time" value={exp.horaInicio}
                                                     onChange={e => atualizarExpedienteLocal(index, 'horaInicio', e.target.value)}
-                                                    className="border border-stone-300 rounded-lg px-2.5 py-1.5 text-xs bg-white outline-none focus:border-[#8B5A2B]"
+                                                    className="border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs bg-white outline-none focus:border-[#8B5A2B]"
                                                 />
-                                                <span className="text-stone-400 self-center text-xs">até</span>
+                                                <span className="text-gray-400 self-center text-xs">até</span>
                                                 <input type="time" value={exp.horaFim}
                                                     onChange={e => atualizarExpedienteLocal(index, 'horaFim', e.target.value)}
-                                                    className="border border-stone-300 rounded-lg px-2.5 py-1.5 text-xs bg-white outline-none focus:border-[#8B5A2B]"
+                                                    className="border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs bg-white outline-none focus:border-[#8B5A2B]"
                                                 />
                                             </div>
                                         </div>
@@ -502,8 +482,8 @@ export default function TorreControleDashboard() {
                             )}
                         </div>
 
-                        <div className="px-6 py-4 bg-white border-t border-stone-100 flex gap-3">
-                            <button onClick={() => setModalAcessos(null)} className="flex-1 py-2.5 border border-stone-300 text-stone-700 font-semibold rounded-xl hover:bg-stone-50 text-sm transition-colors">Cancelar</button>
+                        <div className="px-6 py-4 bg-white border-t border-gray-100 flex gap-3">
+                            <button onClick={() => setModalAcessos(null)} className="flex-1 py-2.5 border border-gray-300 text-gray-700 font-semibold rounded-xl hover:bg-gray-50 text-sm transition-colors">Cancelar</button>
                             <button onClick={handleSalvarGerenciamento} disabled={loadingAcao} className="flex-1 py-2.5 bg-[#5C4033] text-white font-semibold rounded-xl hover:bg-[#3e2b22] disabled:opacity-60 text-sm transition-colors">
                                 {loadingAcao ? 'A salvar...' : 'Salvar Perfil'}
                             </button>
@@ -516,12 +496,12 @@ export default function TorreControleDashboard() {
             {isModalOpen && (
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
                     <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
-                        <div className="px-6 py-5 border-b border-stone-100 flex items-center justify-between">
+                        <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
                             <div>
-                                <h2 className="font-bold text-stone-800">Cadastrar Profissional</h2>
-                                <p className="text-xs text-stone-500 mt-0.5">A senha temporária será Mudar@123</p>
+                                <h2 className="font-bold text-gray-800">Cadastrar Profissional</h2>
+                                <p className="text-xs text-gray-500 mt-0.5">A senha temporária será Mudar@123</p>
                             </div>
-                            <button onClick={() => { setIsModalOpen(false); reset() }} className="text-stone-400 hover:text-stone-700 p-1 rounded-lg hover:bg-stone-100">
+                            <button onClick={() => { setIsModalOpen(false); reset() }} className="text-gray-400 hover:text-gray-700 p-1 rounded-lg hover:bg-gray-100">
                                 <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12" /></svg>
                             </button>
                         </div>
@@ -535,7 +515,7 @@ export default function TorreControleDashboard() {
                                             type="text"
                                             placeholder="Ex: Ana Silva"
                                             disabled={isSubmitting}
-                                            className={`w-full border rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[#8B5A2B]/20 focus:border-[#8B5A2B] transition-all ${errors.nome ? 'border-red-400 bg-red-50' : 'border-stone-300'}`}
+                                            className={`w-full border rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[#8B5A2B]/20 focus:border-[#8B5A2B] transition-all ${errors.nome ? 'border-red-400 bg-red-50' : 'border-gray-300'}`}
                                         />
                                     </Campo>
                                 </div>
@@ -546,7 +526,7 @@ export default function TorreControleDashboard() {
                                             type="email"
                                             placeholder="profissional@email.com"
                                             disabled={isSubmitting}
-                                            className={`w-full border rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[#8B5A2B]/20 focus:border-[#8B5A2B] transition-all ${errors.email ? 'border-red-400 bg-red-50' : 'border-stone-300'}`}
+                                            className={`w-full border rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[#8B5A2B]/20 focus:border-[#8B5A2B] transition-all ${errors.email ? 'border-red-400 bg-red-50' : 'border-gray-300'}`}
                                         />
                                     </Campo>
                                 </div>
@@ -556,7 +536,7 @@ export default function TorreControleDashboard() {
                                         type="text"
                                         placeholder="000.000.000-00"
                                         disabled={isSubmitting}
-                                        className="w-full border border-stone-300 rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[#8B5A2B]/20 focus:border-[#8B5A2B] transition-all"
+                                        className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[#8B5A2B]/20 focus:border-[#8B5A2B] transition-all"
                                     />
                                 </Campo>
                                 <Campo label="Especialidade">
@@ -565,14 +545,14 @@ export default function TorreControleDashboard() {
                                         type="text"
                                         placeholder="Ex: Colorimetria"
                                         disabled={isSubmitting}
-                                        className="w-full border border-stone-300 rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[#8B5A2B]/20 focus:border-[#8B5A2B] transition-all"
+                                        className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[#8B5A2B]/20 focus:border-[#8B5A2B] transition-all"
                                     />
                                 </Campo>
                             </div>
 
-                            <div className="flex gap-3 pt-2 border-t border-stone-100">
+                            <div className="flex gap-3 pt-2 border-t border-gray-100">
                                 <button type="button" onClick={() => { setIsModalOpen(false); reset() }} disabled={isSubmitting}
-                                    className="flex-1 py-2.5 border border-stone-300 text-stone-700 font-semibold rounded-xl hover:bg-stone-50 text-sm transition-colors">
+                                    className="flex-1 py-2.5 border border-gray-300 text-gray-700 font-semibold rounded-xl hover:bg-gray-50 text-sm transition-colors">
                                     Cancelar
                                 </button>
                                 <button type="submit" disabled={isSubmitting}
@@ -589,12 +569,12 @@ export default function TorreControleDashboard() {
             {modalServicos && (
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
                     <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
-                        <div className="px-6 py-5 border-b border-stone-100 flex items-center justify-between">
+                        <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
                             <div>
-                                <h2 className="font-bold text-stone-800">Serviços Habilitados</h2>
-                                <p className="text-xs text-stone-500 mt-0.5">Portfólio de <strong className="text-stone-700">{modalServicos.nome}</strong></p>
+                                <h2 className="font-bold text-gray-800">Serviços Habilitados</h2>
+                                <p className="text-xs text-gray-500 mt-0.5">Portfólio de <strong className="text-gray-700">{modalServicos.nome}</strong></p>
                             </div>
-                            <button onClick={() => setModalServicos(null)} className="text-stone-400 hover:text-stone-700 p-1 rounded-lg hover:bg-stone-100">
+                            <button onClick={() => setModalServicos(null)} className="text-gray-400 hover:text-gray-700 p-1 rounded-lg hover:bg-gray-100">
                                 <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12" /></svg>
                             </button>
                         </div>
@@ -602,9 +582,9 @@ export default function TorreControleDashboard() {
                         <div className="p-6">
                             <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
                                 {servicosDisponiveis.length === 0 ? (
-                                    <p className="text-sm text-stone-400 text-center py-6">Nenhum serviço cadastrado.</p>
+                                    <p className="text-sm text-gray-400 text-center py-6">Nenhum serviço cadastrado.</p>
                                 ) : servicosDisponiveis.map(servico => (
-                                    <label key={servico.id} className="flex items-center gap-3 p-3 bg-stone-50 border border-stone-200 rounded-xl cursor-pointer hover:bg-white hover:border-stone-300 transition-colors">
+                                    <label key={servico.id} className="flex items-center gap-3 p-3 bg-gray-50 border border-gray-200 rounded-xl cursor-pointer hover:bg-white hover:border-gray-300 transition-colors">
                                         <input
                                             type="checkbox"
                                             checked={modalServicos.servicosIds.includes(servico.id)}
@@ -617,14 +597,14 @@ export default function TorreControleDashboard() {
                                             })}
                                             className="w-4 h-4 accent-[#8B5A2B] rounded"
                                         />
-                                        <span className="text-sm font-medium text-stone-700">{servico.nome}</span>
+                                        <span className="text-sm font-medium text-gray-700">{servico.nome}</span>
                                     </label>
                                 ))}
                             </div>
 
-                            <div className="flex gap-3 mt-5 pt-4 border-t border-stone-100">
+                            <div className="flex gap-3 mt-5 pt-4 border-t border-gray-100">
                                 <button onClick={() => setModalServicos(null)} disabled={loadingAcao}
-                                    className="flex-1 py-2.5 border border-stone-300 text-stone-700 font-semibold rounded-xl hover:bg-stone-50 text-sm transition-colors">
+                                    className="flex-1 py-2.5 border border-gray-300 text-gray-700 font-semibold rounded-xl hover:bg-gray-50 text-sm transition-colors">
                                     Cancelar
                                 </button>
                                 <button onClick={handleSalvarServicosExistente} disabled={loadingAcao}

@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import Link from 'next/link'
 import { listarAvaliacoesAdmin, type AvaliacaoAdminItem } from '@/app/actions/avaliacao'
+import AdminHeader from '@/components/admin/AdminHeader'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -72,40 +72,17 @@ export default function AvaliacoesPage() {
     // ── Render ────────────────────────────────────────────────────────────────
 
     return (
-        <div className="min-h-screen bg-stone-50 font-sans">
+        <div className="min-h-screen bg-[#fdfbf7] font-sans">
+            <AdminHeader 
+                titulo="Satisfação dos Clientes"
+                subtitulo="Acompanhe o feedback e o NPS do salão"
+                abaAtiva="Avaliações"
+            />
 
-            {/* ── TOPO ── */}
-            <div className="bg-white border-b border-stone-200 px-6 py-5">
-                <h1 className="text-2xl font-bold text-stone-800 tracking-tight">Satisfação dos Clientes</h1>
-                <p className="text-sm text-stone-500 mt-0.5">Acompanhe o feedback e o NPS do salão</p>
-            </div>
-
-            {/* ── NAVEGAÇÃO ── */}
-            <nav className="bg-white border-b border-stone-200 px-6 py-2.5 overflow-x-auto">
-                <div className="flex gap-1 min-w-max">
-                    {[
-                        { href: '/admin/dashboard', label: 'Equipa' },
-                        { href: '/admin/financeiro', label: 'Financeiro' },
-                        { href: '/admin/estoque', label: 'Estoque' },
-                        { href: '/admin/servicos', label: 'Serviços' },
-                        { href: '/admin/agendamentos', label: 'Agendamentos' },
-                        { href: '/admin/clientes', label: 'Clientes' },
-                        { href: '/admin/avaliacoes', label: 'Avaliações', ativo: true },
-                    ].map(({ href, label, ativo }) => (
-                        <Link key={href} href={href}
-                            className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${ativo
-                                ? 'bg-[#5C4033] text-white'
-                                : 'text-stone-600 hover:bg-stone-100'}`}>
-                            {label}
-                        </Link>
-                    ))}
-                </div>
-            </nav>
-
-            <div className="p-6 max-w-7xl mx-auto space-y-6">
+            <div className="px-4 md:px-8 max-w-7xl mx-auto space-y-6 pb-12">
 
                 {loading ? (
-                    <div className="flex items-center justify-center py-32 text-stone-400 gap-3">
+                    <div className="flex items-center justify-center py-32 text-gray-400 gap-3">
                         <svg className="animate-spin w-6 h-6 text-[#8B5A2B]" fill="none" viewBox="0 0 24 24">
                             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
                             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
@@ -113,12 +90,12 @@ export default function AvaliacoesPage() {
                         <span className="text-sm font-medium">A carregar avaliações...</span>
                     </div>
                 ) : avaliacoes.length === 0 ? (
-                    <div className="bg-white rounded-2xl border border-dashed border-stone-200 p-20 text-center">
-                        <svg className="w-12 h-12 text-stone-200 mx-auto mb-4" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
+                    <div className="bg-white rounded-2xl border border-dashed border-gray-100 p-20 text-center">
+                        <svg className="w-12 h-12 text-gray-200 mx-auto mb-4" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
                             <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
                         </svg>
-                        <p className="text-stone-500 font-semibold">Nenhuma avaliação recebida ainda</p>
-                        <p className="text-stone-400 text-sm mt-1">As avaliações aparecerão aqui após os atendimentos concluídos</p>
+                        <p className="text-gray-500 font-semibold">Nenhuma avaliação recebida ainda</p>
+                        <p className="text-gray-400 text-sm mt-1">As avaliações aparecerão aqui após os atendimentos concluídos</p>
                     </div>
                 ) : (
                     <>
@@ -126,21 +103,21 @@ export default function AvaliacoesPage() {
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
 
                             {/* Nota média */}
-                            <div className="bg-white rounded-2xl border border-stone-200 shadow-sm p-6 flex items-center gap-5">
+                            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 flex items-center gap-5">
                                 <div className="w-16 h-16 bg-amber-50 border border-amber-200 rounded-2xl flex items-center justify-center flex-shrink-0">
                                     <svg width="28" height="28" viewBox="0 0 24 24" fill="#f59e0b" stroke="#f59e0b" strokeWidth="1">
                                         <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
                                     </svg>
                                 </div>
                                 <div>
-                                    <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide">Nota Média</p>
-                                    <p className="text-4xl font-black text-stone-800 mt-1 leading-none">{mediaGeral.toFixed(1)}</p>
+                                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Nota Média</p>
+                                    <p className="text-4xl font-black text-gray-800 mt-1 leading-none">{mediaGeral.toFixed(1)}</p>
                                     <Estrelas nota={Math.round(mediaGeral)} />
                                 </div>
                             </div>
 
                             {/* Total de avaliações */}
-                            <div className="bg-white rounded-2xl border border-stone-200 shadow-sm p-6 flex items-center gap-5">
+                            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 flex items-center gap-5">
                                 <div className="w-16 h-16 bg-blue-50 border border-blue-200 rounded-2xl flex items-center justify-center flex-shrink-0">
                                     <svg width="28" height="28" fill="none" stroke="#3b82f6" strokeWidth="1.5" viewBox="0 0 24 24">
                                         <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
@@ -148,33 +125,33 @@ export default function AvaliacoesPage() {
                                     </svg>
                                 </div>
                                 <div>
-                                    <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide">Total de Avaliações</p>
-                                    <p className="text-4xl font-black text-stone-800 mt-1 leading-none">{avaliacoes.length}</p>
-                                    <p className="text-xs text-stone-400 mt-1">respostas recebidas</p>
+                                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Total de Avaliações</p>
+                                    <p className="text-4xl font-black text-gray-800 mt-1 leading-none">{avaliacoes.length}</p>
+                                    <p className="text-xs text-gray-400 mt-1">respostas recebidas</p>
                                 </div>
                             </div>
 
                             {/* Distribuição por nota */}
-                            <div className="bg-white rounded-2xl border border-stone-200 shadow-sm p-5">
-                                <p className="text-xs font-semibold text-stone-500 uppercase tracking-wide mb-3">Distribuição</p>
+                            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+                                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Distribuição</p>
                                 <div className="space-y-2">
                                     {distribuicao.map(({ nota, total, pct }) => (
                                         <button
                                             key={nota}
                                             onClick={() => setFiltroNota(filtroNota === nota ? null : nota)}
-                                            className={`w-full flex items-center gap-2 group rounded-lg px-2 py-1 transition-colors ${filtroNota === nota ? 'bg-amber-50' : 'hover:bg-stone-50'}`}
+                                            className={`w-full flex items-center gap-2 group rounded-lg px-2 py-1 transition-colors ${filtroNota === nota ? 'bg-amber-50' : 'hover:bg-gray-50'}`}
                                         >
-                                            <span className="text-xs font-bold text-stone-600 w-4">{nota}</span>
+                                            <span className="text-xs font-bold text-gray-600 w-4">{nota}</span>
                                             <svg width="10" height="10" viewBox="0 0 24 24" fill="#f59e0b"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-                                            <div className="flex-1 h-2 bg-stone-100 rounded-full overflow-hidden">
+                                            <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
                                                 <div className="h-full bg-amber-400 rounded-full transition-all duration-500" style={{ width: `${pct}%` }} />
                                             </div>
-                                            <span className="text-xs font-semibold text-stone-500 w-8 text-right">{total}</span>
+                                            <span className="text-xs font-semibold text-gray-500 w-8 text-right">{total}</span>
                                         </button>
                                     ))}
                                 </div>
                                 {filtroNota !== null && (
-                                    <button onClick={() => setFiltroNota(null)} className="mt-3 w-full text-xs text-stone-400 hover:text-stone-600 underline transition-colors">
+                                    <button onClick={() => setFiltroNota(null)} className="mt-3 w-full text-xs text-gray-400 hover:text-gray-600 underline transition-colors">
                                         Limpar filtro
                                     </button>
                                 )}
@@ -184,18 +161,18 @@ export default function AvaliacoesPage() {
                         {/* ── FILTRO ATIVO ── */}
                         {filtroNota !== null && (
                             <div className="flex items-center gap-2">
-                                <span className="text-sm text-stone-500">Filtrando por:</span>
+                                <span className="text-sm text-gray-500">Filtrando por:</span>
                                 <span className={`text-xs font-bold px-2.5 py-1 rounded-full border ${corNota(filtroNota)}`}>
                                     {filtroNota} estrela{filtroNota !== 1 ? 's' : ''} · {labelNota(filtroNota)}
                                 </span>
-                                <span className="text-xs text-stone-400">({avaliacoesFiltradas.length} resultado{avaliacoesFiltradas.length !== 1 ? 's' : ''})</span>
+                                <span className="text-xs text-gray-400">({avaliacoesFiltradas.length} resultado{avaliacoesFiltradas.length !== 1 ? 's' : ''})</span>
                             </div>
                         )}
 
                         {/* ── LISTA DE AVALIAÇÕES ── */}
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                             {avaliacoesFiltradas.map(av => (
-                                <div key={av.id} className="bg-white rounded-2xl border border-stone-200 shadow-sm p-5 flex flex-col gap-4 hover:shadow-md transition-shadow">
+                                <div key={av.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex flex-col gap-4 hover:shadow-md transition-shadow">
                                     {/* Header do card */}
                                     <div className="flex items-start justify-between">
                                         <div className="flex flex-col gap-1.5">
@@ -204,7 +181,7 @@ export default function AvaliacoesPage() {
                                                 {labelNota(av.nota)}
                                             </span>
                                         </div>
-                                        <span className="text-xs text-stone-400 font-medium">
+                                        <span className="text-xs text-gray-400 font-medium">
                                             {new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(av.criadoEm))}
                                         </span>
                                     </div>
@@ -212,31 +189,31 @@ export default function AvaliacoesPage() {
                                     {/* Comentário */}
                                     <div className="flex-1">
                                         {av.comentario ? (
-                                            <p className="text-sm text-stone-600 italic leading-relaxed">
+                                            <p className="text-sm text-gray-600 italic leading-relaxed">
                                                 &ldquo;{av.comentario}&rdquo;
                                             </p>
                                         ) : (
-                                            <p className="text-xs text-stone-300 italic">Sem comentário escrito.</p>
+                                            <p className="text-xs text-gray-300 italic">Sem comentário escrito.</p>
                                         )}
                                     </div>
 
                                     {/* Rodapé do card */}
-                                    <div className="pt-3 border-t border-stone-100 space-y-1.5">
+                                    <div className="pt-3 border-t border-gray-100 space-y-1.5">
                                         <div className="flex items-center gap-2">
-                                            <div className="w-6 h-6 bg-stone-100 rounded-full flex items-center justify-center flex-shrink-0">
+                                            <div className="w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center flex-shrink-0">
                                                 <svg width="12" height="12" fill="none" stroke="#6b7280" strokeWidth="2" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
                                             </div>
-                                            <p className="text-xs text-stone-500">
-                                                <span className="text-stone-400">Cliente: </span>
-                                                <strong className="text-stone-700">{av.agendamento.cliente.nome}</strong>
+                                            <p className="text-xs text-gray-500">
+                                                <span className="text-gray-400">Cliente: </span>
+                                                <strong className="text-gray-700">{av.agendamento.cliente.nome}</strong>
                                             </p>
                                         </div>
                                         <div className="flex items-center gap-2">
                                             <div className="w-6 h-6 bg-amber-50 rounded-full flex items-center justify-center flex-shrink-0">
                                                 <svg width="12" height="12" fill="none" stroke="#92400e" strokeWidth="2" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
                                             </div>
-                                            <p className="text-xs text-stone-500">
-                                                <span className="text-stone-400">Profissional: </span>
+                                            <p className="text-xs text-gray-500">
+                                                <span className="text-gray-400">Profissional: </span>
                                                 <strong className="text-[#8B5A2B]">{av.agendamento.funcionario.nome}</strong>
                                             </p>
                                         </div>

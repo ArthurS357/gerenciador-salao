@@ -1,10 +1,10 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import Link from 'next/link'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
+import AdminHeader from '@/components/admin/AdminHeader'
 import {
     listarAgendamentosGlobais,
     cancelarAgendamentoPendente,
@@ -265,46 +265,23 @@ export default function AgendamentosGlobaisPage() {
     // ── Render ───────────────────────────────────────────────────────────────
 
     return (
-        <div className="min-h-screen bg-stone-50 font-sans">
+        <div className="min-h-screen bg-[#fdfbf7] font-sans">
+            <AdminHeader 
+                titulo="Agendamentos Globais"
+                subtitulo="Calendário interativo e gestão de horários da equipa"
+                abaAtiva="Agendamentos"
+                botaoAcao={
+                    <button
+                        onClick={() => setIsModalNovoOpen(true)}
+                        className="flex items-center justify-center gap-2 bg-[#5C4033] text-white px-5 py-2.5 rounded-xl font-bold text-sm hover:bg-[#3e2b22] transition-colors shadow-sm active:scale-[0.98]"
+                    >
+                        <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+                        Novo Agendamento
+                    </button>
+                }
+            />
 
-            {/* ── TOPO ── */}
-            <div className="bg-white border-b border-stone-200 px-6 py-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div>
-                    <h1 className="text-2xl font-bold text-stone-800 tracking-tight">Agendamentos Globais</h1>
-                    <p className="text-sm text-stone-500 mt-0.5">Calendário interativo e gestão de horários da equipa</p>
-                </div>
-                <button
-                    onClick={() => setIsModalNovoOpen(true)}
-                    className="inline-flex items-center gap-2 bg-[#8B5A2B] hover:bg-[#704620] text-white px-5 py-2.5 rounded-lg font-semibold text-sm transition-colors shadow-sm"
-                >
-                    <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
-                    Novo Agendamento
-                </button>
-            </div>
-
-            {/* ── NAVEGAÇÃO ── */}
-            <nav className="bg-white border-b border-stone-200 px-6 py-2.5 overflow-x-auto">
-                <div className="flex gap-1 min-w-max">
-                    {[
-                        { href: '/admin/dashboard', label: 'Equipa' },
-                        { href: '/admin/financeiro', label: 'Financeiro' },
-                        { href: '/admin/estoque', label: 'Estoque' },
-                        { href: '/admin/servicos', label: 'Serviços' },
-                        { href: '/admin/agendamentos', label: 'Agendamentos', ativo: true },
-                        { href: '/admin/clientes', label: 'Clientes' },
-                        { href: '/admin/avaliacoes', label: 'Avaliações' },
-                    ].map(({ href, label, ativo }) => (
-                        <Link key={href} href={href}
-                            className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${ativo
-                                ? 'bg-[#5C4033] text-white'
-                                : 'text-stone-600 hover:bg-stone-100'}`}>
-                            {label}
-                        </Link>
-                    ))}
-                </div>
-            </nav>
-
-            <div className="p-6 max-w-7xl mx-auto space-y-5">
+            <div className="max-w-7xl mx-auto px-4 md:px-8 space-y-6 pb-12">
 
                 {/* ── FEEDBACK ── */}
                 {mensagem && (
@@ -319,22 +296,22 @@ export default function AgendamentosGlobaisPage() {
                 )}
 
                 {/* ── CALENDÁRIO ── */}
-                <div className="bg-white rounded-2xl shadow-sm border border-stone-200 overflow-hidden">
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
                     {/* Cabeçalho do mês */}
-                    <div className="flex items-center justify-between px-6 py-4 border-b border-stone-100">
-                        <button onClick={() => mudarMes(-1)} className="p-2 rounded-lg text-stone-500 hover:bg-stone-100 hover:text-stone-800 transition-colors">
+                    <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+                        <button onClick={() => mudarMes(-1)} className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-800 transition-colors">
                             <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>
                         </button>
-                        <h2 className="font-bold text-lg text-stone-800 capitalize">
+                        <h2 className="font-bold text-lg text-gray-800 capitalize">
                             {new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric' }).format(dataAtual)}
                         </h2>
-                        <button onClick={() => mudarMes(1)} className="p-2 rounded-lg text-stone-500 hover:bg-stone-100 hover:text-stone-800 transition-colors">
+                        <button onClick={() => mudarMes(1)} className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-800 transition-colors">
                             <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>
                         </button>
                     </div>
 
                     {loading ? (
-                        <div className="h-72 flex items-center justify-center text-stone-400 text-sm font-medium">
+                        <div className="h-72 flex items-center justify-center text-gray-400 text-sm font-medium">
                             <svg className="animate-spin w-5 h-5 mr-2 text-[#8B5A2B]" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
                             A carregar agenda...
                         </div>
@@ -343,7 +320,7 @@ export default function AgendamentosGlobaisPage() {
                             {/* Dias da semana */}
                             <div className="grid grid-cols-7 mb-2">
                                 {DIAS_SEMANA_CURTO.map(d => (
-                                    <div key={d} className="text-center text-xs font-bold text-stone-400 uppercase tracking-wider py-2">{d}</div>
+                                    <div key={d} className="text-center text-xs font-bold text-gray-400 uppercase tracking-wider py-2">{d}</div>
                                 ))}
                             </div>
                             {/* Células */}
@@ -364,9 +341,9 @@ export default function AgendamentosGlobaisPage() {
                                             className={`h-16 sm:h-20 p-1.5 rounded-xl border cursor-pointer flex flex-col transition-all
                                                 ${isSelecionado ? 'border-[#8B5A2B] bg-amber-50 shadow-sm ring-1 ring-[#8B5A2B]/30'
                                                     : isHoje ? 'border-[#8B5A2B]/40 bg-orange-50/30'
-                                                    : 'border-transparent hover:border-stone-200 hover:bg-stone-50'}`}
+                                                    : 'border-transparent hover:border-gray-200 hover:bg-gray-50'}`}
                                         >
-                                            <span className={`text-xs font-bold ${isHoje ? 'text-[#8B5A2B]' : isSelecionado ? 'text-[#8B5A2B]' : 'text-stone-600'}`}>
+                                            <span className={`text-xs font-bold ${isHoje ? 'text-[#8B5A2B]' : isSelecionado ? 'text-[#8B5A2B]' : 'text-gray-600'}`}>
                                                 {dia}
                                             </span>
                                             {agsDia.length > 0 && (
@@ -390,46 +367,46 @@ export default function AgendamentosGlobaisPage() {
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-40 backdrop-blur-sm">
                     <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl flex flex-col max-h-[90vh] overflow-hidden">
                         {/* Header */}
-                        <div className="px-6 py-5 border-b border-stone-100 flex items-start justify-between bg-stone-50/50">
+                        <div className="px-6 py-5 border-b border-gray-100 flex items-start justify-between bg-gray-50/50">
                             <div>
-                                <h2 className="text-xl font-bold text-stone-800 capitalize">
+                                <h2 className="text-xl font-bold text-gray-800 capitalize">
                                     {new Intl.DateTimeFormat('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' }).format(diaSelecionado)}
                                 </h2>
-                                <p className="text-xs text-stone-500 mt-1">
+                                <p className="text-xs text-gray-500 mt-1">
                                     {agendamentosSelecionados.length} agendamento{agendamentosSelecionados.length !== 1 ? 's' : ''} · {equipaDoDia.length} profissional{equipaDoDia.length !== 1 ? 'is' : ''} escalado{equipaDoDia.length !== 1 ? 's' : ''}
                                 </p>
                             </div>
-                            <button onClick={() => setDiaSelecionado(null)} className="text-stone-400 hover:text-stone-700 p-1 rounded-lg hover:bg-stone-100 transition-colors">
+                            <button onClick={() => setDiaSelecionado(null)} className="text-gray-400 hover:text-gray-700 p-1 rounded-lg hover:bg-gray-100 transition-colors">
                                 <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>
                             </button>
                         </div>
 
-                        <div className="flex-1 overflow-y-auto p-6 bg-stone-50/30">
+                        <div className="flex-1 overflow-y-auto p-6 bg-gray-50/30">
                             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
                                 {/* Equipa do dia */}
                                 <div className="lg:col-span-1">
-                                    <h3 className="text-xs font-bold text-stone-500 uppercase tracking-wider mb-3">Equipa de Plantão</h3>
+                                    <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Equipa de Plantão</h3>
                                     {equipaDoDia.length === 0 ? (
-                                        <div className="bg-white border border-dashed border-stone-200 rounded-xl p-6 text-center">
-                                            <p className="text-xs text-stone-400">Nenhum profissional escalado.</p>
+                                        <div className="bg-white border border-dashed border-gray-200 rounded-xl p-6 text-center">
+                                            <p className="text-xs text-gray-400">Nenhum profissional escalado.</p>
                                         </div>
                                     ) : (
                                         <div className="space-y-2">
                                             {equipaDoDia.map(prof => {
                                                 const exp = prof.expedientes?.find(e => e.diaSemana === diaSelecionado.getDay())
                                                 return (
-                                                    <div key={prof.id} className="bg-white border border-stone-200 rounded-xl p-4 flex flex-col gap-3 hover:border-[#c5a87c] transition-colors">
+                                                    <div key={prof.id} className="bg-white border border-gray-200 rounded-xl p-4 flex flex-col gap-3 hover:border-[#c5a87c] transition-colors">
                                                         <div className="flex items-center gap-2.5">
                                                             <Avatar nome={prof.nome} />
                                                             <div>
-                                                                <p className="font-semibold text-sm text-stone-800 leading-tight">{prof.nome}</p>
-                                                                <p className="text-xs text-stone-400 font-mono mt-0.5">{exp?.horaInicio} – {exp?.horaFim}</p>
+                                                                <p className="font-semibold text-sm text-gray-800 leading-tight">{prof.nome}</p>
+                                                                <p className="text-xs text-gray-400 font-mono mt-0.5">{exp?.horaInicio} – {exp?.horaFim}</p>
                                                             </div>
                                                         </div>
                                                         <button
                                                             onClick={() => setModalAcessos(prof as FuncionarioGerenciavel)}
-                                                            className="w-full py-1.5 bg-stone-50 text-stone-700 border border-stone-200 rounded-lg text-xs font-semibold hover:bg-stone-100 transition-colors"
+                                                            className="w-full py-1.5 bg-gray-50 text-gray-700 border border-gray-200 rounded-lg text-xs font-semibold hover:bg-gray-100 transition-colors"
                                                         >
                                                             Editar Perfil / Horários
                                                         </button>
@@ -442,38 +419,38 @@ export default function AgendamentosGlobaisPage() {
 
                                 {/* Agenda do dia */}
                                 <div className="lg:col-span-2">
-                                    <h3 className="text-xs font-bold text-stone-500 uppercase tracking-wider mb-3">
+                                    <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">
                                         Agenda de Clientes ({agendamentosSelecionados.length})
                                     </h3>
                                     {agendamentosSelecionados.length === 0 ? (
-                                        <div className="bg-white border border-dashed border-stone-200 rounded-xl p-10 text-center">
-                                            <p className="text-sm text-stone-400">Sem clientes agendados para este dia.</p>
+                                        <div className="bg-white border border-dashed border-gray-200 rounded-xl p-10 text-center">
+                                            <p className="text-sm text-gray-400">Sem clientes agendados para este dia.</p>
                                         </div>
                                     ) : (
                                         <div className="space-y-3">
                                             {[...agendamentosSelecionados]
                                                 .sort((a, b) => new Date(a.dataHoraInicio).getTime() - new Date(b.dataHoraInicio).getTime())
                                                 .map(ag => (
-                                                    <div key={ag.id} className="bg-white border border-stone-200 rounded-xl p-4 flex flex-col gap-3 hover:border-stone-300 transition-colors">
+                                                    <div key={ag.id} className="bg-white border border-gray-200 rounded-xl p-4 flex flex-col gap-3 hover:border-gray-300 transition-colors">
                                                         <div className="flex items-start justify-between gap-2">
                                                             <div className="flex items-start gap-3">
                                                                 <span className="text-xs font-bold bg-amber-50 text-[#8B5A2B] border border-amber-200 px-2.5 py-1 rounded-lg whitespace-nowrap">
                                                                     {new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' }).format(new Date(ag.dataHoraInicio))}
                                                                 </span>
                                                                 <div>
-                                                                    <p className="font-semibold text-stone-800 text-sm leading-tight">{ag.cliente.nome}</p>
-                                                                    <p className="text-xs text-stone-400 font-mono mt-0.5">{ag.cliente.telefone}</p>
+                                                                    <p className="font-semibold text-gray-800 text-sm leading-tight">{ag.cliente.nome}</p>
+                                                                    <p className="text-xs text-gray-400 font-mono mt-0.5">{ag.cliente.telefone}</p>
                                                                 </div>
                                                             </div>
                                                             <span className={`text-[10px] font-bold px-2 py-1 rounded-full uppercase tracking-wider flex-shrink-0 ${ag.concluido
                                                                 ? 'bg-emerald-100 text-emerald-700'
-                                                                : 'bg-stone-100 text-stone-500'}`}>
+                                                                : 'bg-gray-100 text-gray-500'}`}>
                                                                 {ag.concluido ? 'Faturado' : 'Pendente'}
                                                             </span>
                                                         </div>
-                                                        <div className="flex items-center justify-between pt-2.5 border-t border-stone-100">
-                                                            <p className="text-xs text-stone-500">
-                                                                Com: <strong className="text-stone-700">{ag.funcionario.nome}</strong>
+                                                        <div className="flex items-center justify-between pt-2.5 border-t border-gray-100">
+                                                            <p className="text-xs text-gray-500">
+                                                                Com: <strong className="text-gray-700">{ag.funcionario.nome}</strong>
                                                             </p>
                                                             {!ag.concluido && (
                                                                 <div className="flex gap-2">
@@ -508,12 +485,12 @@ export default function AgendamentosGlobaisPage() {
             {isModalNovoOpen && (
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
                     <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
-                        <div className="px-6 py-5 border-b border-stone-100 flex items-center justify-between">
+                        <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
                             <div>
-                                <h2 className="font-bold text-stone-800">Nova Reserva Global</h2>
-                                <p className="text-xs text-stone-500 mt-0.5">Preencha os dados do agendamento</p>
+                                <h2 className="font-bold text-gray-800">Nova Reserva Global</h2>
+                                <p className="text-xs text-gray-500 mt-0.5">Preencha os dados do agendamento</p>
                             </div>
-                            <button onClick={() => { setIsModalNovoOpen(false); formNovo.reset() }} className="text-stone-400 hover:text-stone-700 p-1 rounded-lg hover:bg-stone-100">
+                            <button onClick={() => { setIsModalNovoOpen(false); formNovo.reset() }} className="text-gray-400 hover:text-gray-700 p-1 rounded-lg hover:bg-gray-100">
                                 <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>
                             </button>
                         </div>
@@ -523,7 +500,7 @@ export default function AgendamentosGlobaisPage() {
                                     {...formNovo.register('clienteId')}
                                     type="text"
                                     placeholder="UUID do cliente"
-                                    className={`w-full border rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[#8B5A2B]/20 focus:border-[#8B5A2B] transition-all ${formNovo.formState.errors.clienteId ? 'border-red-400 bg-red-50' : 'border-stone-300'}`}
+                                    className={`w-full border rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[#8B5A2B]/20 focus:border-[#8B5A2B] transition-all ${formNovo.formState.errors.clienteId ? 'border-red-400 bg-red-50' : 'border-gray-300'}`}
                                 />
                             </Campo>
                             <Campo label="ID do Profissional" erro={formNovo.formState.errors.funcionarioId?.message} required>
@@ -531,7 +508,7 @@ export default function AgendamentosGlobaisPage() {
                                     {...formNovo.register('funcionarioId')}
                                     type="text"
                                     placeholder="UUID do profissional"
-                                    className={`w-full border rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[#8B5A2B]/20 focus:border-[#8B5A2B] transition-all ${formNovo.formState.errors.funcionarioId ? 'border-red-400 bg-red-50' : 'border-stone-300'}`}
+                                    className={`w-full border rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[#8B5A2B]/20 focus:border-[#8B5A2B] transition-all ${formNovo.formState.errors.funcionarioId ? 'border-red-400 bg-red-50' : 'border-gray-300'}`}
                                 />
                             </Campo>
                             <Campo label="ID do Serviço" erro={formNovo.formState.errors.servicoId?.message} required>
@@ -539,19 +516,19 @@ export default function AgendamentosGlobaisPage() {
                                     {...formNovo.register('servicoId')}
                                     type="text"
                                     placeholder="UUID do serviço"
-                                    className={`w-full border rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[#8B5A2B]/20 focus:border-[#8B5A2B] transition-all ${formNovo.formState.errors.servicoId ? 'border-red-400 bg-red-50' : 'border-stone-300'}`}
+                                    className={`w-full border rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[#8B5A2B]/20 focus:border-[#8B5A2B] transition-all ${formNovo.formState.errors.servicoId ? 'border-red-400 bg-red-50' : 'border-gray-300'}`}
                                 />
                             </Campo>
                             <Campo label="Data e Hora" erro={formNovo.formState.errors.dataHora?.message} required>
                                 <input
                                     {...formNovo.register('dataHora')}
                                     type="datetime-local"
-                                    className={`w-full border rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[#8B5A2B]/20 focus:border-[#8B5A2B] transition-all ${formNovo.formState.errors.dataHora ? 'border-red-400 bg-red-50' : 'border-stone-300'}`}
+                                    className={`w-full border rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[#8B5A2B]/20 focus:border-[#8B5A2B] transition-all ${formNovo.formState.errors.dataHora ? 'border-red-400 bg-red-50' : 'border-gray-300'}`}
                                 />
                             </Campo>
-                            <div className="flex gap-3 pt-2 border-t border-stone-100">
+                            <div className="flex gap-3 pt-2 border-t border-gray-100">
                                 <button type="button" onClick={() => { setIsModalNovoOpen(false); formNovo.reset() }}
-                                    className="flex-1 py-2.5 border border-stone-300 text-stone-700 font-semibold rounded-xl hover:bg-stone-50 text-sm transition-colors">
+                                    className="flex-1 py-2.5 border border-gray-300 text-gray-700 font-semibold rounded-xl hover:bg-gray-50 text-sm transition-colors">
                                     Cancelar
                                 </button>
                                 <button type="submit" disabled={loadingSalvar}
@@ -568,12 +545,12 @@ export default function AgendamentosGlobaisPage() {
             {agendamentoEditandoId && (
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
                     <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
-                        <div className="px-6 py-5 border-b border-stone-100 flex items-center justify-between">
+                        <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
                             <div>
-                                <h2 className="font-bold text-stone-800">Reagendar Reserva</h2>
-                                <p className="text-xs text-stone-500 mt-0.5">Altere o profissional ou a data/hora</p>
+                                <h2 className="font-bold text-gray-800">Reagendar Reserva</h2>
+                                <p className="text-xs text-gray-500 mt-0.5">Altere o profissional ou a data/hora</p>
                             </div>
-                            <button onClick={() => { setAgendamentoEditandoId(null); formEditar.reset() }} className="text-stone-400 hover:text-stone-700 p-1 rounded-lg hover:bg-stone-100">
+                            <button onClick={() => { setAgendamentoEditandoId(null); formEditar.reset() }} className="text-gray-400 hover:text-gray-700 p-1 rounded-lg hover:bg-gray-100">
                                 <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>
                             </button>
                         </div>
@@ -582,19 +559,19 @@ export default function AgendamentosGlobaisPage() {
                                 <input
                                     {...formEditar.register('funcionarioId')}
                                     type="text"
-                                    className={`w-full border rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[#8B5A2B]/20 focus:border-[#8B5A2B] transition-all ${formEditar.formState.errors.funcionarioId ? 'border-red-400 bg-red-50' : 'border-stone-300'}`}
+                                    className={`w-full border rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[#8B5A2B]/20 focus:border-[#8B5A2B] transition-all ${formEditar.formState.errors.funcionarioId ? 'border-red-400 bg-red-50' : 'border-gray-300'}`}
                                 />
                             </Campo>
                             <Campo label="Nova Data e Hora" erro={formEditar.formState.errors.dataHora?.message} required>
                                 <input
                                     {...formEditar.register('dataHora')}
                                     type="datetime-local"
-                                    className={`w-full border rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[#8B5A2B]/20 focus:border-[#8B5A2B] transition-all ${formEditar.formState.errors.dataHora ? 'border-red-400 bg-red-50' : 'border-stone-300'}`}
+                                    className={`w-full border rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[#8B5A2B]/20 focus:border-[#8B5A2B] transition-all ${formEditar.formState.errors.dataHora ? 'border-red-400 bg-red-50' : 'border-gray-300'}`}
                                 />
                             </Campo>
-                            <div className="flex gap-3 pt-2 border-t border-stone-100">
+                            <div className="flex gap-3 pt-2 border-t border-gray-100">
                                 <button type="button" onClick={() => { setAgendamentoEditandoId(null); formEditar.reset() }}
-                                    className="flex-1 py-2.5 border border-stone-300 text-stone-700 font-semibold rounded-xl hover:bg-stone-50 text-sm transition-colors">
+                                    className="flex-1 py-2.5 border border-gray-300 text-gray-700 font-semibold rounded-xl hover:bg-gray-50 text-sm transition-colors">
                                     Cancelar
                                 </button>
                                 <button type="submit" disabled={loadingEditar}
@@ -611,43 +588,43 @@ export default function AgendamentosGlobaisPage() {
             {modalAcessos && (
                 <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[60] backdrop-blur-sm">
                     <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col max-h-[92vh] overflow-hidden">
-                        <div className="px-6 py-5 border-b border-stone-100 flex items-center gap-3">
+                        <div className="px-6 py-5 border-b border-gray-100 flex items-center gap-3">
                             <Avatar nome={modalAcessos.nome} />
                             <div className="flex-1 min-w-0">
-                                <h2 className="font-bold text-stone-800 truncate">{modalAcessos.nome}</h2>
-                                <p className="text-xs text-stone-500">Permissões e escala de trabalho</p>
+                                <h2 className="font-bold text-gray-800 truncate">{modalAcessos.nome}</h2>
+                                <p className="text-xs text-gray-500">Permissões e escala de trabalho</p>
                             </div>
-                            <button onClick={() => setModalAcessos(null)} className="text-stone-400 hover:text-stone-700 p-1 rounded-lg hover:bg-stone-100 transition-colors">
+                            <button onClick={() => setModalAcessos(null)} className="text-gray-400 hover:text-gray-700 p-1 rounded-lg hover:bg-gray-100 transition-colors">
                                 <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>
                             </button>
                         </div>
 
-                        <div className="flex border-b border-stone-200 px-6">
+                        <div className="flex border-b border-gray-200 px-6">
                             {(['permissoes', 'escala'] as const).map(aba => (
                                 <button key={aba} onClick={() => setAbaAtiva(aba)}
                                     className={`py-3 px-1 mr-5 text-sm font-semibold border-b-2 transition-colors ${abaAtiva === aba
                                         ? 'border-[#8B5A2B] text-[#8B5A2B]'
-                                        : 'border-transparent text-stone-400 hover:text-stone-600'}`}>
+                                        : 'border-transparent text-gray-400 hover:text-gray-600'}`}>
                                     {aba === 'permissoes' ? 'Permissões' : 'Escala de Trabalho'}
                                 </button>
                             ))}
                         </div>
 
-                        <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-stone-50/50">
+                        <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-gray-50/50">
                             {abaAtiva === 'permissoes' && (
                                 <div className="space-y-5">
                                     <div>
-                                        <label className="block text-xs font-bold text-stone-600 uppercase tracking-wide mb-1.5">Comissão (%)</label>
+                                        <label className="block text-xs font-bold text-gray-600 uppercase tracking-wide mb-1.5">Comissão (%)</label>
                                         <input
                                             type="number" min={0} max={100}
                                             value={modalAcessos.comissao ?? 0}
                                             onChange={e => setModalAcessos({ ...modalAcessos, comissao: Number(e.target.value) })}
-                                            className="w-full border border-stone-300 rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[#8B5A2B]/20 focus:border-[#8B5A2B] bg-white"
+                                            className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[#8B5A2B]/20 focus:border-[#8B5A2B] bg-white"
                                         />
                                     </div>
                                     <div className="space-y-2">
                                         {permissoesSistema.map(({ key, label, desc }) => (
-                                            <label key={key} className="flex items-center gap-3 p-3.5 bg-white border border-stone-200 rounded-xl cursor-pointer hover:border-stone-300 transition-colors">
+                                            <label key={key} className="flex items-center gap-3 p-3.5 bg-white border border-gray-200 rounded-xl cursor-pointer hover:border-gray-300 transition-colors">
                                                 <input
                                                     type="checkbox"
                                                     checked={Boolean(modalAcessos[key])}
@@ -655,8 +632,8 @@ export default function AgendamentosGlobaisPage() {
                                                     className="w-4 h-4 accent-[#8B5A2B]"
                                                 />
                                                 <div>
-                                                    <p className="text-sm font-semibold text-stone-800">{label}</p>
-                                                    <p className="text-xs text-stone-400 mt-0.5">{desc}</p>
+                                                    <p className="text-sm font-semibold text-gray-800">{label}</p>
+                                                    <p className="text-xs text-gray-400 mt-0.5">{desc}</p>
                                                 </div>
                                             </label>
                                         ))}
@@ -666,23 +643,23 @@ export default function AgendamentosGlobaisPage() {
                             {abaAtiva === 'escala' && (
                                 <div className="space-y-2">
                                     {modalAcessos.expedientes.map((exp: ExpedienteInfo, index: number) => (
-                                        <div key={exp.diaSemana} className={`flex items-center gap-3 p-3.5 rounded-xl border ${exp.ativo ? 'bg-amber-50/70 border-amber-200' : 'bg-white border-stone-200'}`}>
+                                        <div key={exp.diaSemana} className={`flex items-center gap-3 p-3.5 rounded-xl border ${exp.ativo ? 'bg-amber-50/70 border-amber-200' : 'bg-white border-gray-200'}`}>
                                             <label className="flex items-center gap-2 min-w-[110px] cursor-pointer">
                                                 <input type="checkbox" checked={exp.ativo}
                                                     onChange={e => atualizarExpedienteLocal(index, 'ativo', e.target.checked)}
                                                     className="w-4 h-4 accent-[#8B5A2B]"
                                                 />
-                                                <span className="text-xs font-bold text-stone-700 uppercase tracking-wide">{DIAS_SEMANA_COMPLETO[exp.diaSemana]}</span>
+                                                <span className="text-xs font-bold text-gray-700 uppercase tracking-wide">{DIAS_SEMANA_COMPLETO[exp.diaSemana]}</span>
                                             </label>
                                             <div className={`flex gap-2 flex-1 justify-end ${exp.ativo ? '' : 'opacity-30 pointer-events-none'}`}>
                                                 <input type="time" value={exp.horaInicio}
                                                     onChange={e => atualizarExpedienteLocal(index, 'horaInicio', e.target.value)}
-                                                    className="border border-stone-300 rounded-lg px-2.5 py-1.5 text-xs bg-white outline-none focus:border-[#8B5A2B]"
+                                                    className="border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs bg-white outline-none focus:border-[#8B5A2B]"
                                                 />
-                                                <span className="text-stone-400 self-center text-xs">até</span>
+                                                <span className="text-gray-400 self-center text-xs">até</span>
                                                 <input type="time" value={exp.horaFim}
                                                     onChange={e => atualizarExpedienteLocal(index, 'horaFim', e.target.value)}
-                                                    className="border border-stone-300 rounded-lg px-2.5 py-1.5 text-xs bg-white outline-none focus:border-[#8B5A2B]"
+                                                    className="border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs bg-white outline-none focus:border-[#8B5A2B]"
                                                 />
                                             </div>
                                         </div>
@@ -691,8 +668,8 @@ export default function AgendamentosGlobaisPage() {
                             )}
                         </div>
 
-                        <div className="px-6 py-4 bg-white border-t border-stone-100 flex gap-3">
-                            <button onClick={() => setModalAcessos(null)} className="flex-1 py-2.5 border border-stone-300 text-stone-700 font-semibold rounded-xl hover:bg-stone-50 text-sm transition-colors">Cancelar</button>
+                        <div className="px-6 py-4 bg-white border-t border-gray-100 flex gap-3">
+                            <button onClick={() => setModalAcessos(null)} className="flex-1 py-2.5 border border-gray-300 text-gray-700 font-semibold rounded-xl hover:bg-gray-50 text-sm transition-colors">Cancelar</button>
                             <button onClick={handleSalvarProfissional} disabled={loadingAcaoProfissional}
                                 className="flex-1 py-2.5 bg-[#5C4033] text-white font-semibold rounded-xl hover:bg-[#3e2b22] disabled:opacity-60 text-sm transition-colors">
                                 {loadingAcaoProfissional ? 'A salvar...' : 'Salvar Perfil'}

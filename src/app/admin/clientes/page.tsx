@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import Link from 'next/link'
 import { z } from 'zod'
 import {
     listarTodosClientes,
@@ -14,7 +13,8 @@ import {
 } from '@/app/actions/cliente'
 import { criarAgendamentoMultiplo } from '@/app/actions/agendamento'
 import type { Cliente } from '@/types/domain'
-import { AlertCircle, CheckCircle2, Loader2, X } from 'lucide-react'
+import { AlertCircle, Loader2, X } from 'lucide-react'
+import AdminHeader from '@/components/admin/AdminHeader'
 
 type ClienteListaItem = Cliente & { _count: { agendamentos: number } }
 
@@ -92,15 +92,6 @@ function ErrorAlert({ message, onDismiss }: ErrorAlertProps) {
                     <X className="w-4 h-4" />
                 </button>
             )}
-        </div>
-    )
-}
-
-function SuccessAlert({ message }: { message: string }) {
-    return (
-        <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-lg">
-            <CheckCircle2 className="w-5 h-5 text-green-600" />
-            <p className="text-sm font-medium text-green-700">{message}</p>
         </div>
     )
 }
@@ -407,69 +398,67 @@ export default function GestaoClientesAdminPage() {
     // ── Render ───────────────────────────────────────────────────────────────
 
     return (
-        <div className="min-h-screen bg-[#fdfbf7] p-4 md:p-8 font-sans">
-            {/* Header */}
-            <header className="mb-6 border-b-2 border-[#5C4033] pb-4 flex flex-col md:flex-row justify-between md:items-center gap-4">
-                <div className="flex-1">
-                    <h1 className="text-2xl md:text-3xl font-bold text-[#5C4033]">Base de Clientes</h1>
-                    <p className="text-sm md:text-base text-gray-500 mt-1">Histórico de consumo, agendamentos rápidos e proteção de dados (LGPD).</p>
+        <div className="min-h-screen bg-[#fdfbf7] font-sans">
+            <AdminHeader 
+                titulo="Base de Clientes"
+                subtitulo="Histórico de consumo, agendamentos rápidos e proteção de dados (LGPD)."
+                abaAtiva="Clientes"
+                botaoAcao={
+                    <button
+                        onClick={() => {
+                            setFormCriar({ nome: '', telefone: '', email: '', cpf: '' })
+                            setErroCriar('')
+                            setModalCriarOpen(true)
+                        }}
+                        className="flex items-center justify-center gap-2 bg-marrom-medio text-white px-5 py-2.5 rounded-xl font-bold text-sm hover:bg-[#3e2b22] transition-colors shadow-sm active:scale-[0.98]"
+                    >
+                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+                            <path d="M7 1v12M1 7h12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                        </svg>
+                        Novo Cliente
+                    </button>
+                }
+            />
+
+            <div className="max-w-7xl mx-auto px-4 md:px-8 space-y-6 pb-12">
+                {/* Pesquisa */}
+                <div className="relative bg-white rounded-xl shadow-sm border border-gray-100 p-1">
+                    <svg className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" /></svg>
+                    <input
+                        type="text"
+                        placeholder="Pesquisar por nome, telefone, email ou CPF..."
+                        value={busca}
+                        onChange={(e) => setBusca(e.target.value)}
+                        className="w-full pl-11 pr-4 py-3 bg-transparent text-sm outline-none focus:ring-0 transition-all"
+                    />
                 </div>
-                <button
-                    onClick={() => {
-                        setFormCriar({ nome: '', telefone: '', email: '', cpf: '' })
-                        setErroCriar('')
-                        setModalCriarOpen(true)
-                    }}
-                    className="w-full md:w-auto bg-[#8B5A2B] text-white px-5 py-2.5 rounded font-bold hover:bg-[#704620] shadow-sm transition-colors text-sm"
-                >
-                    + Novo Cliente
-                </button>
-            </header>
 
-            {/* Navegação */}
-            <nav className="flex flex-wrap gap-2 md:gap-3 mb-6 md:mb-8 overflow-x-auto pb-2">
-                <Link href='/admin/dashboard' className="bg-white text-[#5C4033] border border-[#e5d9c5] px-3 md:px-5 py-2 rounded shadow-sm font-bold text-xs md:text-sm hover:border-[#8B5A2B] whitespace-nowrap">Equipa</Link>
-                <Link href='/admin/financeiro' className="bg-white text-[#5C4033] border border-[#e5d9c5] px-3 md:px-5 py-2 rounded shadow-sm font-bold text-xs md:text-sm hover:border-[#8B5A2B] whitespace-nowrap">Financeiro</Link>
-                <Link href='/admin/estoque' className="bg-white text-[#5C4033] border border-[#e5d9c5] px-3 md:px-5 py-2 rounded shadow-sm font-bold text-xs md:text-sm hover:border-[#8B5A2B] whitespace-nowrap">Estoque</Link>
-                <Link href='/admin/servicos' className="bg-white text-[#5C4033] border border-[#e5d9c5] px-3 md:px-5 py-2 rounded shadow-sm font-bold text-xs md:text-sm hover:border-[#8B5A2B] whitespace-nowrap">Portfólio</Link>
-                <Link href='/admin/agendamentos' className="bg-white text-[#5C4033] border border-[#e5d9c5] px-3 md:px-5 py-2 rounded shadow-sm font-bold text-xs md:text-sm hover:border-[#8B5A2B] whitespace-nowrap">Agendamentos</Link>
-                <Link href='/admin/clientes' className="bg-[#5C4033] text-white px-3 md:px-5 py-2 rounded shadow font-bold text-xs md:text-sm whitespace-nowrap">Base de Clientes</Link>
-            </nav>
-
-            {/* Pesquisa */}
-            <div className="mb-6 bg-white p-3 md:p-4 rounded-lg shadow-sm border border-[#e5d9c5]">
-                <input
-                    type="text"
-                    placeholder="Pesquisar por nome, telefone, email ou CPF..."
-                    value={busca}
-                    onChange={(e) => setBusca(e.target.value)}
-                    className="w-full p-2 md:p-3 border border-gray-300 rounded outline-none focus:border-[#8B5A2B] transition-colors text-sm"
-                />
-            </div>
-
-            {/* Tabela */}
-            <section className="bg-white rounded-lg shadow overflow-hidden border border-[#e5d9c5]">
-                {loading ? (
-                    <div className="p-8 text-center text-gray-500 font-bold tracking-wider uppercase text-sm flex items-center justify-center gap-2">
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                        A carregar clientes...
+                {/* Tabela */}
+                <section className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                    <div className="px-6 md:px-8 py-5 border-b border-gray-100 bg-gray-50/50">
+                        <h2 className="font-bold text-[#5C4033] text-lg tracking-tight">Diretório Global</h2>
                     </div>
-                ) : clientesFiltrados.length === 0 ? (
-                    <div className="p-8 text-center text-gray-500 text-sm">Nenhum cliente encontrado.</div>
-                ) : (
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse">
-                            <thead className="bg-[#5C4033] text-white">
-                                <tr>
-                                    <th className="p-3 md:p-4 text-xs md:text-sm font-semibold uppercase tracking-wider">Cliente</th>
-                                    <th className="p-3 md:p-4 text-xs md:text-sm font-semibold uppercase tracking-wider">Contacto</th>
-                                    <th className="p-3 md:p-4 text-xs md:text-sm font-semibold uppercase tracking-wider text-center">Visitas</th>
-                                    <th className="p-3 md:p-4 text-xs md:text-sm font-semibold uppercase tracking-wider text-center">Status</th>
-                                    <th className="p-3 md:p-4 text-xs md:text-sm font-semibold text-right uppercase tracking-wider">Ações</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {clientesFiltrados.map((cliente) => {
+                    {loading ? (
+                        <div className="p-8 text-center text-gray-500 font-bold tracking-wider uppercase text-sm flex items-center justify-center gap-2">
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            A carregar clientes...
+                        </div>
+                    ) : clientesFiltrados.length === 0 ? (
+                        <div className="p-8 text-center text-gray-500 text-sm">Nenhum cliente encontrado.</div>
+                    ) : (
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left border-collapse">
+                                <thead>
+                                    <tr className="bg-gray-50/50 text-gray-400 text-xs uppercase tracking-widest border-b border-gray-100">
+                                        <th className="px-6 py-4 font-bold">Cliente</th>
+                                        <th className="px-6 py-4 font-bold">Contacto</th>
+                                        <th className="px-6 py-4 font-bold text-center">Visitas</th>
+                                        <th className="px-6 py-4 font-bold text-center">Status</th>
+                                        <th className="px-6 py-4 font-bold text-right">Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {clientesFiltrados.map((cliente) => {
                                     const totalAgendamentos = cliente._count?.agendamentos || 0
                                     const isLoading = acaoLoading === cliente.id
                                     const isAnonimizado = cliente.anonimizado
@@ -477,7 +466,7 @@ export default function GestaoClientesAdminPage() {
 
                                     return (
                                         <tr key={cliente.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
-                                            <td className="p-3 md:p-4">
+                                            <td className="px-6 py-4">
                                                 <p className={`font-bold text-sm ${isAnonimizado ? 'text-gray-400 italic' : 'text-gray-800'}`}>
                                                     {cliente.nome}
                                                 </p>
@@ -487,21 +476,21 @@ export default function GestaoClientesAdminPage() {
                                                     </p>
                                                 )}
                                             </td>
-                                            <td className="p-3 md:p-4">
+                                            <td className="px-6 py-4">
                                                 <p className="text-xs md:text-sm text-gray-700 font-mono">{exibirTelefone(cliente.telefone)}</p>
                                                 {c.email && (
                                                     <p className="text-xs text-gray-500 mt-0.5 truncate">{c.email}</p>
                                                 )}
                                             </td>
-                                            <td className="p-3 md:p-4 text-center font-semibold text-[#8B5A2B] text-sm">
+                                            <td className="px-6 py-4 text-center font-semibold text-[#8B5A2B] text-sm">
                                                 {totalAgendamentos}
                                             </td>
-                                            <td className="p-3 md:p-4 text-center">
+                                            <td className="px-6 py-4 text-center">
                                                 <span className={`px-2 md:px-2.5 py-1 text-[0.6rem] md:text-[0.65rem] font-bold rounded uppercase tracking-wider inline-block ${isAnonimizado ? 'bg-gray-100 text-gray-600 border border-gray-200' : 'bg-green-100 text-green-700 border border-green-200'}`}>
                                                     {isAnonimizado ? 'Anonimizado' : 'Ativo'}
                                                 </span>
                                             </td>
-                                            <td className="p-3 md:p-4">
+                                            <td className="px-6 py-4">
                                                 {!isAnonimizado ? (
                                                     <div className="flex justify-end items-center gap-1 md:gap-2 flex-wrap">
                                                         <button
@@ -555,6 +544,7 @@ export default function GestaoClientesAdminPage() {
                     </div>
                 )}
             </section>
+            </div>
 
             {/* ── MODAL: CRIAR CLIENTE ── */}
             {modalCriarOpen && (
