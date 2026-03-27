@@ -1,6 +1,6 @@
 'use client'
 
-import { memo, useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { cn } from './cn'
 import type { FormularioReservaProps, TipoMensagem } from './types'
@@ -15,15 +15,15 @@ const FEEDBACK: Record<Exclude<TipoMensagem, ''>, string> = {
 const INPUT_BASE =
     'w-full py-[0.85rem] px-4 bg-white/[0.04] border border-[rgba(197,168,124,0.15)] text-white/80 font-sans text-[0.875rem] font-light outline-none transition-all duration-300 disabled:opacity-30 disabled:cursor-not-allowed focus:border-[rgba(197,168,124,0.5)] focus:bg-white/[0.07] placeholder:text-white/20'
 
-const DarkInput = memo(function DarkInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
+const DarkInput = function DarkInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
     return <input {...props} className={cn('dark-input', INPUT_BASE, props.className)} />
-})
+}
 
 interface DarkSelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
     children: React.ReactNode
 }
 
-const DarkSelect = memo(function DarkSelect({ children, ...props }: DarkSelectProps) {
+const DarkSelect = function DarkSelect({ children, ...props }: DarkSelectProps) {
     return (
         <div className="relative" style={{ flex: (props.style as React.CSSProperties | undefined)?.flex }}>
             <select
@@ -40,9 +40,9 @@ const DarkSelect = memo(function DarkSelect({ children, ...props }: DarkSelectPr
             </div>
         </div>
     )
-})
+}
 
-const FormularioReserva = memo(function FormularioReserva({
+const FormularioReserva = function FormularioReserva({
     sessao,
     mounted,
     profissionais,
@@ -381,6 +381,6 @@ const FormularioReserva = memo(function FormularioReserva({
             </div>
         </section>
     )
-})
+}
 
 export default FormularioReserva

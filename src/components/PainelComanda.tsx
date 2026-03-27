@@ -49,6 +49,7 @@ export default function PainelComanda({ agendamento, produtosDisponiveis, podeVe
     const [isAdicionando, setIsAdicionando] = useState(false)
     const [isFinalizando, setIsFinalizando] = useState(false)
     const [erro, setErro] = useState('')
+    const [confirmModalOpen, setConfirmModalOpen] = useState(false)
 
     // Cálculos Financeiros Dinâmicos (Com tipos explícitos nos parâmetros do reduce)
     const totalServicos = agendamento.servicos.reduce((acc: number, item: ServicoDaComanda) => acc + (item.precoCobrado || 0), 0)
@@ -75,14 +76,6 @@ export default function PainelComanda({ agendamento, produtosDisponiveis, podeVe
     }
 
     const handleFinalizar = async () => {
-        // Altera a mensagem de confirmação baseada na permissão
-        const mensagemConfirmacao = podeVerFinancas
-            ? `Deseja faturar esta comanda no valor de R$ ${valorTotalRevisado.toFixed(2)}? Após isso, não será possível alterar os itens.`
-            : `Deseja faturar esta comanda e enviar ao caixa? Após isso, não será possível alterar os itens.`;
-
-        const confirmar = window.confirm(mensagemConfirmacao)
-        if (!confirmar) return
-
         setIsFinalizando(true)
         setErro('')
 
@@ -93,11 +86,31 @@ export default function PainelComanda({ agendamento, produtosDisponiveis, podeVe
         } else {
             setErro(res.erro || 'Erro ao faturar comanda.')
             setIsFinalizando(false)
+            setConfirmModalOpen(false)
         }
     }
 
     return (
-        <div className="bg-white rounded-2xl shadow-xl border border-[#e5d9c5] overflow-hidden">
+        <div className="bg-white rounded-2xl shadow-xl border border-[#e5d9c5] overflow-hidden relative">
+            {/* Modal Customizado */}
+            {confirmModalOpen && (
+                <div className="absolute inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+                    <div className="bg-white p-8 rounded-2xl shadow-2xl max-w-sm text-center border border-[#e5d9c5] mx-4">
+                        <h4 className="text-2xl font-serif text-marrom-medio mb-3">Faturar Comanda?</h4>
+                        <p className="text-sm text-gray-600 mb-8 leading-relaxed">
+                            {podeVerFinancas 
+                                ? `Confirmar faturamento de R$ ${valorTotalRevisado.toFixed(2)}? Esta ação não pode ser desfeita.`
+                                : `Confirmar encerramento e envio ao caixa? Após isso, não será possível alterar os itens.`}
+                        </p>
+                        <div className="flex gap-4 justify-center">
+                            <button onClick={() => setConfirmModalOpen(false)} className="flex-1 py-3 bg-gray-100 rounded-lg font-bold text-gray-700 hover:bg-gray-200 transition-colors text-sm uppercase tracking-wider">Cancelar</button>
+                            <button onClick={handleFinalizar} className="flex-1 py-3 bg-marrom-claro text-white rounded-lg font-bold hover:bg-[#704620] transition-colors text-sm uppercase tracking-wider shadow-md">
+                                {isFinalizando ? 'Processando...' : 'Confirmar'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
             {/* Cabeçalho da Comanda */}
             <div className="bg-marrom-medio p-8 text-white flex justify-between items-center">
                 <div>
@@ -217,7 +230,7 @@ export default function PainelComanda({ agendamento, produtosDisponiveis, podeVe
 
                     {!agendamento.concluido && (
                         <button
-                            onClick={handleFinalizar}
+                            onClick={() => setConfirmModalOpen(true)}
                             disabled={isFinalizando}
                             className="w-full py-4 bg-marrom-claro text-white font-bold rounded-xl text-lg uppercase tracking-widest hover:bg-[#704620] transition-colors shadow-lg disabled:opacity-70 disabled:cursor-not-allowed"
                         >

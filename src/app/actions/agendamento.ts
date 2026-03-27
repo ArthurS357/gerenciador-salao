@@ -137,21 +137,23 @@ export async function criarAgendamentoMultiplo(
         }
 
         const servicos = await prisma.servico.findMany({
-            where: { id: { in: servicosIds } },
+            where: { id: { in: Array.from(new Set(servicosIds)) } },
         })
-
-        if (servicos.length !== servicosIds.length) {
-            return { sucesso: false, erro: 'Um ou mais serviços são inválidos.' }
-        }
 
         let valorBruto = 0
         let tempoTotalMinutos = 0
 
-        const itensParaCriar = servicos.map((s) => {
+        const itensParaCriar: { servicoId: string; precoCobrado: number | null }[] = []
+
+        for (const reqId of servicosIds) {
+            const s = servicos.find(serv => serv.id === reqId)
+            if (!s) {
+                return { sucesso: false, erro: 'Um ou mais serviços são inválidos.' }
+            }
             valorBruto += s.preco ?? 0
             tempoTotalMinutos += s.tempoMinutos ?? 30
-            return { servicoId: s.id, precoCobrado: s.preco }
-        })
+            itensParaCriar.push({ servicoId: s.id, precoCobrado: s.preco })
+        }
 
         const tempoTotalBloqueio = tempoTotalMinutos + TEMPO_BUFFER_MINUTOS
         const dataHoraFim = new Date(dataHoraInicio.getTime() + tempoTotalBloqueio * 60_000)
@@ -195,7 +197,9 @@ export async function criarAgendamentoMultiplo(
             weekday: 'long', day: '2-digit', month: 'long', hour: '2-digit', minute: '2-digit'
         }).format(dataHoraInicio);
 
-        const nomesServicos = servicos.map(s => s.nome).join(', ');
+        const nomesServicos = itensParaCriar.map(item => {
+            return servicos.find(s => s.id === item.servicoId)?.nome || 'Serviço'
+        }).join(', ');
 
         const mensagemConfirmacao =
             `Olá ${cliente.nome.split(' ')[0]}! 🌟 Sua reserva no Studio LmLu Matiello foi confirmada!
@@ -206,10 +210,12 @@ export async function criarAgendamentoMultiplo(
 
 Para cancelar ou reagendar, por favor acesse o painel no nosso site. Estamos ansiosos para te receber!`;
 
-        // Disparo Fire-and-forget: chamamos a função, mas não usamos await para não atrasar a tela do usuário.
-        enviarMensagemWhatsApp(cliente.telefone, mensagemConfirmacao).catch(err => {
+        // Disparo Controlado: aguardamos a conclusão para estabilidade em lambdas serverless.
+        const promiseWhatsApp = enviarMensagemWhatsApp(cliente.telefone, mensagemConfirmacao).catch(err => {
             console.warn(`[Background Task] Falha silenciosa ao notificar cliente ${clienteId}:`, err);
         });
+
+        await promiseWhatsApp;
 
         return { sucesso: true, agendamentoId: novoAgendamento.id }
     } catch (error) {

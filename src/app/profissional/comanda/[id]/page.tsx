@@ -76,11 +76,25 @@ export default async function ComandaPage({ params }: PageProps) {
         orderBy: { nome: 'asc' }
     });
 
+    // Passo 4.1: Sanitização Rigorosa de Dados (DTO)
+    // Se o usuário não puder ver as finanças, os preços não devem sequer trafegar na rede.
+    const agendamentoSanitizado = {
+        ...agendamento,
+        servicos: agendamento.servicos.map(s => ({
+            ...s,
+            precoCobrado: podeVerFinancas ? s.precoCobrado : null,
+        })),
+        produtos: agendamento.produtos.map(p => ({
+            ...p,
+            precoCobrado: podeVerFinancas ? p.precoCobrado : 0,
+        }))
+    };
+
     return (
         <div className="min-h-screen bg-[#fdfbf7] p-4 md:p-8 font-sans flex items-start md:items-center justify-center pt-32">
             <div className="w-full max-w-4xl">
                 <PainelComanda
-                    agendamento={agendamento}
+                    agendamento={agendamentoSanitizado}
                     produtosDisponiveis={produtosDisponiveis}
                     podeVerFinancas={podeVerFinancas} // <-- Repassando a permissão
                 />
