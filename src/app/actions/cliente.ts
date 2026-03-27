@@ -190,7 +190,9 @@ export async function obterHistoricoCliente(clienteId: string): Promise<ActionRe
                 cliente: {
                     nome: cliente.nome,
                     telefone: cliente.telefone,
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     email: (cliente as any).email ?? null,
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     cpf: (cliente as any).cpf ?? null,
                     anonimizado: cliente.anonimizado
                 },

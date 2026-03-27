@@ -118,13 +118,13 @@ export default function FormularioPerfil({ fotoUrlInicial, expedientesIniciais }
             <div className="flex border-b border-gray-100 bg-gray-50/50">
                 <button
                     onClick={() => setAbaAtiva('perfil')}
-                    className={`flex-1 py-4 text-sm font-bold transition-all border-b-2 ${abaAtiva === 'perfil' ? 'border-[#8B5A2B] text-[#8B5A2B] bg-white' : 'border-transparent text-gray-500 hover:bg-gray-50'}`}
+                    className={`flex-1 py-4 text-sm font-bold transition-all border-b-2 ${abaAtiva === 'perfil' ? 'border-marrom-claro text-marrom-claro bg-white' : 'border-transparent text-gray-500 hover:bg-gray-50'}`}
                 >
                     Informações e Escala
                 </button>
                 <button
                     onClick={() => setAbaAtiva('seguranca')}
-                    className={`flex-1 py-4 text-sm font-bold transition-all border-b-2 ${abaAtiva === 'seguranca' ? 'border-[#8B5A2B] text-[#8B5A2B] bg-white' : 'border-transparent text-gray-500 hover:bg-gray-50'}`}
+                    className={`flex-1 py-4 text-sm font-bold transition-all border-b-2 ${abaAtiva === 'seguranca' ? 'border-marrom-claro text-marrom-claro bg-white' : 'border-transparent text-gray-500 hover:bg-gray-50'}`}
                 >
                     Segurança e Senha
                 </button>
@@ -152,7 +152,7 @@ export default function FormularioPerfil({ fotoUrlInicial, expedientesIniciais }
 
                     {/* Coluna Escala */}
                     <div className="w-full md:w-2/3 p-6 md:p-8 flex flex-col">
-                        <h2 className="font-bold text-[#5C4033] mb-4 text-lg tracking-tight">Escala Semanal</h2>
+                        <h2 className="font-bold text-marrom-medio mb-4 text-lg tracking-tight">Escala Semanal</h2>
                         
                         {mensagemPerfil.texto && (
                             <div className={`mb-5 p-3 rounded-lg text-sm font-bold border ${mensagemPerfil.tipo === 'sucesso' ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'}`}>
@@ -162,22 +162,22 @@ export default function FormularioPerfil({ fotoUrlInicial, expedientesIniciais }
 
                         <div className="grid grid-cols-1 gap-3 flex-1 mb-6">
                             {expedientes.map((exp, index) => (
-                                <div key={index} className={`flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-xl border transition-all ${exp.ativo ? 'bg-orange-50/40 border-[#8B5A2B]/30' : 'bg-white border-gray-100'}`}>
+                                <div key={index} className={`flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-xl border transition-all ${exp.ativo ? 'bg-orange-50/40 border-marrom-claro/30' : 'bg-white border-gray-100'}`}>
                                     <label className="flex items-center cursor-pointer mb-3 sm:mb-0">
-                                        <input type="checkbox" checked={exp.ativo} onChange={e => atualizarExpediente(index, 'ativo', e.target.checked)} className="w-4 h-4 accent-[#8B5A2B] rounded mr-3 cursor-pointer" />
-                                        <span className={`font-bold uppercase tracking-wider text-xs ${exp.ativo ? 'text-[#8B5A2B]' : 'text-gray-400'}`}>{DIAS_SEMANA[index]}</span>
+                                        <input type="checkbox" checked={exp.ativo} onChange={e => atualizarExpediente(index, 'ativo', e.target.checked)} className="w-4 h-4 accent-marrom-claro rounded mr-3 cursor-pointer" />
+                                        <span className={`font-bold uppercase tracking-wider text-xs ${exp.ativo ? 'text-marrom-claro' : 'text-gray-400'}`}>{DIAS_SEMANA[index]}</span>
                                     </label>
                                     <div className={`flex items-center gap-2 ${exp.ativo ? 'opacity-100' : 'opacity-30 pointer-events-none'}`}>
-                                        <input type="time" value={exp.horaInicio} onChange={e => atualizarExpediente(index, 'horaInicio', e.target.value)} className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm outline-none focus:border-[#8B5A2B] font-bold bg-white" />
+                                        <input type="time" value={exp.horaInicio} onChange={e => atualizarExpediente(index, 'horaInicio', e.target.value)} className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm outline-none focus:border-marrom-claro font-bold bg-white" />
                                         <span className="text-gray-400 font-bold text-[10px] uppercase">até</span>
-                                        <input type="time" value={exp.horaFim} onChange={e => atualizarExpediente(index, 'horaFim', e.target.value)} className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm outline-none focus:border-[#8B5A2B] font-bold bg-white" />
+                                        <input type="time" value={exp.horaFim} onChange={e => atualizarExpediente(index, 'horaFim', e.target.value)} className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm outline-none focus:border-marrom-claro font-bold bg-white" />
                                     </div>
                                 </div>
                             ))}
                         </div>
 
                         <div className="flex justify-end pt-4 border-t border-gray-100">
-                            <button type="submit" disabled={salvandoPerfil} className="w-full sm:w-auto bg-[#8B5A2B] text-white px-6 py-2.5 rounded-xl font-bold text-sm hover:bg-[#704620] transition-colors disabled:opacity-50 shadow-sm flex justify-center items-center gap-2">
+                            <button type="submit" disabled={salvandoPerfil} className="w-full sm:w-auto bg-marrom-claro text-white px-6 py-2.5 rounded-xl font-bold text-sm hover:bg-[#704620] transition-colors disabled:opacity-50 shadow-sm flex justify-center items-center gap-2">
                                 {salvandoPerfil ? 'A Guardar...' : 'Salvar Perfil e Escala'}
                             </button>
                         </div>
@@ -193,7 +193,7 @@ export default function FormularioPerfil({ fotoUrlInicial, expedientesIniciais }
                             <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
                                 <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
                             </div>
-                            <h2 className="font-bold text-[#5C4033] text-xl tracking-tight">Alterar Credenciais</h2>
+                            <h2 className="font-bold text-marrom-medio text-xl tracking-tight">Alterar Credenciais</h2>
                             <p className="text-sm text-gray-500 mt-1">Introduza a sua nova senha de acesso ao portal.</p>
                         </div>
 
@@ -212,7 +212,7 @@ export default function FormularioPerfil({ fotoUrlInicial, expedientesIniciais }
                                     value={senhas.nova}
                                     onChange={e => setSenhas({ ...senhas, nova: e.target.value })}
                                     placeholder="••••••••"
-                                    className="w-full border border-gray-300 rounded-xl px-4 py-3 outline-none focus:border-[#8B5A2B] focus:ring-4 focus:ring-[#8B5A2B]/10 transition-all font-medium"
+                                    className="w-full border border-gray-300 rounded-xl px-4 py-3 outline-none focus:border-marrom-claro focus:ring-4 focus:ring-marrom-claro/10 transition-all font-medium"
                                 />
                             </div>
                             <div>
@@ -223,13 +223,13 @@ export default function FormularioPerfil({ fotoUrlInicial, expedientesIniciais }
                                     value={senhas.confirmar}
                                     onChange={e => setSenhas({ ...senhas, confirmar: e.target.value })}
                                     placeholder="••••••••"
-                                    className="w-full border border-gray-300 rounded-xl px-4 py-3 outline-none focus:border-[#8B5A2B] focus:ring-4 focus:ring-[#8B5A2B]/10 transition-all font-medium"
+                                    className="w-full border border-gray-300 rounded-xl px-4 py-3 outline-none focus:border-marrom-claro focus:ring-4 focus:ring-marrom-claro/10 transition-all font-medium"
                                 />
                             </div>
                         </div>
 
                         <div className="mt-8">
-                            <button type="submit" disabled={salvandoSenha || !senhas.nova || !senhas.confirmar} className="w-full bg-[#5C4033] text-white px-6 py-3.5 rounded-xl font-bold hover:bg-[#3e2b22] transition-colors disabled:opacity-50 shadow-md">
+                            <button type="submit" disabled={salvandoSenha || !senhas.nova || !senhas.confirmar} className="w-full bg-marrom-medio text-white px-6 py-3.5 rounded-xl font-bold hover:bg-[#3e2b22] transition-colors disabled:opacity-50 shadow-md">
                                 {salvandoSenha ? 'A Atualizar...' : 'Atualizar Senha Segura'}
                             </button>
                         </div>

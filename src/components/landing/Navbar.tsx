@@ -21,7 +21,7 @@ const NAV_LINKS = [
 ] as const
 
 const IconeAgenda = () => (<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>)
-const IconeHistorico = () => (<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 3h6l2 3H3z" /><path d="M3 8v13h18V8z" /><path d="M7 13h10M7 17h6" /></svg>)
+// const IconeHistorico = () => (<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 3h6l2 3H3z" /><path d="M3 8v13h18V8z" /><path d="M7 13h10M7 17h6" /></svg>)
 const IconeUser = () => (<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4" /><path d="M4 20c0-4 3.58-7 8-7s8 3 8 7" /></svg>)
 const IconeSair = () => (<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></svg>)
 const IconeBriefcase = () => (<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="2" y="7" width="20" height="14" rx="2" ry="2" /><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" /><line x1="12" y1="12" x2="12" y2="16" /><line x1="10" y1="14" x2="14" y2="14" /></svg>)
@@ -94,10 +94,10 @@ const Navbar = memo(function Navbar({ sessao }: NavbarProps) {
                     aria-label="LmLu Mattielo — Página inicial"
                 >
                     <div className="flex flex-col">
-                        <span className="font-serif text-[1.4rem] md:text-[1.8rem] font-medium text-white/95 tracking-[0.02em] transition-colors duration-500 group-hover:text-[#c5a87c]">
+                        <span className="font-serif text-[1.4rem] md:text-[1.8rem] font-medium text-white/95 tracking-[0.02em] transition-colors duration-500 group-hover:text-caramelo">
                             LmLu Matiello
                         </span>
-                        <span className="font-sans text-[0.55rem] md:text-[0.6rem] font-medium tracking-[0.35em] uppercase text-[#c5a87c]/60 mt-[3px] transition-all duration-500 group-hover:text-[#c5a87c]/90 group-hover:tracking-[0.4em]">
+                        <span className="font-sans text-[0.55rem] md:text-[0.6rem] font-medium tracking-[0.35em] uppercase text-caramelo/60 mt-[3px] transition-all duration-500 group-hover:text-caramelo/90 group-hover:tracking-[0.4em]">
                             Studio de Beleza
                         </span>
                     </div>
@@ -112,7 +112,7 @@ const Navbar = memo(function Navbar({ sessao }: NavbarProps) {
                             <span className="text-[0.8rem] font-serif italic text-white/60">Olá, {primeiroNome}</span>
                             <Link
                                 href="/cliente/dashboard"
-                                className="flex items-center gap-2 text-[0.65rem] font-medium tracking-[0.2em] uppercase text-[#c5a87c]/70 transition-all duration-500 hover:text-[#c5a87c]"
+                                className="flex items-center gap-2 text-[0.65rem] font-medium tracking-[0.2em] uppercase text-caramelo/70 transition-all duration-500 hover:text-caramelo"
                             >
                                 O Meu Painel
                             </Link>
@@ -125,7 +125,7 @@ const Navbar = memo(function Navbar({ sessao }: NavbarProps) {
                             <span className="text-[0.8rem] font-serif italic text-white/60">Olá, {primeiroNome}</span>
                             <Link
                                 href="/profissional/agenda"
-                                className="flex items-center gap-2 text-[0.65rem] font-medium tracking-[0.2em] uppercase text-[#c5a87c]/70 transition-all duration-500 hover:text-[#c5a87c]"
+                                className="flex items-center gap-2 text-[0.65rem] font-medium tracking-[0.2em] uppercase text-caramelo/70 transition-all duration-500 hover:text-caramelo"
                             >
                                 Minha Agenda
                             </Link>
@@ -135,7 +135,7 @@ const Navbar = memo(function Navbar({ sessao }: NavbarProps) {
                     {!sessao.logado && (
                         <Link
                             href="/login"
-                            className="hidden md:flex items-center gap-2 text-[0.65rem] font-medium tracking-[0.2em] uppercase text-[#c5a87c]/70 transition-all duration-500 hover:text-[#c5a87c]"
+                            className="hidden md:flex items-center gap-2 text-[0.65rem] font-medium tracking-[0.2em] uppercase text-caramelo/70 transition-all duration-500 hover:text-caramelo"
                         >
                             Acesso Cliente
                         </Link>
@@ -152,9 +152,9 @@ const Navbar = memo(function Navbar({ sessao }: NavbarProps) {
                         aria-label={menuOpen ? 'Fechar menu' : 'Abrir menu'}
                         className="relative flex flex-col justify-center items-end gap-[6px] w-8 h-8 group"
                     >
-                        <span aria-hidden="true" className={cn('block h-px transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] origin-center bg-white/60 group-hover:bg-[#c5a87c]', menuOpen ? 'w-full rotate-[-45deg] translate-y-[7px] bg-[#c5a87c]' : 'w-full')} />
-                        <span aria-hidden="true" className={cn('block h-px transition-all duration-400 ease-out bg-white/40 group-hover:bg-[#c5a87c]/70', menuOpen ? 'opacity-0 w-0' : 'w-[65%]')} />
-                        <span aria-hidden="true" className={cn('block h-px transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] origin-center bg-white/60 group-hover:bg-[#c5a87c]', menuOpen ? 'w-full rotate-[45deg] -translate-y-[7px] bg-[#c5a87c]' : 'w-[85%]')} />
+                        <span aria-hidden="true" className={cn('block h-px transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] origin-center bg-white/60 group-hover:bg-caramelo', menuOpen ? 'w-full rotate-[-45deg] translate-y-[7px] bg-caramelo' : 'w-full')} />
+                        <span aria-hidden="true" className={cn('block h-px transition-all duration-400 ease-out bg-white/40 group-hover:bg-caramelo/70', menuOpen ? 'opacity-0 w-0' : 'w-[65%]')} />
+                        <span aria-hidden="true" className={cn('block h-px transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] origin-center bg-white/60 group-hover:bg-caramelo', menuOpen ? 'w-full rotate-[45deg] -translate-y-[7px] bg-caramelo' : 'w-[85%]')} />
                     </button>
                 </div>
             </nav>
@@ -190,8 +190,8 @@ const Navbar = memo(function Navbar({ sessao }: NavbarProps) {
                 <div className="relative flex items-center justify-between px-10 py-8 flex-shrink-0">
                     <div className="flex flex-col gap-0.5">
                         <div className="flex items-center gap-3">
-                            <div className="h-px w-6 bg-gradient-to-r from-transparent to-[#c5a87c]/50" />
-                            <span className="font-sans text-[0.55rem] font-medium tracking-[0.3em] uppercase text-[#c5a87c]/50">
+                            <div className="h-px w-6 bg-gradient-to-r from-transparent to-caramelo/50" />
+                            <span className="font-sans text-[0.55rem] font-medium tracking-[0.3em] uppercase text-caramelo/50">
                                 {isCliente ? 'Área do Cliente' : isFuncionario ? 'Área Profissional' : 'Navegação'}
                             </span>
                         </div>
@@ -228,10 +228,10 @@ const Navbar = memo(function Navbar({ sessao }: NavbarProps) {
                             )}
                             style={{ transitionDelay: menuOpen ? `${150 + i * 60}ms` : '0ms' }}
                         >
-                            <span className="font-serif text-[1.2rem] font-light tracking-[0.02em] text-white/40 group-hover:text-[#c5a87c] group-hover:translate-x-1.5 transition-all duration-500">
+                            <span className="font-serif text-[1.2rem] font-light tracking-[0.02em] text-white/40 group-hover:text-caramelo group-hover:translate-x-1.5 transition-all duration-500">
                                 {label}
                             </span>
-                            <svg className="w-3 h-3 text-[#c5a87c]/0 group-hover:text-[#c5a87c]/60 transition-all duration-500" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                            <svg className="w-3 h-3 text-caramelo/0 group-hover:text-caramelo/60 transition-all duration-500" viewBox="0 0 12 12" fill="none" aria-hidden="true">
                                 <path d="M1 6h10M7 2l4 4-4 4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
                             </svg>
                         </a>
@@ -249,7 +249,7 @@ const Navbar = memo(function Navbar({ sessao }: NavbarProps) {
                     style={{ transitionDelay: menuOpen ? '380ms' : '0ms' }}
                 >
                     <div className="flex items-center gap-3 mb-5">
-                        <span className="text-[0.52rem] font-medium tracking-[0.26em] uppercase text-[#c5a87c]/35 whitespace-nowrap">
+                        <span className="text-[0.52rem] font-medium tracking-[0.26em] uppercase text-caramelo/35 whitespace-nowrap">
                             {isCliente ? 'Os seus acessos' : isFuncionario ? 'Painel profissional' : 'Área de acesso'}
                         </span>
                         <div aria-hidden="true" className="flex-1 h-px bg-gradient-to-r from-[rgba(197,168,124,0.15)] to-transparent" />
@@ -264,7 +264,7 @@ const Navbar = memo(function Navbar({ sessao }: NavbarProps) {
                                 className="group flex items-center gap-3.5 px-4 py-3.5 border border-[rgba(197,168,124,0.14)] bg-[rgba(197,168,124,0.03)] hover:bg-[rgba(197,168,124,0.07)] hover:border-[rgba(197,168,124,0.28)] transition-all duration-300 active:scale-[0.98]"
                                 style={{ clipPath: 'polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px)' }}
                             >
-                                <div className="w-8 h-8 rounded-full border border-[rgba(197,168,124,0.15)] bg-[rgba(197,168,124,0.06)] flex items-center justify-center flex-shrink-0 text-[#c5a87c]/70 group-hover:bg-[rgba(197,168,124,0.12)] transition-all duration-300">
+                                <div className="w-8 h-8 rounded-full border border-[rgba(197,168,124,0.15)] bg-[rgba(197,168,124,0.06)] flex items-center justify-center flex-shrink-0 text-caramelo/70 group-hover:bg-[rgba(197,168,124,0.12)] transition-all duration-300">
                                     <IconeAgenda />
                                 </div>
                                 <div className="flex flex-col gap-0.5">
@@ -299,7 +299,7 @@ const Navbar = memo(function Navbar({ sessao }: NavbarProps) {
                                 className="group flex items-center gap-3.5 px-4 py-3.5 border border-[rgba(197,168,124,0.14)] bg-[rgba(197,168,124,0.03)] hover:bg-[rgba(197,168,124,0.07)] hover:border-[rgba(197,168,124,0.28)] transition-all duration-300 active:scale-[0.98]"
                                 style={{ clipPath: 'polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px)' }}
                             >
-                                <div className="w-8 h-8 rounded-full border border-[rgba(197,168,124,0.15)] bg-[rgba(197,168,124,0.06)] flex items-center justify-center flex-shrink-0 text-[#c5a87c]/70 group-hover:bg-[rgba(197,168,124,0.12)] transition-all duration-300">
+                                <div className="w-8 h-8 rounded-full border border-[rgba(197,168,124,0.15)] bg-[rgba(197,168,124,0.06)] flex items-center justify-center flex-shrink-0 text-caramelo/70 group-hover:bg-[rgba(197,168,124,0.12)] transition-all duration-300">
                                     <IconeAgenda />
                                 </div>
                                 <div className="flex flex-col gap-0.5">
@@ -319,7 +319,7 @@ const Navbar = memo(function Navbar({ sessao }: NavbarProps) {
                                     className="group flex items-center gap-3.5 px-4 py-3.5 border border-[rgba(197,168,124,0.08)] bg-transparent hover:bg-[rgba(197,168,124,0.04)] hover:border-[rgba(197,168,124,0.18)] transition-all duration-300 active:scale-[0.98]"
                                     style={{ clipPath: 'polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px)' }}
                                 >
-                                    <div className="w-8 h-8 rounded-full border border-[rgba(197,168,124,0.08)] flex items-center justify-center flex-shrink-0 text-[#c5a87c]/40 group-hover:bg-[rgba(197,168,124,0.08)] transition-all duration-300">
+                                    <div className="w-8 h-8 rounded-full border border-[rgba(197,168,124,0.08)] flex items-center justify-center flex-shrink-0 text-caramelo/40 group-hover:bg-[rgba(197,168,124,0.08)] transition-all duration-300">
                                         <IconeBriefcase />
                                     </div>
                                     <div className="flex flex-col gap-0.5">
@@ -355,11 +355,11 @@ const Navbar = memo(function Navbar({ sessao }: NavbarProps) {
                                 className="group flex items-center gap-3.5 px-4 py-3.5 border border-[rgba(197,168,124,0.15)] bg-[rgba(197,168,124,0.03)] hover:bg-[rgba(197,168,124,0.08)] hover:border-[rgba(197,168,124,0.3)] transition-all duration-300 active:scale-[0.98]"
                                 style={{ clipPath: 'polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px)' }}
                             >
-                                <div className="w-8 h-8 rounded-full border border-[rgba(197,168,124,0.15)] bg-[rgba(197,168,124,0.06)] flex items-center justify-center flex-shrink-0 text-[#c5a87c]/70 group-hover:bg-[rgba(197,168,124,0.14)] transition-all duration-300">
+                                <div className="w-8 h-8 rounded-full border border-[rgba(197,168,124,0.15)] bg-[rgba(197,168,124,0.06)] flex items-center justify-center flex-shrink-0 text-caramelo/70 group-hover:bg-[rgba(197,168,124,0.14)] transition-all duration-300">
                                     <IconeUser />
                                 </div>
                                 <div className="flex flex-col gap-0.5">
-                                    <span className="text-[0.7rem] font-semibold tracking-[0.08em] uppercase text-white/75 group-hover:text-[#c5a87c] transition-colors duration-300">
+                                    <span className="text-[0.7rem] font-semibold tracking-[0.08em] uppercase text-white/75 group-hover:text-caramelo transition-colors duration-300">
                                         Acesso Cliente
                                     </span>
                                     <span className="text-[0.56rem] font-light text-white/28 tracking-[0.05em] group-hover:text-white/45 transition-colors">

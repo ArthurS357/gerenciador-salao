@@ -135,7 +135,7 @@ const Hero = memo(function Hero() {
                     />
 
                     {/* Borda sutil do card arredondado */}
-                    <div className="absolute inset-0 rounded-2xl md:rounded-3xl border border-[#c5a87c]/[0.08]" />
+                    <div className="absolute inset-0 rounded-2xl md:rounded-3xl border border-caramelo/[0.08]" />
 
                     {/* Brilho topo — simula luz incidindo */}
                     <div
@@ -188,6 +188,7 @@ const Hero = memo(function Hero() {
                             boxShadow: "inset 0 0 0 1.5px rgba(197,168,124,0.35), inset 0 0 0 4px rgba(197,168,124,0.06)",
                         }}
                     >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
                             src="/images/logo-hero-render.png"
                             alt="LmLu Matiello Emblem"
@@ -224,7 +225,7 @@ const Hero = memo(function Hero() {
                                 i === 0 ? "delay-[700ms]" : "delay-[800ms]",
                             )}
                         >
-                            <span className="block font-serif text-[2.6rem] font-light text-[#c5a87c] leading-none tracking-[-0.02em]">
+                            <span className="block font-serif text-[2.6rem] font-light text-caramelo leading-none tracking-[-0.02em]">
                                 {num}
                             </span>
                             <span className="block text-[0.6rem] font-medium tracking-[0.2em] uppercase text-white/30 mt-1.5">
@@ -234,7 +235,7 @@ const Hero = memo(function Hero() {
                     ))}
 
                     {/* Linha decorativa vertical */}
-                    <div className="w-px h-16 bg-gradient-to-b from-[#c5a87c]/30 to-transparent mt-2" />
+                    <div className="w-px h-16 bg-gradient-to-b from-caramelo/30 to-transparent mt-2" />
                 </div>
 
                 {/* Badge "Alto Padrão" */}
@@ -244,9 +245,9 @@ const Hero = memo(function Hero() {
                         mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3",
                     )}
                 >
-                    <div className="inline-flex items-center gap-2 px-3 py-1.5 border border-[#c5a87c]/20 rounded-full bg-[#c5a87c]/[0.06] backdrop-blur-sm">
-                        <span className="w-1.5 h-1.5 rounded-full bg-[#c5a87c]/70 animate-pulse" />
-                        <span className="text-[0.58rem] font-medium tracking-[0.2em] uppercase text-[#c5a87c]/60">
+                    <div className="inline-flex items-center gap-2 px-3 py-1.5 border border-caramelo/20 rounded-full bg-caramelo/[0.06] backdrop-blur-sm">
+                        <span className="w-1.5 h-1.5 rounded-full bg-caramelo/70 animate-pulse" />
+                        <span className="text-[0.58rem] font-medium tracking-[0.2em] uppercase text-caramelo/60">
                             Alto Padrão
                         </span>
                     </div>
@@ -264,11 +265,11 @@ const Hero = memo(function Hero() {
             >
                 {/* Linha decorativa + label */}
                 <div className="flex items-center gap-3 md:gap-4 mb-6 md:mb-10">
-                    <div className="h-px w-8 md:w-10 bg-gradient-to-r from-transparent to-[#c5a87c]" />
-                    <span className="text-[0.6rem] md:text-[0.63rem] font-medium tracking-[0.32em] uppercase text-[#c5a87c]/70">
+                    <div className="h-px w-8 md:w-10 bg-gradient-to-r from-transparent to-caramelo" />
+                    <span className="text-[0.6rem] md:text-[0.63rem] font-medium tracking-[0.32em] uppercase text-caramelo/70">
                         Studio de Beleza
                     </span>
-                    <div className="h-px flex-1 max-w-[40px] bg-gradient-to-r from-[#c5a87c]/30 to-transparent" />
+                    <div className="h-px flex-1 max-w-[40px] bg-gradient-to-r from-caramelo/30 to-transparent" />
                 </div>
 
                 {/* Headline principal */}
@@ -284,7 +285,7 @@ const Hero = memo(function Hero() {
                     <span
                         className={cn(
                             "block text-[2.6rem] md:text-[4.8rem] lg:text-[6rem] font-semibold tracking-[-0.03em] italic transition-all duration-700 delay-200",
-                            "bg-gradient-to-br from-[#e8d5b0] via-[#c5a87c] to-[#9a7a50] bg-clip-text text-transparent",
+                            "bg-gradient-to-br from-[#e8d5b0] via-caramelo to-[#9a7a50] bg-clip-text text-transparent",
                             mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4",
                         )}
                     >
@@ -311,7 +312,7 @@ const Hero = memo(function Hero() {
                 {/* Divisor */}
                 <div
                     className={cn(
-                        "w-10 md:w-12 h-px mb-5 md:mb-7 bg-gradient-to-r from-[#c5a87c]/60 to-transparent transition-all duration-700 delay-500",
+                        "w-10 md:w-12 h-px mb-5 md:mb-7 bg-gradient-to-r from-caramelo/60 to-transparent transition-all duration-700 delay-500",
                         mounted ? "opacity-100" : "opacity-0",
                     )}
                 />
@@ -337,7 +338,7 @@ const Hero = memo(function Hero() {
                 >
                     <a
                         href="#servicos"
-                        className="group relative inline-flex items-center gap-2.5 px-6 md:px-8 py-3 md:py-3.5 bg-[#c5a87c] text-[#0e0905] rounded-sm font-sans text-[0.68rem] md:text-[0.72rem] font-semibold tracking-[0.18em] uppercase overflow-hidden transition-all duration-300 hover:bg-[#d4b896] hover:shadow-[0_8px_32px_rgba(197,168,124,0.35)] active:scale-[0.98]"
+                        className="group relative inline-flex items-center gap-2.5 px-6 md:px-8 py-3 md:py-3.5 bg-caramelo text-[#0e0905] rounded-sm font-sans text-[0.68rem] md:text-[0.72rem] font-semibold tracking-[0.18em] uppercase overflow-hidden transition-all duration-300 hover:bg-[#d4b896] hover:shadow-[0_8px_32px_rgba(197,168,124,0.35)] active:scale-[0.98]"
                     >
                         <span className="relative z-10">Ver Serviços</span>
                         <svg
@@ -356,7 +357,7 @@ const Hero = memo(function Hero() {
                     </a>
                     <a
                         href="#agendamento"
-                        className="inline-flex items-center px-6 md:px-8 py-3 md:py-3.5 bg-transparent text-white/65 border border-white/15 rounded-sm font-sans text-[0.68rem] md:text-[0.72rem] font-normal tracking-[0.18em] uppercase transition-all duration-300 hover:border-[#c5a87c]/50 hover:text-white/90 hover:bg-white/[0.04] active:scale-[0.98]"
+                        className="inline-flex items-center px-6 md:px-8 py-3 md:py-3.5 bg-transparent text-white/65 border border-white/15 rounded-sm font-sans text-[0.68rem] md:text-[0.72rem] font-normal tracking-[0.18em] uppercase transition-all duration-300 hover:border-caramelo/50 hover:text-white/90 hover:bg-white/[0.04] active:scale-[0.98]"
                     >
                         Agendar Agora
                     </a>
@@ -369,7 +370,7 @@ const Hero = memo(function Hero() {
                         { num: "2k+", label: "Clientes atendidos" },
                     ].map(({ num, label }) => (
                         <div key={label}>
-                            <span className="block font-serif text-2xl font-light text-[#c5a87c]">
+                            <span className="block font-serif text-2xl font-light text-caramelo">
                                 {num}
                             </span>
                             <span className="block text-[0.6rem] font-normal tracking-[0.12em] uppercase text-white/35 mt-1">
@@ -388,7 +389,7 @@ const Hero = memo(function Hero() {
                 )}
                 aria-hidden="true"
             >
-                <div className="w-px h-10 bg-gradient-to-b from-transparent via-[#c5a87c]/40 to-transparent" />
+                <div className="w-px h-10 bg-gradient-to-b from-transparent via-caramelo/40 to-transparent" />
             </div>
         </section>
     );

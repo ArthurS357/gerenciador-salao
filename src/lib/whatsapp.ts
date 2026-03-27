@@ -1,5 +1,6 @@
 // src/lib/whatsapp.ts
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export async function verificarNumeroExisteNoWhatsApp(telefone: string): Promise<boolean> {
     // Em produção, isso faria uma requisição à API do WhatsApp para validar o número.
     // Para evitar bloqueio no cadastro local, retornamos true como padrão.

@@ -406,12 +406,12 @@ export default function LoginPage() {
                             {/* Fluxo: Confirmação de Segurança (Máscara) */}
                             {precisaConfirmarNome && (
                                 <div className="campo fade-in p-4 bg-orange-50 border border-orange-200 rounded text-center">
-                                    <p className="text-xs text-[#8B5A2B] font-bold mb-2 uppercase tracking-wider">
+                                    <p className="text-xs text-marrom-claro font-bold mb-2 uppercase tracking-wider">
                                         🔒 Verificação de Segurança
                                     </p>
                                     <p className="text-sm text-gray-700 mb-4">
                                         Para confirmar que é você, digite o seu primeiro nome.<br />
-                                        <span className="block mt-1 font-mono text-[#5C4033] bg-white p-1 rounded font-bold border border-orange-100">
+                                        <span className="block mt-1 font-mono text-marrom-medio bg-white p-1 rounded font-bold border border-orange-100">
                                             {nomeMascarado}
                                         </span>
                                     </p>

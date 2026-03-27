@@ -37,7 +37,7 @@ export default function BotaoFinalizarComanda({ agendamentoId, valorBruto }: Bot
                 alert(`Erro: ${res.erro}`)
                 setCarregando(false)
             }
-        } catch (error) {
+        } catch {
             alert('Ocorreu um erro técnico ao processar a fatura.')
             setCarregando(false)
         }

@@ -262,12 +262,12 @@ export default function PainelEstoquePage() {
             <div className="px-4 md:px-8 pt-8 max-w-7xl mx-auto">
                 <header className="mb-8 flex flex-col md:flex-row md:justify-between md:items-end gap-4">
                     <div>
-                        <h1 className="text-3xl md:text-4xl font-black text-[#5C4033] tracking-tight">Gestão de Estoque</h1>
+                        <h1 className="text-3xl md:text-4xl font-black text-marrom-medio tracking-tight">Gestão de Estoque</h1>
                         <p className="text-gray-500 mt-2 text-sm md:text-base">Controle de repasses, margens de lucro e portfólio de base.</p>
                     </div>
                     <button
                         onClick={() => setModalCriar(true)}
-                        className="flex items-center justify-center gap-2 bg-[#5C4033] text-white px-5 py-2.5 rounded-xl font-bold text-sm hover:bg-[#3e2b22] transition-colors shadow-sm active:scale-[0.98]"
+                        className="flex items-center justify-center gap-2 bg-marrom-medio text-white px-5 py-2.5 rounded-xl font-bold text-sm hover:bg-[#3e2b22] transition-colors shadow-sm active:scale-[0.98]"
                     >
                         <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
                             <path d="M7 1v12M1 7h12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
@@ -283,7 +283,7 @@ export default function PainelEstoquePage() {
                             href={link.href}
                             className={
                                 'ativo' in link
-                                    ? 'bg-white text-[#5C4033] px-5 py-2 md:py-2.5 rounded-xl shadow-sm font-bold text-[13px] md:text-sm tracking-wide'
+                                    ? 'bg-white text-marrom-medio px-5 py-2 md:py-2.5 rounded-xl shadow-sm font-bold text-[13px] md:text-sm tracking-wide'
                                     : 'text-gray-500 px-5 py-2 md:py-2.5 rounded-xl font-semibold text-[13px] md:text-sm tracking-wide hover:bg-white/50 hover:text-gray-900 transition-all'
                             }
                         >
@@ -336,8 +336,8 @@ export default function PainelEstoquePage() {
                             label: 'Valor em Estoque',
                             valor: `R$ ${valorTotalEstoque.toFixed(0)}`,
                             sub: 'custo total imobilizado',
-                            cor: 'border-[#8B5A2B]',
-                            bgGrad: 'from-[#8B5A2B]/10 to-transparent',
+                            cor: 'border-marrom-claro',
+                            bgGrad: 'from-marrom-claro/10 to-transparent',
                             icon: '💰',
                         },
                         {
@@ -368,7 +368,7 @@ export default function PainelEstoquePage() {
 
                     {/* Barra de filtros e busca */}
                     <div className="flex flex-col md:flex-row items-center justify-between px-6 md:px-8 py-5 border-b border-gray-100 bg-gray-50/50 gap-4">
-                        <h2 className="font-bold text-[#5C4033] text-lg tracking-tight">Catálogo Interno</h2>
+                        <h2 className="font-bold text-marrom-medio text-lg tracking-tight">Catálogo Interno</h2>
 
                         <div className="flex flex-col md:flex-row items-center gap-3 w-full md:w-auto">
                             <div className="relative w-full md:w-64">
@@ -377,7 +377,7 @@ export default function PainelEstoquePage() {
                                     placeholder="Pesquisar produto..."
                                     value={busca}
                                     onChange={(e) => setBusca(e.target.value)}
-                                    className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-xl outline-none focus:border-[#8B5A2B] focus:ring-2 focus:ring-[#8B5A2B]/10 transition-colors"
+                                    className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-xl outline-none focus:border-marrom-claro focus:ring-2 focus:ring-marrom-claro/10 transition-colors"
                                 />
                                 <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
                             </div>
@@ -386,7 +386,7 @@ export default function PainelEstoquePage() {
                                 <button
                                     onClick={() => setFiltro('todos')}
                                     className={`flex-1 md:flex-none px-4 py-1.5 text-xs font-bold rounded-full transition-all ${filtro === 'todos'
-                                        ? 'bg-white text-[#5C4033] shadow-sm'
+                                        ? 'bg-white text-marrom-medio shadow-sm'
                                         : 'text-gray-500 hover:text-gray-800'
                                         }`}
                                 >
@@ -422,7 +422,7 @@ export default function PainelEstoquePage() {
                                     <tr>
                                         <td colSpan={6} className="px-5 py-16 text-center text-gray-400">
                                             <div className="flex flex-col items-center gap-3">
-                                                <div className="w-6 h-6 border-2 border-[#8B5A2B] border-t-transparent rounded-full animate-spin" />
+                                                <div className="w-6 h-6 border-2 border-marrom-claro border-t-transparent rounded-full animate-spin" />
                                                 <span className="text-sm">Carregando inventário...</span>
                                             </div>
                                         </td>
@@ -467,7 +467,7 @@ export default function PainelEstoquePage() {
                                                 <td className="px-5 py-4 text-center">
                                                     <div className="flex flex-col items-center">
                                                         <span className="text-xs text-gray-500">C: R$ {p.precoCusto?.toFixed(2) || '0.00'}</span>
-                                                        <span className="text-sm font-bold text-[#8B5A2B]">V: R$ {p.precoVenda.toFixed(2)}</span>
+                                                        <span className="text-sm font-bold text-marrom-claro">V: R$ {p.precoVenda.toFixed(2)}</span>
                                                     </div>
                                                 </td>
 
@@ -548,7 +548,7 @@ export default function PainelEstoquePage() {
                     <div className="bg-white rounded-[24px] shadow-2xl w-full max-w-lg border border-gray-100 animate-in fade-in zoom-in-95 duration-300">
                         <div className="px-8 pt-8 pb-5 border-b border-gray-100 flex justify-between items-start">
                             <div>
-                                <h2 className="text-xl font-bold text-[#5C4033] tracking-tight">Cadastrar Novo Produto</h2>
+                                <h2 className="text-xl font-bold text-marrom-medio tracking-tight">Cadastrar Novo Produto</h2>
                                 <p className="text-sm text-gray-500 mt-1">Insira os dados da ficha técnica e financeiro.</p>
                             </div>
                             <button
@@ -574,7 +574,7 @@ export default function PainelEstoquePage() {
                                         placeholder="Ex: Óleo de Argan Premium"
                                         value={formData.nome}
                                         onChange={campo('nome')}
-                                        className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#8B5A2B] focus:ring-4 focus:ring-[#8B5A2B]/10 transition-all disabled:bg-gray-50 placeholder:text-gray-300 font-medium text-gray-800"
+                                        className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-marrom-claro focus:ring-4 focus:ring-marrom-claro/10 transition-all disabled:bg-gray-50 placeholder:text-gray-300 font-medium text-gray-800"
                                     />
                                 </div>
                                 <div>
@@ -587,7 +587,7 @@ export default function PainelEstoquePage() {
                                         placeholder="Uso interno no salão"
                                         value={formData.descricao}
                                         onChange={campo('descricao')}
-                                        className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-[#8B5A2B] focus:ring-4 focus:ring-[#8B5A2B]/10 transition-all disabled:bg-gray-50 placeholder:text-gray-300 font-medium text-gray-800"
+                                        className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-marrom-claro focus:ring-4 focus:ring-marrom-claro/10 transition-all disabled:bg-gray-50 placeholder:text-gray-300 font-medium text-gray-800"
                                     />
                                 </div>
                             </div>
@@ -608,7 +608,7 @@ export default function PainelEstoquePage() {
                                             min="0"
                                             value={formData.precoCusto}
                                             onChange={campo('precoCusto')}
-                                            className="w-full border border-gray-200 rounded-xl pl-10 pr-4 py-3 text-sm outline-none focus:border-[#8B5A2B] focus:ring-4 focus:ring-[#8B5A2B]/10 transition-all disabled:bg-gray-50 font-bold text-gray-800"
+                                            className="w-full border border-gray-200 rounded-xl pl-10 pr-4 py-3 text-sm outline-none focus:border-marrom-claro focus:ring-4 focus:ring-marrom-claro/10 transition-all disabled:bg-gray-50 font-bold text-gray-800"
                                         />
                                     </div>
                                 </div>
@@ -626,7 +626,7 @@ export default function PainelEstoquePage() {
                                             min="0"
                                             value={formData.precoVenda}
                                             onChange={campo('precoVenda')}
-                                            className="w-full border border-gray-200 rounded-xl pl-10 pr-4 py-3 text-sm outline-none focus:border-[#8B5A2B] focus:ring-4 focus:ring-[#8B5A2B]/10 transition-all disabled:bg-gray-50 font-bold text-[#8B5A2B]"
+                                            className="w-full border border-gray-200 rounded-xl pl-10 pr-4 py-3 text-sm outline-none focus:border-marrom-claro focus:ring-4 focus:ring-marrom-claro/10 transition-all disabled:bg-gray-50 font-bold text-marrom-claro"
                                         />
                                     </div>
                                 </div>
@@ -635,13 +635,13 @@ export default function PainelEstoquePage() {
                             {/* Configuração de Medidas */}
                             <div className="grid grid-cols-3 gap-5 p-5 bg-orange-50/50 border border-orange-100 rounded-2xl">
                                 <div className="col-span-3">
-                                    <h4 className="font-bold text-[#8B5A2B] text-sm">Ficha Técnica (Medidas)</h4>
+                                    <h4 className="font-bold text-marrom-claro text-sm">Ficha Técnica (Medidas)</h4>
                                     <p className="text-[11px] text-gray-500 mt-1">Como este produto é consumido nos serviços?</p>
                                 </div>
                                 <div className="col-span-1">
                                     <label className="block text-[10px] font-bold text-gray-600 uppercase tracking-wider mb-1.5">Medida</label>
                                     <select
-                                        className="w-full border border-gray-300 bg-white rounded-xl px-2 py-2.5 text-sm font-semibold outline-none focus:border-[#8B5A2B] transition-colors"
+                                        className="w-full border border-gray-300 bg-white rounded-xl px-2 py-2.5 text-sm font-semibold outline-none focus:border-marrom-claro transition-colors"
                                         value={formData.unidadeMedida}
                                         onChange={campo('unidadeMedida')}
                                     >
@@ -657,11 +657,11 @@ export default function PainelEstoquePage() {
                                             required
                                             type="number"
                                             min="1"
-                                            className="w-full border border-gray-300 rounded-xl px-4 py-2.5 outline-none focus:border-[#8B5A2B] font-bold transition-colors"
+                                            className="w-full border border-gray-300 rounded-xl px-4 py-2.5 outline-none focus:border-marrom-claro font-bold transition-colors"
                                             value={formData.tamanhoUnidade}
                                             onChange={campo('tamanhoUnidade')}
                                         />
-                                        <span className="text-sm font-black text-[#8B5A2B] w-6">{formData.unidadeMedida}</span>
+                                        <span className="text-sm font-black text-marrom-claro w-6">{formData.unidadeMedida}</span>
                                     </div>
                                 </div>
                                 <div className="col-span-3 mt-2 border-t border-orange-100/60 pt-4">
@@ -670,7 +670,7 @@ export default function PainelEstoquePage() {
                                         required
                                         type="number"
                                         min="0"
-                                        className="w-full border border-gray-300 rounded-xl px-4 py-3 outline-none focus:border-[#8B5A2B] font-black text-lg transition-colors"
+                                        className="w-full border border-gray-300 rounded-xl px-4 py-3 outline-none focus:border-marrom-claro font-black text-lg transition-colors"
                                         value={formData.estoqueInicialEmFrascos}
                                         onChange={campo('estoqueInicialEmFrascos')}
                                     />
@@ -698,7 +698,7 @@ export default function PainelEstoquePage() {
                         <div className="px-8 pt-8 pb-5 border-b border-gray-100 flex items-start justify-between">
                             <div>
                                 <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">Entrada em Lote</p>
-                                <h2 className="text-xl font-bold text-[#5C4033] tracking-tight">{modalEntrada.nomeProduto}</h2>
+                                <h2 className="text-xl font-bold text-marrom-medio tracking-tight">{modalEntrada.nomeProduto}</h2>
                             </div>
                             <button
                                 type="button"
@@ -724,14 +724,14 @@ export default function PainelEstoquePage() {
                                         autoFocus
                                         value={modalEntrada.quantidadeFrascos}
                                         onChange={e => setModalEntrada(prev => prev ? { ...prev, quantidadeFrascos: Math.max(1, Number(e.target.value)) } : null)}
-                                        className="w-28 border border-gray-200 rounded-2xl px-4 py-3 text-3xl font-black text-center text-[#5C4033] outline-none focus:border-[#8B5A2B] focus:ring-4 focus:ring-[#8B5A2B]/10 transition-all shadow-sm"
+                                        className="w-28 border border-gray-200 rounded-2xl px-4 py-3 text-3xl font-black text-center text-marrom-medio outline-none focus:border-marrom-claro focus:ring-4 focus:ring-marrom-claro/10 transition-all shadow-sm"
                                     />
                                     <span className="font-bold text-gray-400 text-lg">un.</span>
                                 </div>
 
                                 <div className="bg-orange-50/50 border border-orange-100 rounded-xl p-4 mt-8 text-center flex flex-col items-center justify-center">
                                     <p className="text-[10px] text-orange-600 font-bold uppercase tracking-widest mb-2">Conversão Automática no Banco</p>
-                                    <p className="text-xl font-black text-[#8B5A2B]">
+                                    <p className="text-xl font-black text-marrom-claro">
                                         + {modalEntrada.quantidadeFrascos * modalEntrada.tamanhoUnidade} {modalEntrada.unidadeMedida}
                                     </p>
                                 </div>

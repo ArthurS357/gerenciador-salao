@@ -23,18 +23,18 @@ export async function POST(request: Request) {
         const buffer = Buffer.from(bytes);
 
         // 4. Enviar o Buffer para o Cloudinary através de uma Upload Stream
-        const uploadResult = await new Promise((resolve, reject) => {
+        const uploadResult = await new Promise<{ secure_url: string }>((resolve, reject) => {
             const uploadStream = cloudinary.uploader.upload_stream(
                 { folder: 'gerenciador-salao' }, // Organiza os ficheiros numa pasta
                 (error, result) => {
                     if (error) reject(error);
-                    else resolve(result);
+                    else resolve(result as { secure_url: string });
                 }
             );
 
             // Finaliza a stream passando o buffer da imagem
             uploadStream.end(buffer);
-        }) as any; // Type assertion rápido para aceder às propriedades de resposta
+        });
 
         // 5. Retornar a URL segura gerada pelo Cloudinary
         return NextResponse.json({ url: uploadResult.secure_url });

@@ -1,0 +1,24 @@
+
+> gerenciador-salao@0.1.0 build
+> next build
+
+Ôû▓ Next.js 16.2.0 (Turbopack)
+- Environments: .env
+
+  Creating an optimized production build ...
+Ô£ô Compiled successfully in 10.5s
+  Running TypeScript ...
+Failed to type check.
+
+./src/app/api/upload/route.ts:31:34
+Type error: Argument of type 'UploadApiResponse | undefined' is not assignable to parameter of type '{ secure_url: string; } | PromiseLike<{ secure_url: string; }>'.
+  Type 'undefined' is not assignable to type '{ secure_url: string; } | PromiseLike<{ secure_url: string; }>'.
+
+  29 |                 (error, result) => {
+  30 |                     if (error) reject(error);
+> 31 |                     else resolve(result);
+     |                                  ^
+  32 |                 }
+  33 |             );
+  34 |
+Next.js build worker exited with code: 1 and signal: null

@@ -108,7 +108,7 @@ export default function ClienteDashboardUI({
                 {/* Header */}
                 <div className="bg-white rounded-2xl shadow-sm border border-[#e5d9c5] p-6 md:p-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                     <div>
-                        <h1 className="text-2xl md:text-3xl font-bold text-[#5C4033]">
+                        <h1 className="text-2xl md:text-3xl font-bold text-marrom-medio">
                             Olá, {nomeCliente} 👋
                         </h1>
                         <p className="text-gray-500 mt-1 text-sm">
@@ -128,7 +128,7 @@ export default function ClienteDashboardUI({
                     <div className="bg-white rounded-2xl shadow-sm border border-[#e5d9c5] p-6 flex items-center justify-between">
                         <div>
                             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Total investido no salão</p>
-                            <p className="text-3xl font-bold text-[#8B5A2B] mt-1">
+                            <p className="text-3xl font-bold text-marrom-claro mt-1">
                                 R$ {totalGasto.toFixed(2)}
                             </p>
                         </div>
@@ -138,8 +138,8 @@ export default function ClienteDashboardUI({
 
                 {/* Próximos agendamentos */}
                 <section>
-                    <h2 className="font-bold text-[#5C4033] text-lg mb-3 flex items-center gap-2">
-                        <span className="w-1.5 h-6 bg-[#8B5A2B] rounded-full inline-block" />
+                    <h2 className="font-bold text-marrom-medio text-lg mb-3 flex items-center gap-2">
+                        <span className="w-1.5 h-6 bg-marrom-claro rounded-full inline-block" />
                         Próximos Agendamentos
                     </h2>
 
@@ -149,7 +149,7 @@ export default function ClienteDashboardUI({
                             {/* CORREÇÃO 1: Substituído <a> por <Link> */}
                             <Link
                                 href="/#agendamento"
-                                className="inline-block mt-4 px-6 py-2.5 bg-[#8B5A2B] text-white rounded-lg text-sm font-semibold hover:bg-[#704620] transition-colors"
+                                className="inline-block mt-4 px-6 py-2.5 bg-marrom-claro text-white rounded-lg text-sm font-semibold hover:bg-[#704620] transition-colors"
                             >
                                 Agendar Agora
                             </Link>
@@ -159,17 +159,17 @@ export default function ClienteDashboardUI({
                             {pendentes.map(ag => (
                                 <div key={ag.id} className="bg-white rounded-2xl border border-[#e5d9c5] p-5 shadow-sm flex flex-col md:flex-row gap-4 items-start md:items-center">
                                     <div className="flex flex-col items-center justify-center min-w-[90px] py-3 bg-orange-50 rounded-xl border border-orange-100 text-center">
-                                        <span className="text-xl font-black text-[#5C4033] leading-none">
+                                        <span className="text-xl font-black text-marrom-medio leading-none">
                                             {new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' }).format(new Date(ag.dataHoraInicio))}
                                         </span>
-                                        <span className="text-[10px] font-semibold text-[#8B5A2B] mt-1 uppercase tracking-wider">
+                                        <span className="text-[10px] font-semibold text-marrom-claro mt-1 uppercase tracking-wider">
                                             {new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short' }).format(new Date(ag.dataHoraInicio))}
                                         </span>
                                     </div>
 
                                     <div className="flex-1">
                                         <p className="font-semibold text-gray-800 text-sm">
-                                            Com: <strong className="text-[#5C4033]">{ag.funcionario.nome}</strong>
+                                            Com: <strong className="text-marrom-medio">{ag.funcionario.nome}</strong>
                                         </p>
                                         <div className="flex flex-wrap gap-1.5 mt-2">
                                             {ag.servicos.map(s => (
@@ -192,7 +192,7 @@ export default function ClienteDashboardUI({
                 {/* Histórico */}
                 {concluidos.length > 0 && (
                     <section>
-                        <h2 className="font-bold text-[#5C4033] text-lg mb-3 flex items-center gap-2">
+                        <h2 className="font-bold text-marrom-medio text-lg mb-3 flex items-center gap-2">
                             <span className="w-1.5 h-6 bg-green-500 rounded-full inline-block" />
                             Histórico de Visitas
                         </h2>
@@ -213,7 +213,7 @@ export default function ClienteDashboardUI({
                                                     </p>
                                                 </div>
                                                 <div className="text-right flex flex-col items-end gap-1">
-                                                    <span className="font-black text-[#8B5A2B]">
+                                                    <span className="font-black text-marrom-claro">
                                                         R$ {ag.valorBruto.toFixed(2)}
                                                     </span>
                                                     <span className={`px-2.5 py-1 text-[10px] font-bold rounded uppercase tracking-wider ${STATUS_BADGE.concluido}`}>
@@ -235,7 +235,7 @@ export default function ClienteDashboardUI({
                                                 {!jaAvaliado ? (
                                                     <button
                                                         onClick={() => setAvaliandoId(ag.id)}
-                                                        className="px-3 py-1.5 bg-orange-50 text-[#8B5A2B] border border-orange-200 rounded text-xs font-bold hover:bg-[#8B5A2B] hover:text-white transition-colors flex items-center gap-1 shadow-sm"
+                                                        className="px-3 py-1.5 bg-orange-50 text-marrom-claro border border-orange-200 rounded text-xs font-bold hover:bg-marrom-claro hover:text-white transition-colors flex items-center gap-1 shadow-sm"
                                                     >
                                                         <span>⭐</span> Avaliar Atendimento
                                                     </button>
@@ -273,9 +273,9 @@ export default function ClienteDashboardUI({
             {/* Modal de Avaliação (Sobreposto) */}
             {avaliandoId && (
                 <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
-                    <div className="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-sm border-t-4 border-[#8B5A2B] animate-in fade-in zoom-in duration-200">
+                    <div className="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-sm border-t-4 border-marrom-claro animate-in fade-in zoom-in duration-200">
                         <div className="text-center mb-6">
-                            <h2 className="text-2xl font-bold text-[#5C4033]">Como foi sua experiência?</h2>
+                            <h2 className="text-2xl font-bold text-marrom-medio">Como foi sua experiência?</h2>
                             <p className="text-gray-500 text-sm mt-1">Sua opinião nos ajuda a melhorar.</p>
                         </div>
 
@@ -299,7 +299,7 @@ export default function ClienteDashboardUI({
                                     Deixe um comentário (Opcional)
                                 </label>
                                 <textarea
-                                    className="w-full border border-gray-300 rounded-lg p-3 text-sm outline-none focus:border-[#8B5A2B] resize-none h-24 bg-gray-50"
+                                    className="w-full border border-gray-300 rounded-lg p-3 text-sm outline-none focus:border-marrom-claro resize-none h-24 bg-gray-50"
                                     placeholder="Conte-nos o que achou do atendimento..."
                                     value={comentario}
                                     onChange={(e) => setComentario(e.target.value)}
@@ -318,7 +318,7 @@ export default function ClienteDashboardUI({
                                 <button
                                     type="submit"
                                     disabled={loadingAvaliacao}
-                                    className="flex-1 py-3 bg-[#5C4033] text-white font-bold rounded-xl hover:bg-[#3e2b22] disabled:opacity-70 transition-colors shadow-sm text-sm"
+                                    className="flex-1 py-3 bg-marrom-medio text-white font-bold rounded-xl hover:bg-[#3e2b22] disabled:opacity-70 transition-colors shadow-sm text-sm"
                                 >
                                     {loadingAvaliacao ? 'Enviando...' : 'Enviar Avaliação'}
                                 </button>

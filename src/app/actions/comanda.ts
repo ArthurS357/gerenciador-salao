@@ -127,6 +127,7 @@ export async function finalizarComanda(agendamentoId: string) {
 
         // Passo 2: Preparar todas as transações de banco de dados
         // Usamos o tipo genérico any devido às assinaturas diferentes do Prisma (update de produto vs agendamento)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const transacoes: any[] = [];
 
         // 2.1 Adiciona a baixa física de estoque de cada insumo consumido internamente

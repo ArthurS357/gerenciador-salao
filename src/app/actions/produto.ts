@@ -30,7 +30,7 @@ type DadosEditarProduto = {
 
 // ── 1. LISTAGEM ───────────────────────────────────────────────────────────────
 
-export async function listarProdutosAdmin(): Promise<ActionResult<{ produtos: any[] }>> {
+export async function listarProdutosAdmin(): Promise<ActionResult<{ produtos: Produto[] }>> {
     try {
         const produtos = await prisma.produto.findMany({
             where: { ativo: true },

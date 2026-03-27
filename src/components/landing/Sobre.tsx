@@ -36,6 +36,7 @@ const Sobre = memo(function Sobre() {
 
                     {/* Imagem */}
                     <div className="relative w-full h-full overflow-hidden" style={{ clipPath: 'polygon(12px 0,100% 0,100% calc(100% - 12px),calc(100% - 12px) 100%,0 100%,0 12px)' }}>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
                             src="https://images.unsplash.com/photo-1560066984-138dadb4c035?q=80&w=1074&auto=format&fit=crop"
                             alt="Interior do Salão LmLu Mattielo"
@@ -48,8 +49,8 @@ const Sobre = memo(function Sobre() {
 
                     {/* Badge flutuante */}
                     <div className="absolute bottom-6 left-6 flex items-center gap-3 px-4 py-2.5 bg-[#120a05]/80 backdrop-blur-sm border border-[rgba(197,168,124,0.18)]" style={{ clipPath: 'polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px)' }}>
-                        <div className="w-1.5 h-1.5 rounded-full bg-[#c5a87c]/70" />
-                        <span className="font-sans text-[0.58rem] font-medium tracking-[0.25em] uppercase text-[#c5a87c]/70">
+                        <div className="w-1.5 h-1.5 rounded-full bg-caramelo/70" />
+                        <span className="font-sans text-[0.58rem] font-medium tracking-[0.25em] uppercase text-caramelo/70">
                             Desde 2016 · São Paulo
                         </span>
                     </div>
@@ -58,8 +59,8 @@ const Sobre = memo(function Sobre() {
                 {/* Texto */}
                 <div className="flex flex-col">
                     <div className="flex items-center gap-3 mb-8">
-                        <div className="h-px w-8 bg-gradient-to-r from-transparent to-[#c5a87c]/60" />
-                        <span className="font-sans text-[0.62rem] font-medium tracking-[0.3em] uppercase text-[#c5a87c]/60">
+                        <div className="h-px w-8 bg-gradient-to-r from-transparent to-caramelo/60" />
+                        <span className="font-sans text-[0.62rem] font-medium tracking-[0.3em] uppercase text-caramelo/60">
                             Nossa Essência
                         </span>
                     </div>
@@ -67,11 +68,11 @@ const Sobre = memo(function Sobre() {
                     <h2 className="font-serif text-[2.2rem] md:text-[3rem] font-light text-white/90 mb-2 leading-[1.1] tracking-[-0.01em]">
                         A arte de revelar
                     </h2>
-                    <h2 className="font-serif text-[2.2rem] md:text-[3rem] font-semibold italic text-[#c5a87c] mb-8 leading-[1.1] tracking-[-0.01em]">
+                    <h2 className="font-serif text-[2.2rem] md:text-[3rem] font-semibold italic text-caramelo mb-8 leading-[1.1] tracking-[-0.01em]">
                         a sua melhor versão
                     </h2>
 
-                    <div className="w-8 h-px mb-8 bg-gradient-to-r from-[#c5a87c]/40 to-transparent" />
+                    <div className="w-8 h-px mb-8 bg-gradient-to-r from-caramelo/40 to-transparent" />
 
                     <p className="text-[0.92rem] leading-[1.9] mb-5 text-white/40 font-light">
                         Fundado com a missão de transformar o cuidado pessoal em uma experiência de puro luxo e bem-estar, o LmLu Mattielo é mais que um salão de beleza.
@@ -88,7 +89,7 @@ const Sobre = memo(function Sobre() {
                             { num: '100%', label: 'Satisfação' },
                         ].map(({ num, label }) => (
                             <div key={label}>
-                                <span className="block font-serif text-[1.8rem] font-light text-[#c5a87c] leading-none">{num}</span>
+                                <span className="block font-serif text-[1.8rem] font-light text-caramelo leading-none">{num}</span>
                                 <span className="block font-sans text-[0.58rem] font-normal tracking-[0.15em] uppercase text-white/30 mt-1.5">{label}</span>
                             </div>
                         ))}

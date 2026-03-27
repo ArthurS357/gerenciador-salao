@@ -61,20 +61,33 @@ export default async function AgendaProfissionalPage() {
         <div className="min-h-screen bg-[#fdfbf7] p-6 md:p-12 font-sans pt-32">
             <div className="max-w-5xl mx-auto space-y-8">
 
+                {/* Botões de Navegação Global */}
+                <div className="flex gap-4">
+                    <Link href="/" className="text-sm font-bold text-gray-500 hover:text-marrom-medio flex items-center gap-1.5 transition-colors">
+                        <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></svg>
+                        Página Inicial
+                    </Link>
+                    <span className="text-gray-300">|</span>
+                    <Link href="/profissional/dashboard" className="text-sm font-bold text-gray-500 hover:text-marrom-medio flex items-center gap-1.5 transition-colors">
+                        <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /></svg>
+                        Meu Painel
+                    </Link>
+                </div>
+
                 {/* Cabeçalho */}
                 <div className="bg-white p-8 rounded-2xl shadow-sm border border-[#e5d9c5] flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                     <div>
-                        <h1 className="text-3xl font-bold text-[#5C4033]">A Minha Agenda</h1>
+                        <h1 className="text-3xl font-bold text-marrom-medio">A Minha Agenda</h1>
                         <p className="text-gray-600 mt-1 text-sm tracking-wide">Faça a gestão dos seus atendimentos de forma simples.</p>
                     </div>
 
                     <div className="flex items-center gap-4 w-full md:w-auto">
-                        <div className="hidden md:block px-4 py-2.5 bg-[#8B5A2B]/10 text-[#8B5A2B] rounded-lg font-semibold border border-[#8B5A2B]/20">
+                        <div className="hidden md:block px-4 py-2.5 bg-marrom-claro/10 text-marrom-claro rounded-lg font-semibold border border-marrom-claro/20">
                             {new Intl.DateTimeFormat('pt-PT', { weekday: 'long', day: '2-digit', month: 'long' }).format(new Date())}
                         </div>
 
                         {permissaoAgendar && (
-                            <button className="w-full md:w-auto px-6 py-2.5 bg-[#8B5A2B] text-white font-bold rounded-lg hover:bg-[#704620] shadow-sm transition-colors border border-[#5C4033]">
+                            <button className="w-full md:w-auto px-6 py-2.5 bg-marrom-claro text-white font-bold rounded-lg hover:bg-[#704620] shadow-sm transition-colors border border-marrom-medio">
                                 + Nova Reserva
                             </button>
                         )}
@@ -86,8 +99,8 @@ export default async function AgendaProfissionalPage() {
                     {/* COLUNA PRINCIPAL: Próximos Atendimentos */}
                     <div className="lg:col-span-2 space-y-6">
                         <div className="flex items-center gap-3 mb-4">
-                            <div className="w-2 h-8 bg-[#8B5A2B] rounded-full"></div>
-                            <h2 className="text-xl font-bold text-[#5C4033]">Próximos Atendimentos</h2>
+                            <div className="w-2 h-8 bg-marrom-claro rounded-full"></div>
+                            <h2 className="text-xl font-bold text-marrom-medio">Próximos Atendimentos</h2>
                         </div>
 
                         {pendentes.length === 0 ? (
@@ -101,10 +114,10 @@ export default async function AgendaProfissionalPage() {
 
                                         {/* Bloco de Hora */}
                                         <div className="flex flex-col items-center justify-center min-w-[100px] py-4 bg-orange-50 rounded-xl border border-orange-100">
-                                            <span className="text-2xl font-black text-[#5C4033] leading-none">
+                                            <span className="text-2xl font-black text-marrom-medio leading-none">
                                                 {formatarHora(agendamento.dataHoraInicio)}
                                             </span>
-                                            <span className="text-xs font-semibold text-[#8B5A2B] mt-1 uppercase tracking-wider">
+                                            <span className="text-xs font-semibold text-marrom-claro mt-1 uppercase tracking-wider">
                                                 {formatarData(agendamento.dataHoraInicio)}
                                             </span>
                                         </div>
@@ -131,7 +144,7 @@ export default async function AgendaProfissionalPage() {
                                         <div className="w-full md:w-auto flex flex-col gap-2">
                                             <Link
                                                 href={`/profissional/comanda/${agendamento.id}`}
-                                                className="block w-full md:w-auto text-center px-6 py-3 bg-[#5C4033] text-white font-bold rounded-xl hover:bg-[#3e2b22] transition-colors shadow-sm"
+                                                className="block w-full md:w-auto text-center px-6 py-3 bg-marrom-medio text-white font-bold rounded-xl hover:bg-[#3e2b22] transition-colors shadow-sm"
                                             >
                                                 Abrir Comanda
                                             </Link>
@@ -150,7 +163,7 @@ export default async function AgendaProfissionalPage() {
                     <div className="space-y-6">
                         <div className="flex items-center gap-3 mb-4">
                             <div className="w-2 h-8 bg-green-600 rounded-full"></div>
-                            <h2 className="text-xl font-bold text-[#5C4033]">Concluídos</h2>
+                            <h2 className="text-xl font-bold text-marrom-medio">Concluídos</h2>
                         </div>
 
                         {permissaoHistorico ? (

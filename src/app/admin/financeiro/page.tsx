@@ -184,8 +184,8 @@ export default function PainelFinanceiroPage() {
     if (!dados && isLoadingMetrics) {
         return (
             <div className="min-h-screen flex flex-col gap-4 items-center justify-center bg-[#fdfbf7]">
-                <svg className="animate-spin h-8 w-8 text-[#8B5A2B]" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                <p className="text-[#8B5A2B] font-bold uppercase tracking-wider text-sm">A processar motor financeiro...</p>
+                <svg className="animate-spin h-8 w-8 text-marrom-claro" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                <p className="text-marrom-claro font-bold uppercase tracking-wider text-sm">A processar motor financeiro...</p>
             </div>
         )
     }
@@ -203,7 +203,7 @@ export default function PainelFinanceiroPage() {
         <div className="min-h-screen bg-[#fdfbf7] p-4 md:p-8 font-sans">
             <header className="mb-8 flex flex-col md:flex-row md:justify-between md:items-end gap-4">
                 <div>
-                    <h1 className="text-3xl md:text-4xl font-black text-[#5C4033] tracking-tight">Visão Financeira</h1>
+                    <h1 className="text-3xl md:text-4xl font-black text-marrom-medio tracking-tight">Visão Financeira</h1>
                     <p className="text-gray-500 mt-2 text-sm md:text-base">Análise de métricas, lucros e evolução do seu salão.</p>
                 </div>
             </header>
@@ -222,7 +222,7 @@ export default function PainelFinanceiroPage() {
                         href={href}
                         className={
                             ativo
-                                ? 'bg-white text-[#5C4033] px-5 py-2 md:py-2.5 rounded-xl shadow-sm font-bold text-[13px] md:text-sm tracking-wide'
+                                ? 'bg-white text-marrom-medio px-5 py-2 md:py-2.5 rounded-xl shadow-sm font-bold text-[13px] md:text-sm tracking-wide'
                                 : 'text-gray-500 px-5 py-2 md:py-2.5 rounded-xl font-semibold text-[13px] md:text-sm tracking-wide hover:bg-white/50 hover:text-gray-900 transition-all'
                         }
                     >
@@ -245,7 +245,7 @@ export default function PainelFinanceiroPage() {
                                 }}
                                 disabled={isLoadingMetrics}
                                 className={`px-5 py-2 rounded-full text-[13px] font-bold transition-all ${periodoAtual === btn.valor
-                                    ? 'bg-white text-[#5C4033] shadow-sm'
+                                    ? 'bg-white text-marrom-medio shadow-sm'
                                     : 'text-gray-500 hover:text-gray-800'
                                     }`}
                             >
@@ -289,8 +289,8 @@ export default function PainelFinanceiroPage() {
             {mounted && chartData.length > 0 && (
                 <div className={`grid grid-cols-1 lg:grid-cols-2 gap-6 mb-10 transition-opacity duration-300 ${isLoadingMetrics ? 'opacity-40 pointer-events-none' : 'opacity-100'}`}>
                     <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-100">
-                        <h3 className="text-base font-bold text-[#5C4033] tracking-wide mb-6 flex items-center gap-2">
-                            <span className="w-2 h-2 rounded-full bg-[#8B5A2B]"></span>
+                        <h3 className="text-base font-bold text-marrom-medio tracking-wide mb-6 flex items-center gap-2">
+                            <span className="w-2 h-2 rounded-full bg-marrom-claro"></span>
                             Faturamento Consolidado
                         </h3>
                         <div className="h-72 w-full">
@@ -313,8 +313,8 @@ export default function PainelFinanceiroPage() {
                     </div>
 
                     <div className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-100">
-                        <h3 className="text-base font-bold text-[#5C4033] tracking-wide mb-6 flex items-center gap-2">
-                            <span className="w-2 h-2 rounded-full bg-[#c5a87c]"></span>
+                        <h3 className="text-base font-bold text-marrom-medio tracking-wide mb-6 flex items-center gap-2">
+                            <span className="w-2 h-2 rounded-full bg-caramelo"></span>
                             Volume de Atendimentos
                         </h3>
                         <div className="h-72 w-full">
@@ -344,7 +344,7 @@ export default function PainelFinanceiroPage() {
             {/* TABELA DE COMISSÕES */}
             <section className={`bg-white rounded-2xl shadow-sm border border-gray-100 transition-opacity mb-10 ${isLoadingMetrics ? 'opacity-40' : 'opacity-100'}`}>
                 <div className="p-6 md:p-8 border-b border-gray-100">
-                    <h2 className="text-xl font-bold text-[#5C4033] tracking-tight">Regras de Comissão</h2>
+                    <h2 className="text-xl font-bold text-marrom-medio tracking-tight">Regras de Comissão</h2>
                     <p className="text-sm text-gray-500 mt-1">Configuração de repasse financeiro por profissional na equipe.</p>
                 </div>
                 <div className="overflow-x-auto">
@@ -378,7 +378,7 @@ export default function PainelFinanceiroPage() {
                                                         disabled={isSaving}
                                                         value={estado.comissao}
                                                         onChange={(e) => setComissao(p.id, Number(e.target.value))}
-                                                        className="w-16 px-2 py-1 text-center font-bold text-[#8B5A2B] outline-none focus:bg-orange-50 disabled:bg-gray-100"
+                                                        className="w-16 px-2 py-1 text-center font-bold text-marrom-claro outline-none focus:bg-orange-50 disabled:bg-gray-100"
                                                     />
                                                     <span className="bg-gray-100 px-2 py-1 text-gray-500 font-bold border-l border-gray-300">%</span>
                                                 </div>
@@ -392,14 +392,14 @@ export default function PainelFinanceiroPage() {
                                                         disabled={isSaving}
                                                         onChange={(e) => setPodeVer(p.id, e.target.checked)}
                                                     />
-                                                    <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-4 peer-focus:ring-orange-300 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#8B5A2B]"></div>
+                                                    <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-4 peer-focus:ring-orange-300 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-marrom-claro"></div>
                                                 </label>
                                             </td>
                                             <td className="p-4 text-right">
                                                 <button
                                                     onClick={() => handleAtualizarRegras(p)}
                                                     disabled={isSaving}
-                                                    className="bg-gray-100 text-[#5C4033] font-bold px-5 py-2 rounded-xl text-sm hover:bg-[#5C4033] hover:text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed border border-gray-200 hover:border-[#5C4033]"
+                                                    className="bg-gray-100 text-marrom-medio font-bold px-5 py-2 rounded-xl text-sm hover:bg-marrom-medio hover:text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed border border-gray-200 hover:border-marrom-medio"
                                                 >
                                                     {isSaving ? 'A Guardar...' : 'Atualizar'}
                                                 </button>

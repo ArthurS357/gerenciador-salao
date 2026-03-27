@@ -23,7 +23,7 @@ export function validarNumeroBrasileiro(telefone: string): boolean {
         // 4. Adiciona o DDI e passa pela validação oficial do Google
         const numeroComDDI = `+55${apenasNumeros}`;
         return isValidPhoneNumber(numeroComDDI, 'BR');
-    } catch (error) {
+    } catch {
         return false;
     }
 }

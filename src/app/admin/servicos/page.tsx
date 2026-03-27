@@ -176,12 +176,12 @@ export default function PainelServicosPage() {
             <div className="max-w-7xl mx-auto mb-8 px-4 md:px-0">
                 <header className="mb-8 flex flex-col md:flex-row md:justify-between md:items-end gap-4 mt-8 md:mt-0 pt-8">
                     <div>
-                        <h1 className="text-3xl md:text-4xl font-black text-[#5C4033] tracking-tight">Portfólio de Serviços</h1>
+                        <h1 className="text-3xl md:text-4xl font-black text-marrom-medio tracking-tight">Portfólio de Serviços</h1>
                         <p className="text-gray-500 mt-2 text-sm md:text-base">Catálogo, Fichas Técnicas e Custos Internos.</p>
                     </div>
                     <button
                         onClick={() => setIsModalOpen(true)}
-                        className="flex items-center justify-center gap-2 bg-[#5C4033] text-white px-5 py-2.5 rounded-xl font-bold text-sm hover:bg-[#3e2b22] transition-colors shadow-sm active:scale-[0.98]"
+                        className="flex items-center justify-center gap-2 bg-marrom-medio text-white px-5 py-2.5 rounded-xl font-bold text-sm hover:bg-[#3e2b22] transition-colors shadow-sm active:scale-[0.98]"
                     >
                         <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
                             <path d="M7 1v12M1 7h12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
@@ -204,7 +204,7 @@ export default function PainelServicosPage() {
                             href={href}
                             className={
                                 ativo
-                                    ? 'bg-white text-[#5C4033] px-5 py-2 md:py-2.5 rounded-xl shadow-sm font-bold text-[13px] md:text-sm tracking-wide'
+                                    ? 'bg-white text-marrom-medio px-5 py-2 md:py-2.5 rounded-xl shadow-sm font-bold text-[13px] md:text-sm tracking-wide'
                                     : 'text-gray-500 px-5 py-2 md:py-2.5 rounded-xl font-semibold text-[13px] md:text-sm tracking-wide hover:bg-white/50 hover:text-gray-900 transition-all'
                             }
                         >
@@ -221,7 +221,7 @@ export default function PainelServicosPage() {
                         placeholder="Buscar serviço por nome..."
                         value={busca}
                         onChange={(e) => setBusca(e.target.value)}
-                        className="w-full pl-11 pr-4 py-3 text-sm border-transparent rounded-xl outline-none focus:border-[#8B5A2B] focus:ring-4 focus:ring-[#8B5A2B]/10 transition-all"
+                        className="w-full pl-11 pr-4 py-3 text-sm border-transparent rounded-xl outline-none focus:border-marrom-claro focus:ring-4 focus:ring-marrom-claro/10 transition-all"
                     />
                     <svg className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
                 </div>
@@ -282,7 +282,7 @@ export default function PainelServicosPage() {
                                     )}
                                     <button
                                         onClick={() => setModalFichaTecnica(s)}
-                                        className="py-1.5 px-3 bg-[#5C4033]/5 text-[#5C4033] hover:bg-[#5C4033] hover:text-white border border-[#5C4033]/20 text-[11px] font-bold uppercase tracking-widest rounded-lg transition-colors"
+                                        className="py-1.5 px-3 bg-marrom-medio/5 text-marrom-medio hover:bg-marrom-medio hover:text-white border border-marrom-medio/20 text-[11px] font-bold uppercase tracking-widest rounded-lg transition-colors"
                                     >
                                         Ficha Técnica ({s.insumos?.length || 0})
                                     </button>
@@ -298,7 +298,7 @@ export default function PainelServicosPage() {
                     <div className="bg-white p-8 rounded-[24px] shadow-2xl w-full max-w-lg border border-gray-100 transform transition-transform animate-in zoom-in-95 duration-300">
                         <div className="flex justify-between items-start mb-6 border-b border-gray-100 pb-4">
                             <div>
-                                <h2 className="text-2xl font-bold text-[#5C4033] tracking-tight">Novo Serviço</h2>
+                                <h2 className="text-2xl font-bold text-marrom-medio tracking-tight">Novo Serviço</h2>
                                 <p className="text-sm text-gray-500 mt-1">Crie um novo serviço para sua vitrine.</p>
                             </div>
                             <button onClick={() => setIsModalOpen(false)} className="p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 rounded-full transition-colors">
@@ -308,28 +308,28 @@ export default function PainelServicosPage() {
                         <form onSubmit={handleSalvarServico} className="space-y-5">
                             <div>
                                 <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-2">Nome do Serviço *</label>
-                                <input required type="text" className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:ring-4 focus:ring-[#8B5A2B]/10 focus:border-[#8B5A2B] outline-none font-medium text-gray-800 transition-all" value={formData.nome} onChange={(e) => setFormData({ ...formData, nome: e.target.value })} />
+                                <input required type="text" className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:ring-4 focus:ring-marrom-claro/10 focus:border-marrom-claro outline-none font-medium text-gray-800 transition-all" value={formData.nome} onChange={(e) => setFormData({ ...formData, nome: e.target.value })} />
                             </div>
                             <div>
                                 <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-2">Descrição</label>
-                                <textarea className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:ring-4 focus:ring-[#8B5A2B]/10 focus:border-[#8B5A2B] outline-none resize-none font-medium text-gray-800 transition-all" rows={3} value={formData.descricao} onChange={(e) => setFormData({ ...formData, descricao: e.target.value })} />
+                                <textarea className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:ring-4 focus:ring-marrom-claro/10 focus:border-marrom-claro outline-none resize-none font-medium text-gray-800 transition-all" rows={3} value={formData.descricao} onChange={(e) => setFormData({ ...formData, descricao: e.target.value })} />
                             </div>
                             <div className="grid grid-cols-2 gap-5">
                                 <div>
                                     <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-2">Preço (R$) *</label>
                                     <div className="relative">
                                         <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-gray-400 text-sm">R$</span>
-                                        <input required type="number" step="0.01" min="0" className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl text-sm focus:ring-4 focus:ring-[#8B5A2B]/10 focus:border-[#8B5A2B] outline-none font-black text-[#8B5A2B] transition-all" value={formData.preco} onChange={(e) => setFormData({ ...formData, preco: e.target.value })} />
+                                        <input required type="number" step="0.01" min="0" className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl text-sm focus:ring-4 focus:ring-marrom-claro/10 focus:border-marrom-claro outline-none font-black text-marrom-claro transition-all" value={formData.preco} onChange={(e) => setFormData({ ...formData, preco: e.target.value })} />
                                     </div>
                                 </div>
                                 <div>
                                     <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-2">Tempo (Min) *</label>
-                                    <input required type="number" min="1" className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:ring-4 focus:ring-[#8B5A2B]/10 focus:border-[#8B5A2B] outline-none font-black text-gray-800 transition-all" value={formData.tempoMinutos} onChange={(e) => setFormData({ ...formData, tempoMinutos: e.target.value })} />
+                                    <input required type="number" min="1" className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:ring-4 focus:ring-marrom-claro/10 focus:border-marrom-claro outline-none font-black text-gray-800 transition-all" value={formData.tempoMinutos} onChange={(e) => setFormData({ ...formData, tempoMinutos: e.target.value })} />
                                 </div>
                             </div>
                             <div className="p-5 bg-gray-50 border border-gray-200 rounded-2xl">
                                 <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-3">Foto de Vitrine</label>
-                                <input type="file" accept="image/*" className="w-full text-sm text-gray-500 file:mr-4 file:py-2.5 file:px-5 file:rounded-xl file:border-0 file:text-sm file:font-bold file:bg-[#8B5A2B]/10 file:text-[#8B5A2B] hover:file:bg-[#8B5A2B]/20 transition-all cursor-pointer" onChange={(e) => { if (e.target.files?.[0]) setImagemArquivo(e.target.files[0]); }} />
+                                <input type="file" accept="image/*" className="w-full text-sm text-gray-500 file:mr-4 file:py-2.5 file:px-5 file:rounded-xl file:border-0 file:text-sm file:font-bold file:bg-marrom-claro/10 file:text-marrom-claro hover:file:bg-marrom-claro/20 transition-all cursor-pointer" onChange={(e) => { if (e.target.files?.[0]) setImagemArquivo(e.target.files[0]); }} />
                             </div>
                             <div className="flex justify-end pt-4">
                                 <button type="submit" disabled={uploading} className="w-full px-6 py-3.5 bg-gray-900 text-white font-bold rounded-xl hover:bg-black transition-colors shadow-lg shadow-black/10 flex items-center justify-center gap-2">
@@ -346,7 +346,7 @@ export default function PainelServicosPage() {
                     <div className="bg-white rounded-[24px] shadow-2xl w-full max-w-lg border border-gray-100 overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200">
                         <div className="px-8 pt-8 pb-5 border-b border-gray-100 flex justify-between items-start">
                             <div>
-                                <p className="text-[10px] font-bold text-[#8B5A2B] uppercase tracking-widest mb-1">Ficha Técnica</p>
+                                <p className="text-[10px] font-bold text-marrom-claro uppercase tracking-widest mb-1">Ficha Técnica</p>
                                 <h2 className="text-xl font-bold text-gray-800 tracking-tight">{modalFichaTecnica.nome}</h2>
                                 <p className="text-sm text-gray-500 mt-1">Configure o consumo de produtos por serviço.</p>
                             </div>
@@ -356,21 +356,21 @@ export default function PainelServicosPage() {
                         </div>
                         <div className="p-8 overflow-y-auto flex-1 space-y-6">
                             <form onSubmit={handleSalvarInsumo} className="flex flex-col gap-4 p-5 bg-orange-50/50 border border-orange-100 rounded-2xl">
-                                <h4 className="font-bold text-[#5C4033] text-sm">Adicionar Insumo</h4>
+                                <h4 className="font-bold text-marrom-medio text-sm">Adicionar Insumo</h4>
                                 <div className="flex items-end gap-3">
                                     <div className="flex-1">
                                         <label className="block text-[10px] font-bold text-gray-600 uppercase tracking-widest mb-2">Produto</label>
-                                        <select required className="w-full bg-white border border-gray-300 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-[#8B5A2B]" value={novoInsumo.produtoId} onChange={e => setNovoInsumo({ ...novoInsumo, produtoId: e.target.value })}>
+                                        <select required className="w-full bg-white border border-gray-300 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-marrom-claro" value={novoInsumo.produtoId} onChange={e => setNovoInsumo({ ...novoInsumo, produtoId: e.target.value })}>
                                             <option value="">Selecione do estoque...</option>
                                             {produtos.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
                                         </select>
                                     </div>
                                     <div className="w-24">
                                         <label className="block text-[10px] font-bold text-gray-600 uppercase tracking-widest mb-2">Qtd</label>
-                                        <input required type="number" min="1" className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-[#8B5A2B] font-bold" value={novoInsumo.quantidadeUsada} onChange={e => setNovoInsumo({ ...novoInsumo, quantidadeUsada: e.target.value })} />
+                                        <input required type="number" min="1" className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-marrom-claro font-bold" value={novoInsumo.quantidadeUsada} onChange={e => setNovoInsumo({ ...novoInsumo, quantidadeUsada: e.target.value })} />
                                     </div>
                                     <span className="text-[11px] font-bold text-gray-500 mb-3 min-w-[20px] uppercase tracking-widest">{produtoSelecionado ? produtoSelecionado.unidadeMedida : '-'}</span>
-                                    <button type="submit" disabled={loadingAcao || !novoInsumo.produtoId} className="bg-[#8B5A2B] text-white h-10 w-10 flex items-center justify-center rounded-xl font-bold hover:bg-[#704620] disabled:opacity-50 text-xl transition-colors">+</button>
+                                    <button type="submit" disabled={loadingAcao || !novoInsumo.produtoId} className="bg-marrom-claro text-white h-10 w-10 flex items-center justify-center rounded-xl font-bold hover:bg-[#704620] disabled:opacity-50 text-xl transition-colors">+</button>
                                 </div>
                             </form>
                             <div>
@@ -383,7 +383,7 @@ export default function PainelServicosPage() {
                                             <div key={insumo.id} className="flex justify-between items-center p-4 bg-white border border-gray-100 rounded-xl shadow-sm">
                                                 <span className="font-bold text-sm text-gray-700">{insumo.produto.nome}</span>
                                                 <div className="flex items-center gap-4">
-                                                    <span className="text-base font-black text-[#8B5A2B]">{insumo.quantidadeUsada} <span className="text-[10px] text-gray-500 uppercase tracking-widest">{insumo.produto.unidadeMedida}</span></span>
+                                                    <span className="text-base font-black text-marrom-claro">{insumo.quantidadeUsada} <span className="text-[10px] text-gray-500 uppercase tracking-widest">{insumo.produto.unidadeMedida}</span></span>
                                                     <button onClick={() => handleRemoverInsumo(insumo.id)} disabled={loadingAcao} className="text-red-400 hover:text-red-600 hover:bg-red-50 p-2 rounded-full transition-colors disabled:opacity-50" title="Remover insumo">
                                                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6L6 18M6 6l12 12" /></svg>
                                                     </button>

@@ -99,9 +99,9 @@ export default function PainelComanda({ agendamento, produtosDisponiveis, podeVe
     return (
         <div className="bg-white rounded-2xl shadow-xl border border-[#e5d9c5] overflow-hidden">
             {/* Cabeçalho da Comanda */}
-            <div className="bg-[#5C4033] p-8 text-white flex justify-between items-center">
+            <div className="bg-marrom-medio p-8 text-white flex justify-between items-center">
                 <div>
-                    <h2 className="text-sm font-semibold tracking-[0.2em] uppercase text-[#c5a87c] mb-2">Comanda Eletrônica</h2>
+                    <h2 className="text-sm font-semibold tracking-[0.2em] uppercase text-caramelo mb-2">Comanda Eletrônica</h2>
                     <h1 className="text-3xl font-serif">{agendamento.cliente.nome}</h1>
                     <p className="text-sm opacity-80 mt-1">{agendamento.cliente.telefone}</p>
                 </div>
@@ -124,8 +124,8 @@ export default function PainelComanda({ agendamento, produtosDisponiveis, podeVe
 
                 {/* Lista de Serviços */}
                 <section>
-                    <h3 className="text-lg font-bold text-[#5C4033] mb-4 flex items-center gap-2">
-                        <div className="w-1.5 h-5 bg-[#c5a87c] rounded-full"></div>
+                    <h3 className="text-lg font-bold text-marrom-medio mb-4 flex items-center gap-2">
+                        <div className="w-1.5 h-5 bg-caramelo rounded-full"></div>
                         Serviços Realizados
                     </h3>
                     <div className="space-y-3">
@@ -133,7 +133,7 @@ export default function PainelComanda({ agendamento, produtosDisponiveis, podeVe
                         {agendamento.servicos.map((item: ServicoDaComanda) => (
                             <div key={item.id} className="flex justify-between items-center p-4 bg-gray-50 rounded-lg border border-gray-100">
                                 <span className="font-medium text-gray-700">{item.servico.nome}</span>
-                                <span className="font-bold text-[#5C4033]">
+                                <span className="font-bold text-marrom-medio">
                                     {podeVerFinancas ? `R$ ${item.precoCobrado?.toFixed(2)}` : 'R$ ***'}
                                 </span>
                             </div>
@@ -143,8 +143,8 @@ export default function PainelComanda({ agendamento, produtosDisponiveis, podeVe
 
                 {/* Lista de Produtos */}
                 <section>
-                    <h3 className="text-lg font-bold text-[#5C4033] mb-4 flex items-center gap-2">
-                        <div className="w-1.5 h-5 bg-[#c5a87c] rounded-full"></div>
+                    <h3 className="text-lg font-bold text-marrom-medio mb-4 flex items-center gap-2">
+                        <div className="w-1.5 h-5 bg-caramelo rounded-full"></div>
                         Produtos Adicionados
                     </h3>
                     {agendamento.produtos.length === 0 ? (
@@ -158,7 +158,7 @@ export default function PainelComanda({ agendamento, produtosDisponiveis, podeVe
                                         <span className="font-medium text-gray-800">{item.produto.nome}</span>
                                         <span className="text-xs text-gray-500 ml-2">x{item.quantidade}</span>
                                     </div>
-                                    <span className="font-bold text-[#5C4033]">
+                                    <span className="font-bold text-marrom-medio">
                                         {podeVerFinancas ? `R$ ${(item.precoCobrado * item.quantidade).toFixed(2)}` : 'R$ ***'}
                                     </span>
                                 </div>
@@ -172,7 +172,7 @@ export default function PainelComanda({ agendamento, produtosDisponiveis, podeVe
                             <select
                                 value={produtoIdSelecionado}
                                 onChange={(e) => setProdutoIdSelecionado(e.target.value)}
-                                className="flex-1 p-2.5 border border-gray-300 rounded text-sm outline-none focus:border-[#8B5A2B]"
+                                className="flex-1 p-2.5 border border-gray-300 rounded text-sm outline-none focus:border-marrom-claro"
                             >
                                 <option value="">Adicionar produto da vitrine...</option>
                                 {produtosDisponiveis.map(p => (
@@ -186,12 +186,12 @@ export default function PainelComanda({ agendamento, produtosDisponiveis, podeVe
                                 min="1"
                                 value={quantidade}
                                 onChange={(e) => setQuantidade(Number(e.target.value))}
-                                className="w-20 p-2.5 border border-gray-300 rounded text-sm text-center outline-none focus:border-[#8B5A2B]"
+                                className="w-20 p-2.5 border border-gray-300 rounded text-sm text-center outline-none focus:border-marrom-claro"
                             />
                             <button
                                 onClick={handleAdicionarProduto}
                                 disabled={isAdicionando || !produtoIdSelecionado}
-                                className="px-5 py-2.5 bg-gray-100 text-[#5C4033] font-bold rounded hover:bg-[#e5d9c5] transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm uppercase tracking-wider"
+                                className="px-5 py-2.5 bg-gray-100 text-marrom-medio font-bold rounded hover:bg-[#e5d9c5] transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm uppercase tracking-wider"
                             >
                                 {isAdicionando ? '...' : 'Incluir'}
                             </button>
@@ -205,7 +205,7 @@ export default function PainelComanda({ agendamento, produtosDisponiveis, podeVe
                         <div className="flex flex-col items-end gap-1 mb-8">
                             <p className="text-sm text-gray-500">Subtotal Serviços: R$ {totalServicos.toFixed(2)}</p>
                             <p className="text-sm text-gray-500">Subtotal Produtos: R$ {totalProdutos.toFixed(2)}</p>
-                            <h2 className="text-3xl font-serif text-[#5C4033] mt-2">
+                            <h2 className="text-3xl font-serif text-marrom-medio mt-2">
                                 Total: R$ {valorTotalRevisado.toFixed(2)}
                             </h2>
                         </div>
@@ -219,7 +219,7 @@ export default function PainelComanda({ agendamento, produtosDisponiveis, podeVe
                         <button
                             onClick={handleFinalizar}
                             disabled={isFinalizando}
-                            className="w-full py-4 bg-[#8B5A2B] text-white font-bold rounded-xl text-lg uppercase tracking-widest hover:bg-[#704620] transition-colors shadow-lg disabled:opacity-70 disabled:cursor-not-allowed"
+                            className="w-full py-4 bg-marrom-claro text-white font-bold rounded-xl text-lg uppercase tracking-widest hover:bg-[#704620] transition-colors shadow-lg disabled:opacity-70 disabled:cursor-not-allowed"
                         >
                             {isFinalizando ? 'A Processar...' : 'Concluir Atendimento'}
                         </button>

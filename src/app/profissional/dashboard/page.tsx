@@ -8,15 +8,15 @@ export default function ProfissionalDashboardPage() {
             <div className="max-w-3xl w-full animate-in fade-in zoom-in-95 duration-500">
                 
                 <header className="mb-10 text-center">
-                    <h1 className="text-3xl md:text-4xl font-black text-[#5C4033] tracking-tight">Portal do Profissional</h1>
+                    <h1 className="text-3xl md:text-4xl font-black text-marrom-medio tracking-tight">Portal do Profissional</h1>
                     <p className="text-gray-500 mt-3 text-sm md:text-base">Bem-vindo(a) de volta! O que deseja fazer hoje?</p>
                 </header>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 mb-10">
                     {/* Cartão da Agenda */}
-                    <Link href="/profissional/agenda" className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 hover:border-[#8B5A2B]/50 hover:shadow-md transition-all duration-300 group flex flex-col items-center text-center cursor-pointer">
-                        <div className="w-20 h-20 bg-orange-50 rounded-full flex items-center justify-center mb-5 group-hover:bg-[#8B5A2B] group-hover:scale-110 transition-all duration-300">
-                            <svg className="w-9 h-9 text-[#8B5A2B] group-hover:text-white transition-colors" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
+                    <Link href="/profissional/agenda" className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 hover:border-marrom-claro/50 hover:shadow-md transition-all duration-300 group flex flex-col items-center text-center cursor-pointer">
+                        <div className="w-20 h-20 bg-orange-50 rounded-full flex items-center justify-center mb-5 group-hover:bg-marrom-claro group-hover:scale-110 transition-all duration-300">
+                            <svg className="w-9 h-9 text-marrom-claro group-hover:text-white transition-colors" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
                                 <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
                                 <line x1="16" y1="2" x2="16" y2="6"></line>
                                 <line x1="8" y1="2" x2="8" y2="6"></line>
@@ -28,9 +28,9 @@ export default function ProfissionalDashboardPage() {
                     </Link>
 
                     {/* Cartão do Perfil */}
-                    <Link href="/profissional/perfil" className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 hover:border-[#8B5A2B]/50 hover:shadow-md transition-all duration-300 group flex flex-col items-center text-center cursor-pointer">
-                        <div className="w-20 h-20 bg-stone-100 rounded-full flex items-center justify-center mb-5 group-hover:bg-[#5C4033] group-hover:scale-110 transition-all duration-300">
-                            <svg className="w-9 h-9 text-[#5C4033] group-hover:text-white transition-colors" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
+                    <Link href="/profissional/perfil" className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 hover:border-marrom-claro/50 hover:shadow-md transition-all duration-300 group flex flex-col items-center text-center cursor-pointer">
+                        <div className="w-20 h-20 bg-stone-100 rounded-full flex items-center justify-center mb-5 group-hover:bg-marrom-medio group-hover:scale-110 transition-all duration-300">
+                            <svg className="w-9 h-9 text-marrom-medio group-hover:text-white transition-colors" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                             </svg>
                         </div>

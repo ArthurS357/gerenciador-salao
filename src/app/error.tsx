@@ -1,6 +1,7 @@
 'use client' // Error components devem ser sempre Client Components
 
 import { useEffect } from 'react'
+import Link from 'next/link'
 
 export default function GlobalError({
     error,
@@ -33,12 +34,12 @@ export default function GlobalError({
                     >
                         Tentar Novamente
                     </button>
-                    <a
+                    <Link
                         href="/"
-                        className="w-full py-3 bg-gray-100 text-gray-700 font-bold rounded-xl hover:bg-gray-200 transition-colors"
+                        className="w-full py-3 text-center bg-gray-100 text-gray-700 font-bold rounded-xl hover:bg-gray-200 transition-colors"
                     >
                         Voltar à Página Principal
-                    </a>
+                    </Link>
                 </div>
             </div>
         </div>

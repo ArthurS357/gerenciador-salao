@@ -450,7 +450,7 @@ export default function GestaoClientesAdminPage() {
                 {/* Tabela */}
                 <section className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
                     <div className="px-6 md:px-8 py-5 border-b border-gray-100 bg-gray-50/50">
-                        <h2 className="font-bold text-[#5C4033] text-lg tracking-tight">Diretório Global</h2>
+                        <h2 className="font-bold text-marrom-medio text-lg tracking-tight">Diretório Global</h2>
                     </div>
                     {loading ? (
                         <div className="p-8 text-center text-gray-500 font-bold tracking-wider uppercase text-sm flex items-center justify-center gap-2">
@@ -496,7 +496,7 @@ export default function GestaoClientesAdminPage() {
                                                     <p className="text-xs text-gray-500 mt-0.5 truncate">{c.email}</p>
                                                 )}
                                             </td>
-                                            <td className="px-6 py-4 text-center font-semibold text-[#8B5A2B] text-sm">
+                                            <td className="px-6 py-4 text-center font-semibold text-marrom-claro text-sm">
                                                 {totalAgendamentos}
                                             </td>
                                             <td className="px-6 py-4 text-center">
@@ -510,7 +510,7 @@ export default function GestaoClientesAdminPage() {
                                                         <button
                                                             onClick={() => abrirModalAgendar(cliente.id, cliente.nome)}
                                                             disabled={isLoading}
-                                                            className="px-2 md:px-3 py-1 md:py-1.5 bg-[#8B5A2B] text-white rounded text-xs font-bold hover:bg-[#704620] transition-colors shadow-sm disabled:opacity-50"
+                                                            className="px-2 md:px-3 py-1 md:py-1.5 bg-marrom-claro text-white rounded text-xs font-bold hover:bg-[#704620] transition-colors shadow-sm disabled:opacity-50"
                                                         >
                                                             Agendar
                                                         </button>
@@ -563,9 +563,9 @@ export default function GestaoClientesAdminPage() {
             {/* ── MODAL: CRIAR CLIENTE ── */}
             {modalCriarOpen && (
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 border-t-4 border-t-[#5C4033] animate-in fade-in slide-in-from-bottom-4 duration-300">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 border-t-4 border-t-marrom-medio animate-in fade-in slide-in-from-bottom-4 duration-300">
                         <div>
-                            <h2 className="text-2xl font-bold text-[#5C4033]">Novo Cliente</h2>
+                            <h2 className="text-2xl font-bold text-marrom-medio">Novo Cliente</h2>
                             <p className="text-sm text-gray-500 mt-1">Cadastre um novo cliente manualmente.</p>
                         </div>
 
@@ -584,7 +584,7 @@ export default function GestaoClientesAdminPage() {
                                     placeholder="Ex: Maria Silva"
                                     value={formCriar.nome}
                                     onChange={(e) => setFormCriar({ ...formCriar, nome: e.target.value })}
-                                    className="w-full border border-gray-300 rounded-lg px-4 py-2.5 outline-none focus:border-[#8B5A2B] focus:ring-2 focus:ring-[#8B5A2B]/10 transition-colors"
+                                    className="w-full border border-gray-300 rounded-lg px-4 py-2.5 outline-none focus:border-marrom-claro focus:ring-2 focus:ring-marrom-claro/10 transition-colors"
                                 />
                             </div>
                             <div>
@@ -596,7 +596,7 @@ export default function GestaoClientesAdminPage() {
                                     value={formCriar.telefone}
                                     onChange={(e) => setFormCriar({ ...formCriar, telefone: formatarTelefone(e.target.value) })}
                                     maxLength={15}
-                                    className="w-full border border-gray-300 rounded-lg px-4 py-2.5 outline-none focus:border-[#8B5A2B] focus:ring-2 focus:ring-[#8B5A2B]/10 transition-colors"
+                                    className="w-full border border-gray-300 rounded-lg px-4 py-2.5 outline-none focus:border-marrom-claro focus:ring-2 focus:ring-marrom-claro/10 transition-colors"
                                 />
                             </div>
                             <div>
@@ -608,7 +608,7 @@ export default function GestaoClientesAdminPage() {
                                     placeholder="cliente@email.com"
                                     value={formCriar.email || ''}
                                     onChange={(e) => setFormCriar({ ...formCriar, email: e.target.value })}
-                                    className="w-full border border-gray-300 rounded-lg px-4 py-2.5 outline-none focus:border-[#8B5A2B] focus:ring-2 focus:ring-[#8B5A2B]/10 transition-colors"
+                                    className="w-full border border-gray-300 rounded-lg px-4 py-2.5 outline-none focus:border-marrom-claro focus:ring-2 focus:ring-marrom-claro/10 transition-colors"
                                 />
                             </div>
                             <div>
@@ -621,7 +621,7 @@ export default function GestaoClientesAdminPage() {
                                     value={formCriar.cpf || ''}
                                     onChange={(e) => setFormCriar({ ...formCriar, cpf: formatarCPF(e.target.value) })}
                                     maxLength={14}
-                                    className="w-full border border-gray-300 rounded-lg px-4 py-2.5 outline-none focus:border-[#8B5A2B] focus:ring-2 focus:ring-[#8B5A2B]/10 transition-colors"
+                                    className="w-full border border-gray-300 rounded-lg px-4 py-2.5 outline-none focus:border-marrom-claro focus:ring-2 focus:ring-marrom-claro/10 transition-colors"
                                 />
                             </div>
 
@@ -636,7 +636,7 @@ export default function GestaoClientesAdminPage() {
                                 <button
                                     type="submit"
                                     disabled={loadingCriar}
-                                    className="px-6 py-2.5 bg-[#5C4033] hover:bg-[#3e2b22] text-white font-bold rounded-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50 text-sm"
+                                    className="px-6 py-2.5 bg-marrom-medio hover:bg-[#3e2b22] text-white font-bold rounded-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50 text-sm"
                                 >
                                     {loadingCriar ? (
                                         <>
@@ -656,9 +656,9 @@ export default function GestaoClientesAdminPage() {
             {/* ── MODAL: EDITAR CLIENTE ── */}
             {modalEditarOpen && (
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 border-t-4 border-t-[#8B5A2B] animate-in fade-in slide-in-from-bottom-4 duration-300">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 border-t-4 border-t-marrom-claro animate-in fade-in slide-in-from-bottom-4 duration-300">
                         <div>
-                            <h2 className="text-2xl font-bold text-[#5C4033]">Editar Cliente</h2>
+                            <h2 className="text-2xl font-bold text-marrom-medio">Editar Cliente</h2>
                             <p className="text-sm text-gray-500 mt-1">
                                 A editar: <strong className="text-gray-800">{clienteEditando?.nome}</strong>
                             </p>
@@ -678,7 +678,7 @@ export default function GestaoClientesAdminPage() {
                                     type="text"
                                     value={formEditar.nome}
                                     onChange={(e) => setFormEditar({ ...formEditar, nome: e.target.value })}
-                                    className="w-full border border-gray-300 rounded-lg px-4 py-2.5 outline-none focus:border-[#8B5A2B] focus:ring-2 focus:ring-[#8B5A2B]/10 transition-colors"
+                                    className="w-full border border-gray-300 rounded-lg px-4 py-2.5 outline-none focus:border-marrom-claro focus:ring-2 focus:ring-marrom-claro/10 transition-colors"
                                 />
                             </div>
                             <div>
@@ -690,7 +690,7 @@ export default function GestaoClientesAdminPage() {
                                     value={formEditar.telefone}
                                     onChange={(e) => setFormEditar({ ...formEditar, telefone: formatarTelefone(e.target.value) })}
                                     maxLength={15}
-                                    className="w-full border border-gray-300 rounded-lg px-4 py-2.5 outline-none focus:border-[#8B5A2B] focus:ring-2 focus:ring-[#8B5A2B]/10 transition-colors"
+                                    className="w-full border border-gray-300 rounded-lg px-4 py-2.5 outline-none focus:border-marrom-claro focus:ring-2 focus:ring-marrom-claro/10 transition-colors"
                                 />
                             </div>
                             <div>
@@ -702,7 +702,7 @@ export default function GestaoClientesAdminPage() {
                                     placeholder="cliente@email.com"
                                     value={formEditar.email || ''}
                                     onChange={(e) => setFormEditar({ ...formEditar, email: e.target.value })}
-                                    className="w-full border border-gray-300 rounded-lg px-4 py-2.5 outline-none focus:border-[#8B5A2B] focus:ring-2 focus:ring-[#8B5A2B]/10 transition-colors"
+                                    className="w-full border border-gray-300 rounded-lg px-4 py-2.5 outline-none focus:border-marrom-claro focus:ring-2 focus:ring-marrom-claro/10 transition-colors"
                                 />
                             </div>
                             <div>
@@ -715,7 +715,7 @@ export default function GestaoClientesAdminPage() {
                                     value={formEditar.cpf || ''}
                                     onChange={(e) => setFormEditar({ ...formEditar, cpf: formatarCPF(e.target.value) })}
                                     maxLength={14}
-                                    className="w-full border border-gray-300 rounded-lg px-4 py-2.5 outline-none focus:border-[#8B5A2B] focus:ring-2 focus:ring-[#8B5A2B]/10 transition-colors"
+                                    className="w-full border border-gray-300 rounded-lg px-4 py-2.5 outline-none focus:border-marrom-claro focus:ring-2 focus:ring-marrom-claro/10 transition-colors"
                                 />
                             </div>
 
@@ -730,7 +730,7 @@ export default function GestaoClientesAdminPage() {
                                 <button
                                     type="submit"
                                     disabled={loadingEditar}
-                                    className="px-6 py-2.5 bg-[#8B5A2B] hover:bg-[#704620] text-white font-bold rounded-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50 text-sm"
+                                    className="px-6 py-2.5 bg-marrom-claro hover:bg-[#704620] text-white font-bold rounded-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50 text-sm"
                                 >
                                     {loadingEditar ? (
                                         <>
@@ -750,9 +750,9 @@ export default function GestaoClientesAdminPage() {
             {/* ── MODAL: AGENDAMENTO RÁPIDO ── */}
             {modalAgendarOpen && (
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 border-t-4 border-t-[#5C4033] animate-in fade-in slide-in-from-bottom-4 duration-300">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 border-t-4 border-t-marrom-medio animate-in fade-in slide-in-from-bottom-4 duration-300">
                         <div>
-                            <h2 className="text-2xl font-bold text-[#5C4033]">Agendamento Rápido</h2>
+                            <h2 className="text-2xl font-bold text-marrom-medio">Agendamento Rápido</h2>
                             <p className="text-sm text-gray-500 mt-1">
                                 Cliente: <strong className="text-gray-800">{clienteAgendando?.nome}</strong>
                             </p>
@@ -771,7 +771,7 @@ export default function GestaoClientesAdminPage() {
                                     required
                                     value={novaReserva.funcionarioId}
                                     onChange={(e) => setNovaReserva({ ...novaReserva, funcionarioId: e.target.value })}
-                                    className="w-full border border-gray-300 bg-white rounded-lg px-4 py-2.5 outline-none focus:border-[#8B5A2B] focus:ring-2 focus:ring-[#8B5A2B]/10 transition-colors"
+                                    className="w-full border border-gray-300 bg-white rounded-lg px-4 py-2.5 outline-none focus:border-marrom-claro focus:ring-2 focus:ring-marrom-claro/10 transition-colors"
                                 >
                                     <option value="">Selecione o profissional...</option>
                                     {profissionaisList.map(p => <option key={p.id} value={p.id}>{p.nome}</option>)}
@@ -783,7 +783,7 @@ export default function GestaoClientesAdminPage() {
                                     required
                                     value={novaReserva.servicoId}
                                     onChange={(e) => setNovaReserva({ ...novaReserva, servicoId: e.target.value })}
-                                    className="w-full border border-gray-300 bg-white rounded-lg px-4 py-2.5 outline-none focus:border-[#8B5A2B] focus:ring-2 focus:ring-[#8B5A2B]/10 transition-colors"
+                                    className="w-full border border-gray-300 bg-white rounded-lg px-4 py-2.5 outline-none focus:border-marrom-claro focus:ring-2 focus:ring-marrom-claro/10 transition-colors"
                                 >
                                     <option value="">Selecione o serviço...</option>
                                     {servicosList.map(s => <option key={s.id} value={s.id}>{s.nome}</option>)}
@@ -796,7 +796,7 @@ export default function GestaoClientesAdminPage() {
                                     type="datetime-local"
                                     value={novaReserva.dataHora}
                                     onChange={(e) => setNovaReserva({ ...novaReserva, dataHora: e.target.value })}
-                                    className="w-full border border-gray-300 rounded-lg px-4 py-2.5 outline-none focus:border-[#8B5A2B] focus:ring-2 focus:ring-[#8B5A2B]/10 transition-colors"
+                                    className="w-full border border-gray-300 rounded-lg px-4 py-2.5 outline-none focus:border-marrom-claro focus:ring-2 focus:ring-marrom-claro/10 transition-colors"
                                 />
                             </div>
 
@@ -811,7 +811,7 @@ export default function GestaoClientesAdminPage() {
                                 <button
                                     type="submit"
                                     disabled={loadingAgendar}
-                                    className="px-6 py-2.5 bg-[#5C4033] hover:bg-[#3e2b22] text-white font-bold rounded-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50 text-sm"
+                                    className="px-6 py-2.5 bg-marrom-medio hover:bg-[#3e2b22] text-white font-bold rounded-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50 text-sm"
                                 >
                                     {loadingAgendar ? (
                                         <>
@@ -831,7 +831,7 @@ export default function GestaoClientesAdminPage() {
             {/* ── MODAL: HISTÓRICO DO CLIENTE ── */}
             {modalHistoricoOpen && (
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl border-t-4 border-t-[#8B5A2B] overflow-hidden flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 duration-200">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl border-t-4 border-t-marrom-claro overflow-hidden flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 duration-200">
                         {loadingHistorico || !dadosHistorico ? (
                             <div className="p-8 md:p-16 text-center text-gray-500 font-bold flex items-center justify-center gap-2">
                                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -841,7 +841,7 @@ export default function GestaoClientesAdminPage() {
                             <>
                                 <div className="px-4 md:px-6 py-4 md:py-5 border-b border-gray-100 flex flex-col md:flex-row md:justify-between md:items-start gap-4 bg-gray-50/50">
                                     <div className="flex-1">
-                                        <h2 className="text-xl md:text-2xl font-bold text-[#5C4033]">{dadosHistorico.cliente.nome}</h2>
+                                        <h2 className="text-xl md:text-2xl font-bold text-marrom-medio">{dadosHistorico.cliente.nome}</h2>
                                         <p className="text-xs md:text-sm text-gray-500 font-mono mt-1">{exibirTelefone(dadosHistorico.cliente.telefone ?? '')}</p>
                                         {dadosHistorico.cliente.email && (
                                             <p className="text-xs text-gray-400 mt-0.5">{dadosHistorico.cliente.email}</p>
@@ -873,14 +873,14 @@ export default function GestaoClientesAdminPage() {
                                                             {new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(ag.dataHoraInicio))}
                                                         </span>
                                                         <p className="text-xs text-gray-500 mt-1">
-                                                            Atendido por: <strong className="text-[#5C4033]">{ag.funcionario.nome}</strong>
+                                                            Atendido por: <strong className="text-marrom-medio">{ag.funcionario.nome}</strong>
                                                         </p>
                                                     </div>
                                                     <div className="text-left md:text-right">
                                                         <span className={`px-2 md:px-2.5 py-1 text-[10px] font-bold rounded uppercase tracking-wider inline-block mb-1 ${ag.concluido ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
                                                             {ag.concluido ? 'Faturado' : 'Pendente'}
                                                         </span>
-                                                        <p className="font-black text-[#8B5A2B]">R$ {ag.valorBruto.toFixed(2)}</p>
+                                                        <p className="font-black text-marrom-claro">R$ {ag.valorBruto.toFixed(2)}</p>
                                                     </div>
                                                 </div>
                                                 <div className="text-xs md:text-sm text-gray-600">

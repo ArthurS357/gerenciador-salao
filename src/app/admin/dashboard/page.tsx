@@ -235,11 +235,11 @@ export default function TorreControleDashboard() {
             <AdminHeader
                 titulo="Torre de Controlo"
                 subtitulo="Gestão de equipe, permissões e escalas de trabalho"
-                abaAtiva="Equipa"
+                abaAtiva="Equipe"
                 botaoAcao={
                     <button
                         onClick={() => { setCredenciaisNovo(null); setIsModalOpen(true) }}
-                        className="flex items-center justify-center gap-2 bg-[#5C4033] text-white px-5 py-2.5 rounded-xl font-bold text-sm hover:bg-[#3e2b22] transition-colors shadow-sm active:scale-[0.98]"
+                        className="flex items-center justify-center gap-2 bg-marrom-medio text-white px-5 py-2.5 rounded-xl font-bold text-sm hover:bg-[#3e2b22] transition-colors shadow-sm active:scale-[0.98]"
                     >
                         <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
                             <path d="M7 1v12M1 7h12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
@@ -417,7 +417,7 @@ export default function TorreControleDashboard() {
                             {(['permissoes', 'escala'] as const).map(aba => (
                                 <button key={aba} onClick={() => setAbaAtiva(aba)}
                                     className={`py-3 px-1 mr-5 text-sm font-semibold border-b-2 transition-colors ${abaAtiva === aba
-                                        ? 'border-[#8B5A2B] text-[#8B5A2B]'
+                                        ? 'border-marrom-claro text-marrom-claro'
                                         : 'border-transparent text-gray-400 hover:text-gray-600'}`}>
                                     {aba === 'permissoes' ? 'Permissões' : 'Escala de Trabalho'}
                                 </button>
@@ -432,7 +432,7 @@ export default function TorreControleDashboard() {
                                             type="number" min={0} max={100}
                                             value={modalAcessos.comissao}
                                             onChange={e => setModalAcessos({ ...modalAcessos, comissao: Number(e.target.value) })}
-                                            className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[#8B5A2B]/20 focus:border-[#8B5A2B] bg-white"
+                                            className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-marrom-claro/20 focus:border-marrom-claro bg-white"
                                         />
                                     </Campo>
                                     <div className="space-y-2">
@@ -442,7 +442,7 @@ export default function TorreControleDashboard() {
                                                     type="checkbox"
                                                     checked={modalAcessos[key]}
                                                     onChange={e => setModalAcessos({ ...modalAcessos, [key]: e.target.checked })}
-                                                    className="w-4 h-4 accent-[#8B5A2B] rounded"
+                                                    className="w-4 h-4 accent-marrom-claro rounded"
                                                 />
                                                 <div>
                                                     <p className="text-sm font-semibold text-gray-800">{label}</p>
@@ -461,19 +461,19 @@ export default function TorreControleDashboard() {
                                                 <input
                                                     type="checkbox" checked={exp.ativo}
                                                     onChange={e => atualizarExpedienteLocal(index, 'ativo', e.target.checked)}
-                                                    className="w-4 h-4 accent-[#8B5A2B] rounded"
+                                                    className="w-4 h-4 accent-marrom-claro rounded"
                                                 />
                                                 <span className="text-xs font-bold text-gray-700 uppercase tracking-wide">{DIAS_SEMANA[exp.diaSemana]}</span>
                                             </label>
                                             <div className={`flex gap-2 flex-1 justify-end ${exp.ativo ? '' : 'opacity-30 pointer-events-none'}`}>
                                                 <input type="time" value={exp.horaInicio}
                                                     onChange={e => atualizarExpedienteLocal(index, 'horaInicio', e.target.value)}
-                                                    className="border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs bg-white outline-none focus:border-[#8B5A2B]"
+                                                    className="border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs bg-white outline-none focus:border-marrom-claro"
                                                 />
                                                 <span className="text-gray-400 self-center text-xs">até</span>
                                                 <input type="time" value={exp.horaFim}
                                                     onChange={e => atualizarExpedienteLocal(index, 'horaFim', e.target.value)}
-                                                    className="border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs bg-white outline-none focus:border-[#8B5A2B]"
+                                                    className="border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs bg-white outline-none focus:border-marrom-claro"
                                                 />
                                             </div>
                                         </div>
@@ -484,7 +484,7 @@ export default function TorreControleDashboard() {
 
                         <div className="px-6 py-4 bg-white border-t border-gray-100 flex gap-3">
                             <button onClick={() => setModalAcessos(null)} className="flex-1 py-2.5 border border-gray-300 text-gray-700 font-semibold rounded-xl hover:bg-gray-50 text-sm transition-colors">Cancelar</button>
-                            <button onClick={handleSalvarGerenciamento} disabled={loadingAcao} className="flex-1 py-2.5 bg-[#5C4033] text-white font-semibold rounded-xl hover:bg-[#3e2b22] disabled:opacity-60 text-sm transition-colors">
+                            <button onClick={handleSalvarGerenciamento} disabled={loadingAcao} className="flex-1 py-2.5 bg-marrom-medio text-white font-semibold rounded-xl hover:bg-[#3e2b22] disabled:opacity-60 text-sm transition-colors">
                                 {loadingAcao ? 'A salvar...' : 'Salvar Perfil'}
                             </button>
                         </div>
@@ -515,7 +515,7 @@ export default function TorreControleDashboard() {
                                             type="text"
                                             placeholder="Ex: Ana Silva"
                                             disabled={isSubmitting}
-                                            className={`w-full border rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[#8B5A2B]/20 focus:border-[#8B5A2B] transition-all ${errors.nome ? 'border-red-400 bg-red-50' : 'border-gray-300'}`}
+                                            className={`w-full border rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-marrom-claro/20 focus:border-marrom-claro transition-all ${errors.nome ? 'border-red-400 bg-red-50' : 'border-gray-300'}`}
                                         />
                                     </Campo>
                                 </div>
@@ -526,7 +526,7 @@ export default function TorreControleDashboard() {
                                             type="email"
                                             placeholder="profissional@email.com"
                                             disabled={isSubmitting}
-                                            className={`w-full border rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[#8B5A2B]/20 focus:border-[#8B5A2B] transition-all ${errors.email ? 'border-red-400 bg-red-50' : 'border-gray-300'}`}
+                                            className={`w-full border rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-marrom-claro/20 focus:border-marrom-claro transition-all ${errors.email ? 'border-red-400 bg-red-50' : 'border-gray-300'}`}
                                         />
                                     </Campo>
                                 </div>
@@ -536,7 +536,7 @@ export default function TorreControleDashboard() {
                                         type="text"
                                         placeholder="000.000.000-00"
                                         disabled={isSubmitting}
-                                        className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[#8B5A2B]/20 focus:border-[#8B5A2B] transition-all"
+                                        className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-marrom-claro/20 focus:border-marrom-claro transition-all"
                                     />
                                 </Campo>
                                 <Campo label="Especialidade">
@@ -545,7 +545,7 @@ export default function TorreControleDashboard() {
                                         type="text"
                                         placeholder="Ex: Colorimetria"
                                         disabled={isSubmitting}
-                                        className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[#8B5A2B]/20 focus:border-[#8B5A2B] transition-all"
+                                        className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-marrom-claro/20 focus:border-marrom-claro transition-all"
                                     />
                                 </Campo>
                             </div>
@@ -556,7 +556,7 @@ export default function TorreControleDashboard() {
                                     Cancelar
                                 </button>
                                 <button type="submit" disabled={isSubmitting}
-                                    className="flex-1 py-2.5 bg-[#5C4033] text-white font-semibold rounded-xl hover:bg-[#3e2b22] disabled:opacity-60 text-sm transition-colors">
+                                    className="flex-1 py-2.5 bg-marrom-medio text-white font-semibold rounded-xl hover:bg-[#3e2b22] disabled:opacity-60 text-sm transition-colors">
                                     {isSubmitting ? 'A registar...' : 'Salvar Cadastro'}
                                 </button>
                             </div>
@@ -595,7 +595,7 @@ export default function TorreControleDashboard() {
                                                     ? modalServicos.servicosIds.filter(id => id !== servico.id)
                                                     : [...modalServicos.servicosIds, servico.id]
                                             })}
-                                            className="w-4 h-4 accent-[#8B5A2B] rounded"
+                                            className="w-4 h-4 accent-marrom-claro rounded"
                                         />
                                         <span className="text-sm font-medium text-gray-700">{servico.nome}</span>
                                     </label>
@@ -608,7 +608,7 @@ export default function TorreControleDashboard() {
                                     Cancelar
                                 </button>
                                 <button onClick={handleSalvarServicosExistente} disabled={loadingAcao}
-                                    className="flex-1 py-2.5 bg-[#8B5A2B] text-white font-semibold rounded-xl hover:bg-[#704620] disabled:opacity-60 text-sm transition-colors">
+                                    className="flex-1 py-2.5 bg-marrom-claro text-white font-semibold rounded-xl hover:bg-[#704620] disabled:opacity-60 text-sm transition-colors">
                                     {loadingAcao ? 'A salvar...' : 'Atualizar Portfólio'}
                                 </button>
                             </div>

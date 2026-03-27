@@ -9,7 +9,7 @@ import { obterHorariosDisponiveis } from '@/app/actions/agenda' // Importação 
 const FEEDBACK: Record<Exclude<TipoMensagem, ''>, string> = {
     sucesso: 'bg-[rgba(52,199,89,0.08)] border border-[rgba(52,199,89,0.2)] text-[#6fcf97]',
     erro: 'bg-[rgba(235,87,87,0.08)] border border-[rgba(235,87,87,0.2)] text-[#f08080]',
-    info: 'bg-[rgba(197,168,124,0.08)] border border-[rgba(197,168,124,0.18)] text-[#c5a87c]',
+    info: 'bg-[rgba(197,168,124,0.08)] border border-[rgba(197,168,124,0.18)] text-caramelo',
 }
 
 const INPUT_BASE =
@@ -76,7 +76,7 @@ const FormularioReserva = memo(function FormularioReserva({
     // Dispara a busca de slots sempre que os pré-requisitos forem atendidos
     useEffect(() => {
         async function buscarVagas() {
-            if (!profissionalId || !dataCalendario || servicosSelecionados.length === 0) {
+            if (!dataCalendario || servicosSelecionados.length === 0) {
                 setHorariosDisponiveis([])
                 setHoraSelecionada('')
                 setDataHora('')
@@ -88,7 +88,8 @@ const FormularioReserva = memo(function FormularioReserva({
             setDataHora('')
 
             try {
-                const vagas = await obterHorariosDisponiveis(profissionalId, dataCalendario, servicosSelecionados)
+                // Passamos o profissionalId (que pode ser vazio "") para a action
+                const vagas = await obterHorariosDisponiveis(profissionalId || undefined, dataCalendario, servicosSelecionados)
                 setHorariosDisponiveis(vagas)
             } catch (error) {
                 console.error("Erro ao buscar vagas", error)
@@ -121,7 +122,6 @@ const FormularioReserva = memo(function FormularioReserva({
         servicosSelecionados.length > 0 &&
         nome.length > 2 &&
         telefone.length >= 14 &&
-        profissionalId &&
         dataHora // Exige que a Data e a Hora tenham sido combinadas
 
     return (
@@ -143,11 +143,11 @@ const FormularioReserva = memo(function FormularioReserva({
             <div className="relative z-10 max-w-[760px] mx-auto px-6 md:px-16">
                 <div className="text-center mb-14">
                     <div className="flex items-center justify-center gap-4 mb-6">
-                        <div className="h-px w-12 bg-gradient-to-r from-transparent to-[#c5a87c]/50" />
-                        <span className="font-sans text-[0.62rem] font-medium tracking-[0.3em] uppercase text-[#c5a87c]/60">
+                        <div className="h-px w-12 bg-gradient-to-r from-transparent to-caramelo/50" />
+                        <span className="font-sans text-[0.62rem] font-medium tracking-[0.3em] uppercase text-caramelo/60">
                             Reserve o seu horário
                         </span>
-                        <div className="h-px w-12 bg-gradient-to-l from-transparent to-[#c5a87c]/50" />
+                        <div className="h-px w-12 bg-gradient-to-l from-transparent to-caramelo/50" />
                     </div>
                     <h2 className="font-serif text-[2.2rem] md:text-[3rem] font-light text-white/85 mb-3 leading-[1.1] tracking-[-0.01em]">
                         Agendamento Online
@@ -168,11 +168,11 @@ const FormularioReserva = memo(function FormularioReserva({
                         >
                             <p className="text-[0.75rem] text-white/40 font-light">
                                 Já possui cadastro no salão?{' '}
-                                <strong className="text-[#c5a87c] font-medium">Faça login para agilizar.</strong>
+                                <strong className="text-caramelo font-medium">Faça login para agilizar.</strong>
                             </p>
                             <Link
                                 href="/login"
-                                className="py-2 px-5 border border-[rgba(197,168,124,0.3)] font-sans text-[0.65rem] font-medium tracking-[0.18em] uppercase text-[#c5a87c]/80 whitespace-nowrap transition-all hover:bg-[rgba(197,168,124,0.08)] hover:border-[rgba(197,168,124,0.55)]"
+                                className="py-2 px-5 border border-[rgba(197,168,124,0.3)] font-sans text-[0.65rem] font-medium tracking-[0.18em] uppercase text-caramelo/80 whitespace-nowrap transition-all hover:bg-[rgba(197,168,124,0.08)] hover:border-[rgba(197,168,124,0.55)]"
                             >
                                 Entrar
                             </Link>
@@ -193,7 +193,7 @@ const FormularioReserva = memo(function FormularioReserva({
                                 .map(s => (
                                     <span
                                         key={s.id}
-                                        className="py-1.5 px-3 bg-[rgba(197,168,124,0.1)] border border-[rgba(197,168,124,0.2)] text-[0.68rem] font-medium text-[#c5a87c] tracking-[0.06em]"
+                                        className="py-1.5 px-3 bg-[rgba(197,168,124,0.1)] border border-[rgba(197,168,124,0.2)] text-[0.68rem] font-medium text-caramelo tracking-[0.06em]"
                                     >
                                         {s.nome}
                                     </span>
@@ -269,8 +269,9 @@ const FormularioReserva = memo(function FormularioReserva({
                                 </label>
                                 <div className="flex gap-3 items-center">
                                     {profissionalId && profissionalSelecionado && (
-                                        <div className="w-10 h-10 rounded-full flex-shrink-0 bg-[#8B5A2B] text-white flex items-center justify-center font-bold text-sm overflow-hidden border border-[rgba(197,168,124,0.4)]">
+                                        <div className="w-10 h-10 rounded-full flex-shrink-0 bg-marrom-claro text-white flex items-center justify-center font-bold text-sm overflow-hidden border border-[rgba(197,168,124,0.4)]">
                                             {profissionalSelecionado.fotoUrl
+                                                /* eslint-disable-next-line @next/next/no-img-element */
                                                 ? <img src={profissionalSelecionado.fotoUrl} alt={`Foto de ${profissionalSelecionado.nome}`} className="w-full h-full object-cover" />
                                                 : inicial(profissionalSelecionado.nome)
                                             }
@@ -278,12 +279,12 @@ const FormularioReserva = memo(function FormularioReserva({
                                     )}
                                     <DarkSelect
                                         id="profissional"
-                                        required
-                                        value={profissionalId}
+                                        required={false}
+                                        value={profissionalId || ""}
                                         onChange={e => setProfissionalId(e.target.value)}
                                         style={{ flex: 1 }}
                                     >
-                                        <option value="">Selecione quem fará o serviço</option>
+                                        <option value="">Qualquer profissional disponível</option>
                                         {profissionais.map(p => (
                                             <option key={p.id} value={p.id}>{p.nome}</option>
                                         ))}
@@ -302,19 +303,19 @@ const FormularioReserva = memo(function FormularioReserva({
                                     min={new Date().toISOString().split('T')[0]}
                                     value={dataCalendario}
                                     onChange={e => setDataCalendario(e.target.value)}
-                                    disabled={!profissionalId || servicosSelecionados.length === 0}
+                                    disabled={servicosSelecionados.length === 0}
                                 />
                             </div>
 
                             {/* Renderização dinâmica dos Slots de Horário */}
-                            {dataCalendario && profissionalId && servicosSelecionados.length > 0 && (
+                            {dataCalendario && servicosSelecionados.length > 0 && (
                                 <div className="col-span-1 md:col-span-2 mt-2 p-5 bg-white/[0.02] border border-[rgba(197,168,124,0.08)]">
                                     <label className="block font-sans text-[0.62rem] font-medium tracking-[0.2em] uppercase text-[rgba(197,168,124,0.75)] mb-4 text-center">
                                         Horários Disponíveis
                                     </label>
 
                                     {buscandoHorarios ? (
-                                        <p className="text-sm text-[#c5a87c]/60 font-light text-center animate-pulse">Consultando agenda do profissional...</p>
+                                        <p className="text-sm text-caramelo/60 font-light text-center animate-pulse">Consultando agenda...</p>
                                     ) : horariosDisponiveis.length > 0 ? (
                                         <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 gap-2.5">
                                             {horariosDisponiveis.map(h => (
@@ -325,8 +326,8 @@ const FormularioReserva = memo(function FormularioReserva({
                                                     className={cn(
                                                         "py-2.5 px-2 rounded-md text-[0.8rem] font-medium transition-all duration-200 border",
                                                         horaSelecionada === h
-                                                            ? "bg-[#c5a87c] text-[#0e0905] border-[#c5a87c] shadow-[0_0_12px_rgba(197,168,124,0.3)]"
-                                                            : "bg-white/[0.04] text-[#c5a87c]/80 border-[rgba(197,168,124,0.15)] hover:border-[#c5a87c]/50 hover:bg-white/[0.08]"
+                                                            ? "bg-caramelo text-[#0e0905] border-caramelo shadow-[0_0_12px_rgba(197,168,124,0.3)]"
+                                                            : "bg-white/[0.04] text-caramelo/80 border-[rgba(197,168,124,0.15)] hover:border-caramelo/50 hover:bg-white/[0.08]"
                                                     )}
                                                 >
                                                     {h}
@@ -334,9 +335,18 @@ const FormularioReserva = memo(function FormularioReserva({
                                             ))}
                                         </div>
                                     ) : (
-                                        <p className="text-sm text-[#f08080] font-light bg-[rgba(235,87,87,0.08)] border border-[rgba(235,87,87,0.2)] py-2.5 px-3 rounded text-center">
-                                            Nenhum horário disponível nesta data.
-                                        </p>
+                                        <div className="bg-[rgba(235,87,87,0.08)] border border-[rgba(235,87,87,0.2)] p-4 rounded-lg text-center mt-3 flex flex-col gap-2">
+                                            <p className="text-sm text-[#f08080] font-light">
+                                                Infelizmente não temos profissionais disponíveis para realizar todos os serviços selecionados neste mesmo dia.
+                                            </p>
+                                            <button 
+                                                type="button"
+                                                onClick={() => (document.getElementById('dataCalendario') as HTMLInputElement | null)?.showPicker()} 
+                                                className="text-xs font-bold text-[#f08080] bg-[#f08080]/10 hover:bg-[#f08080]/20 px-3 py-2 rounded transition-colors w-fit mx-auto border border-[#f08080]/20"
+                                            >
+                                                Gostaria de agendar para outro dia?
+                                            </button>
+                                        </div>
                                     )}
                                 </div>
                             )}
@@ -347,7 +357,7 @@ const FormularioReserva = memo(function FormularioReserva({
                                 <span className="font-sans text-[0.65rem] font-medium tracking-[0.2em] uppercase text-[rgba(197,168,124,0.6)]">
                                     Total · {servicosSelecionados.length} serviço{servicosSelecionados.length > 1 ? 's' : ''}
                                 </span>
-                                <span className="font-serif text-[1.65rem] font-light text-[#c5a87c]">
+                                <span className="font-serif text-[1.65rem] font-light text-caramelo">
                                     R$ {totalSelecionado.toFixed(2)}
                                 </span>
                             </div>
@@ -356,7 +366,7 @@ const FormularioReserva = memo(function FormularioReserva({
                         <button
                             type="submit"
                             disabled={!prontoParaAgendar}
-                            className="w-full py-4 mt-5 bg-[#c5a87c] text-[#0e0905] border-none font-sans text-[0.72rem] font-semibold tracking-[0.2em] uppercase cursor-pointer transition-all duration-300 hover:enabled:bg-[#d4b896] hover:enabled:shadow-[0_8px_32px_rgba(197,168,124,0.25)] active:enabled:scale-[0.99] disabled:opacity-35 disabled:cursor-not-allowed"
+                            className="w-full py-4 mt-5 bg-caramelo text-[#0e0905] border-none font-sans text-[0.72rem] font-semibold tracking-[0.2em] uppercase cursor-pointer transition-all duration-300 hover:enabled:bg-[#d4b896] hover:enabled:shadow-[0_8px_32px_rgba(197,168,124,0.25)] active:enabled:scale-[0.99] disabled:opacity-35 disabled:cursor-not-allowed"
                         >
                             {servicosSelecionados.length === 0
                                 ? 'Selecione os serviços acima'

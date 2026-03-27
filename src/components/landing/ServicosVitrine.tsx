@@ -49,7 +49,7 @@ const CardServico = memo(function CardServico({ servico, icone, selecionado, onT
                 className={cn(
                     'absolute top-5 right-5 w-5 h-5 rounded-full border transition-all duration-300 flex items-center justify-center',
                     selecionado
-                        ? 'bg-[#8B5A2B] border-[#8B5A2B]'
+                        ? 'bg-marrom-claro border-marrom-claro'
                         : 'border-[rgba(197,168,124,0.3)] group-hover:border-[rgba(197,168,124,0.6)]'
                 )}
             >
@@ -65,8 +65,8 @@ const CardServico = memo(function CardServico({ servico, icone, selecionado, onT
                 className={cn(
                     'w-10 h-10 rounded-full flex items-center justify-center mb-6 transition-all duration-300',
                     selecionado
-                        ? 'bg-[#8B5A2B]/10 text-[#8B5A2B]'
-                        : 'bg-[#f3ede6] text-[#9c8070] group-hover:bg-[#8B5A2B]/8 group-hover:text-[#8B5A2B]'
+                        ? 'bg-marrom-claro/10 text-marrom-claro'
+                        : 'bg-[#f3ede6] text-[#9c8070] group-hover:bg-marrom-claro/8 group-hover:text-marrom-claro'
                 )}
             >
                 {icone}
@@ -86,7 +86,7 @@ const CardServico = memo(function CardServico({ servico, icone, selecionado, onT
             <div className="flex items-end justify-between mt-6 pt-5 border-t border-[rgba(197,168,124,0.15)]">
                 <span className={cn(
                     'font-serif text-[1.4rem] font-light leading-none transition-colors duration-300',
-                    selecionado ? 'text-[#8B5A2B]' : 'text-[#5C4033]'
+                    selecionado ? 'text-marrom-claro' : 'text-marrom-medio'
                 )}>
                     {servico.preco != null ? `R$ ${servico.preco.toFixed(2)}` : 'Sob Consulta'}
                 </span>
@@ -126,15 +126,15 @@ const ServicosVitrine = memo(function ServicosVitrine({
                 <div className="flex flex-col md:flex-row md:items-end justify-between gap-8 mb-10">
                     <div>
                         <div className="flex items-center gap-3 mb-5">
-                            <div className="h-px w-8 bg-gradient-to-r from-transparent to-[#c5a87c]" />
-                            <span className="font-sans text-[0.62rem] font-medium tracking-[0.3em] uppercase text-[#c5a87c]">
+                            <div className="h-px w-8 bg-gradient-to-r from-transparent to-caramelo" />
+                            <span className="font-sans text-[0.62rem] font-medium tracking-[0.3em] uppercase text-caramelo">
                                 O que oferecemos
                             </span>
                         </div>
                         <h2 className="font-serif text-[2.2rem] md:text-[3rem] font-light text-[#2a1810] leading-[1.1] tracking-[-0.01em]">
                             Tratamentos pensados para
                             <br />
-                            <em className="italic text-[#8B5A2B] not-italic font-semibold">realçar</em> você
+                            <em className="italic text-marrom-claro not-italic font-semibold">realçar</em> você
                         </h2>
                     </div>
                     <p className="text-[0.75rem] text-[#9c8070] font-light tracking-[0.05em] md:text-right max-w-[200px]">
@@ -150,7 +150,7 @@ const ServicosVitrine = memo(function ServicosVitrine({
                             placeholder="Buscar tratamento..."
                             value={busca}
                             onChange={e => setBusca(e.target.value)}
-                            className="w-full pl-11 pr-4 py-3 bg-white border border-[rgba(197,168,124,0.3)] rounded-full outline-none focus:border-[#8B5A2B] shadow-sm transition-all text-[#2a1810] placeholder:text-[#9c8070]/60 text-sm"
+                            className="w-full pl-11 pr-4 py-3 bg-white border border-[rgba(197,168,124,0.3)] rounded-full outline-none focus:border-marrom-claro shadow-sm transition-all text-[#2a1810] placeholder:text-[#9c8070]/60 text-sm"
                         />
                         <svg className="absolute left-4 top-1/2 -translate-y-1/2 text-[#9c8070]/60" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                             <circle cx="11" cy="11" r="8"></circle>
@@ -188,7 +188,7 @@ const ServicosVitrine = memo(function ServicosVitrine({
                         style={{ clipPath: 'polygon(8px 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%,0 8px)' }}
                     >
                         <div>
-                            <span className="block font-sans text-[0.6rem] font-medium tracking-[0.2em] uppercase text-[#c5a87c]/70 mb-1">
+                            <span className="block font-sans text-[0.6rem] font-medium tracking-[0.2em] uppercase text-caramelo/70 mb-1">
                                 {servicosSelecionados.length} serviço{servicosSelecionados.length > 1 ? 's' : ''} selecionado{servicosSelecionados.length > 1 ? 's' : ''}
                             </span>
                             <span className="block font-serif text-[1.6rem] font-light text-white">
@@ -197,7 +197,7 @@ const ServicosVitrine = memo(function ServicosVitrine({
                         </div>
                         <a
                             href="#agendamento"
-                            className="inline-flex items-center gap-2.5 py-3 px-7 bg-[#c5a87c] text-[#2a1810] font-sans text-[0.7rem] font-semibold tracking-[0.18em] uppercase transition-colors duration-300 hover:bg-[#d4b896] whitespace-nowrap"
+                            className="inline-flex items-center gap-2.5 py-3 px-7 bg-caramelo text-[#2a1810] font-sans text-[0.7rem] font-semibold tracking-[0.18em] uppercase transition-colors duration-300 hover:bg-[#d4b896] whitespace-nowrap"
                         >
                             Confirmar
                             <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">

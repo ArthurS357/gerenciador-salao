@@ -23,14 +23,14 @@ const PortfolioGaleria = memo(function PortfolioGaleria({ itensPortfolio }: Port
                 <div className="flex flex-col md:flex-row md:items-end justify-between gap-8 mb-14">
                     <div>
                         <div className="flex items-center gap-3 mb-5">
-                            <div className="h-px w-8 bg-gradient-to-r from-transparent to-[#c5a87c]/60" />
-                            <span className="font-sans text-[0.62rem] font-medium tracking-[0.3em] uppercase text-[#c5a87c]/60">
+                            <div className="h-px w-8 bg-gradient-to-r from-transparent to-caramelo/60" />
+                            <span className="font-sans text-[0.62rem] font-medium tracking-[0.3em] uppercase text-caramelo/60">
                                 Nosso Portfólio
                             </span>
                         </div>
                         <h2 className="font-serif text-[2.2rem] md:text-[3rem] font-light text-white/85 leading-[1.1] tracking-[-0.01em]">
                             Resultados que
-                            <em className="block italic text-[#c5a87c] not-italic font-semibold">Inspiram</em>
+                            <em className="block italic text-caramelo not-italic font-semibold">Inspiram</em>
                         </h2>
                     </div>
 
@@ -39,7 +39,7 @@ const PortfolioGaleria = memo(function PortfolioGaleria({ itensPortfolio }: Port
                             href="https://instagram.com"
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="group inline-flex items-center gap-2.5 text-[0.65rem] font-medium tracking-[0.18em] uppercase text-white/35 transition-colors duration-300 hover:text-[#c5a87c]/80"
+                            className="group inline-flex items-center gap-2.5 text-[0.65rem] font-medium tracking-[0.18em] uppercase text-white/35 transition-colors duration-300 hover:text-caramelo/80"
                         >
                             {/* SVG do Instagram mantido */}
                             Ver Instagram
@@ -52,7 +52,7 @@ const PortfolioGaleria = memo(function PortfolioGaleria({ itensPortfolio }: Port
                                 placeholder="Procurar serviço..." 
                                 value={busca}
                                 onChange={(e) => setBusca(e.target.value)}
-                                className="w-full bg-[#1a0f0a] border border-[rgba(197,168,124,0.3)] text-white/80 placeholder-white/30 rounded px-4 py-2 text-sm outline-none focus:border-[#c5a87c] transition-colors"
+                                className="w-full bg-[#1a0f0a] border border-[rgba(197,168,124,0.3)] text-white/80 placeholder-white/30 rounded px-4 py-2 text-sm outline-none focus:border-caramelo transition-colors"
                             />
                         </div>
                     </div>
