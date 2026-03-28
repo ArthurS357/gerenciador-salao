@@ -5,11 +5,12 @@ import { verificarNumeroExisteNoWhatsApp, enviarMensagemWhatsApp } from '@/lib/w
 import { formatInTimeZone } from 'date-fns-tz'
 import { ptBR } from 'date-fns/locale'
 import { verificarRateLimit } from '@/lib/rateLimit'
+import { after } from 'next/server'
 
 // ── Tipagens Estritas ─────────────────────────────────────────────────────────
 
-type ActionResult<T = object> =
-    | ({ sucesso: true } & T)
+type ActionResult<T = void> =
+    | (T extends void ? { sucesso: true } : { sucesso: true } & T)
     | { sucesso: false; erro: string }
 
 export type AgendaProfissionalItem = {
@@ -244,12 +245,13 @@ export async function criarAgendamentoMultiplo(
 
 Para cancelar ou reagendar, por favor acesse o painel no nosso site. Estamos ansiosos para te receber!`;
 
-        // Disparo Controlado: aguardamos a conclusão para estabilidade em lambdas serverless.
-        const promiseWhatsApp = enviarMensagemWhatsApp(cliente.telefone, mensagemConfirmacao).catch(err => {
-            console.warn(`[Background Task] Falha silenciosa ao notificar cliente ${clienteId}:`, err);
+        // Disparo em Background Real: after() garante a execução após o envio da resposta,
+        // sem atrasar a latência nem ser morto prematuramente em ambientes serverless (Vercel/AWS).
+        after(async () => {
+            await enviarMensagemWhatsApp(cliente.telefone, mensagemConfirmacao).catch(err => {
+                console.warn(`[Background Task] Falha silenciosa ao notificar cliente ${clienteId}:`, err);
+            });
         });
-
-        await promiseWhatsApp;
 
         return { sucesso: true, agendamentoId: novoAgendamento.id }
     } catch (error) {

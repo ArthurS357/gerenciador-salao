@@ -6,6 +6,13 @@ import { prisma } from '@/lib/prisma'
 import { compare } from 'bcrypt'
 
 // Chave secreta para assinatura dos tokens. Em produção, DEVE vir do .env
+if (!process.env.JWT_SECRET && process.env.NODE_ENV === 'production') {
+    throw new Error(
+        'FATAL: JWT_SECRET não está definido nas variáveis de ambiente de produção. ' +
+        'Defina-o imediatamente para evitar tokens assinados com chave pública conhecida.'
+    )
+}
+
 const JWT_SECRET = new TextEncoder().encode(
     process.env.JWT_SECRET ?? 'chave_secreta_desenvolvimento'
 )
