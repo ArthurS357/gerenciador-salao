@@ -118,11 +118,17 @@ model Agendamento {
   dataHoraInicio DateTime
   dataHoraFim    DateTime
   valorBruto     Float
-  taxas          Float    @default(0)
   concluido      Boolean  @default(false)
   canceladoEm    DateTime?
-  
-  custoInsumos   Float    @default(0) 
+
+  // ── Snapshot Financeiro Imutável (preenchido somente no fechamento da comanda) ──
+  // Estes campos são gravados UMA ÚNICA VEZ quando concluido vira true.
+  // Nunca devem ser recalculados dinamicamente; refletem a realidade do momento do atendimento.
+  taxas          Float    @default(0)   // Taxa do adquirente de cartão (% sobre valorBruto)
+  custoInsumos   Float    @default(0)   // Insumos consumidos (validado/editado pelo operador)
+  custoRevenda   Float    @default(0)   // precoCusto × quantidade de cada produto vendido
+  valorComissao  Float    @default(0)   // Repasse ao profissional (sobre baseLiquida)
+  comissaoSnap   Float    @default(0)   // % de comissão congelada no momento do fechamento
 
   cliente        Cliente     @relation(fields: [clienteId], references: [id])
   funcionario    Funcionario @relation(fields: [funcionarioId], references: [id])
@@ -131,7 +137,8 @@ model Agendamento {
   produtos       ItemProduto[]
   avaliacao      Avaliacao?
 
-  @@index([funcionarioId, dataHoraInicio, dataHoraFim])
+  @@index([funcionarioId, dataHoraInicio, dataHoraFim]) // Anti-double-booking
+  @@index([concluido, dataHoraInicio])                  // Relatórios financeiros (full scan → index range scan)
 }
 
 model ItemServico {
