@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { CalendarOff } from 'lucide-react'
+import { CalendarOff, LogOut, Trash2 } from 'lucide-react'
 import { logoutCliente } from '@/app/actions/auth'
 import { excluirContaCliente } from '@/app/actions/cliente'
 import { criarAvaliacao } from '@/app/actions/avaliacao'
@@ -16,15 +16,13 @@ interface ClienteDashboardUIProps {
     totalGasto: number
 }
 
-// 2. Tipo auxiliar para evitar o uso de 'any'
-// Assume que 'avaliacao' pode vir do backend mas não está na tipagem padrão
 type HistoricoItemComAvaliacao = HistoricoAgendamentoItem & {
     avaliacao?: unknown
 }
 
 const STATUS_BADGE = {
-    concluido: 'bg-green-100 text-green-700 border border-green-200',
-    pendente: 'bg-orange-100 text-orange-700 border border-orange-200',
+    concluido: 'bg-[rgba(197,168,124,0.1)] text-caramelo border border-[rgba(197,168,124,0.3)]',
+    pendente: 'bg-white text-[#2a1810] border border-[#2a1810]/20 shadow-sm',
 } as const
 
 function formatarData(data: Date | string) {
@@ -103,90 +101,115 @@ export default function ClienteDashboardUI({
     const concluidos = agendamentos.filter(a => a.concluido)
 
     return (
-        <div className="min-h-screen bg-[#fdfbf7] p-4 md:p-8 pt-24 relative">
-            <div className="max-w-4xl mx-auto space-y-6">
+        <div className="min-h-screen bg-[#fdfaf6] p-4 md:p-8 pt-24 relative selection:bg-caramelo selection:text-white">
+            <div className="max-w-4xl mx-auto space-y-10">
 
-                {/* Header */}
-                <div className="bg-white rounded-2xl shadow-sm border border-[#e5d9c5] p-6 md:p-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                    <div>
-                        <h1 className="text-2xl md:text-3xl font-bold text-marrom-medio">
-                            Olá, {nomeCliente} 👋
+                {/* Header Elegante */}
+                <div className="bg-white rounded-none border border-[rgba(197,168,124,0.15)] p-8 md:p-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-6 shadow-[0_4px_30px_rgba(42,24,16,0.03)] relative overflow-hidden">
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-[radial-gradient(circle,rgba(197,168,124,0.05)_0%,transparent_70%)] rounded-full blur-xl pointer-events-none" />
+
+                    <div className="relative z-10">
+                        <div className="flex items-center gap-3 mb-2">
+                            <div className="h-px w-6 bg-gradient-to-r from-transparent to-caramelo" />
+                            <span className="font-sans text-[0.6rem] font-medium tracking-[0.25em] uppercase text-caramelo">
+                                Área do Cliente
+                            </span>
+                        </div>
+                        <h1 className="text-3xl md:text-4xl font-serif font-light text-[#2a1810] tracking-tight">
+                            Olá, <em className="italic text-caramelo font-medium">{nomeCliente}</em>
                         </h1>
-                        <p className="text-gray-500 mt-1 text-sm">
-                            Bem-vinda ao seu painel pessoal.
+                        <p className="text-[#9c8070] mt-2 text-[0.85rem] font-light">
+                            Acompanhe seus agendamentos e histórico de beleza.
                         </p>
                     </div>
+
                     <button
                         onClick={handleLogout}
-                        className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg font-semibold hover:bg-gray-200 transition-colors text-sm"
+                        className="relative z-10 flex items-center gap-2 border border-[rgba(197,168,124,0.3)] bg-transparent text-[#2a1810] px-5 py-2.5 rounded-full font-sans text-[0.65rem] font-semibold uppercase tracking-[0.15em] hover:bg-[rgba(197,168,124,0.05)] hover:border-caramelo transition-all duration-300"
                     >
-                        Sair
+                        <LogOut className="w-3.5 h-3.5 text-caramelo" />
+                        Sair da Conta
                     </button>
                 </div>
 
-                {/* Resumo financeiro */}
+                {/* Resumo Financeiro Premium */}
                 {totalGasto > 0 && (
-                    <div className="bg-white rounded-2xl shadow-sm border border-[#e5d9c5] p-6 flex items-center justify-between">
-                        <div>
-                            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Total investido no salão</p>
-                            <p className="text-3xl font-bold text-marrom-claro mt-1">
-                                R$ {totalGasto.toFixed(2)}
+                    <div className="bg-[#2a1810] rounded-none p-8 md:p-10 flex items-center justify-between relative overflow-hidden shadow-[0_12px_40px_rgba(42,24,16,0.15)]">
+                        <div className="absolute top-[-50%] right-[-10%] w-[60%] h-[200%] bg-[radial-gradient(ellipse,rgba(197,168,124,0.15)_0%,transparent_60%)] blur-2xl pointer-events-none" />
+
+                        <div className="relative z-10">
+                            <p className="text-[0.65rem] font-sans font-medium text-[rgba(197,168,124,0.7)] uppercase tracking-[0.2em] mb-2">
+                                Total investido em você
+                            </p>
+                            <p className="text-4xl md:text-5xl font-serif font-light text-white tracking-tight">
+                                <span className="text-caramelo/60 text-3xl mr-1">R$</span>
+                                {totalGasto.toFixed(2)}
                             </p>
                         </div>
-                        <div className="text-4xl">💆‍♀️</div>
+
+                        <div className="relative z-10 hidden md:flex items-center justify-center w-16 h-16 rounded-full border border-[rgba(197,168,124,0.2)] bg-white/5">
+                            <svg className="text-caramelo w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+                            </svg>
+                        </div>
                     </div>
                 )}
 
-                {/* Próximos agendamentos */}
+                {/* Próximos Agendamentos */}
                 <section>
-                    <h2 className="font-bold text-marrom-medio text-lg mb-3 flex items-center gap-2">
-                        <span className="w-1.5 h-6 bg-marrom-claro rounded-full inline-block" />
-                        Próximos Agendamentos
-                    </h2>
+                    <div className="flex items-center gap-3 mb-6">
+                        <span className="w-1.5 h-6 bg-caramelo rounded-sm inline-block" />
+                        <h2 className="font-serif text-2xl text-[#2a1810] font-light">Próximos Horários</h2>
+                    </div>
 
                     {pendentes.length === 0 ? (
-                        <div className="bg-white rounded-3xl border border-dashed border-marrom-claro/30 p-12 text-center text-gray-400 flex flex-col items-center justify-center">
-                            <div className="w-16 h-16 bg-orange-50 rounded-full flex items-center justify-center mb-4">
-                                <CalendarOff className="w-8 h-8 text-marrom-claro/60" strokeWidth={2} />
+                        <div className="bg-white border border-[rgba(197,168,124,0.15)] p-14 text-center flex flex-col items-center justify-center shadow-sm relative overflow-hidden group">
+                            <div className="w-16 h-16 bg-[rgba(197,168,124,0.05)] rounded-full flex items-center justify-center mb-5 group-hover:scale-110 transition-transform duration-500">
+                                <CalendarOff className="w-7 h-7 text-caramelo/70" strokeWidth={1.5} />
                             </div>
-                            <p className="text-lg font-bold text-gray-700">Parece que a sua agenda está livre</p>
-                            <p className="text-sm font-medium text-gray-500 mt-1 mb-6">Que tal marcar um momento dedicado a si?</p>
-                            
+                            <p className="text-xl font-serif font-medium text-[#2a1810]">Sua agenda está livre</p>
+                            <p className="text-[0.8rem] font-light text-[#9c8070] mt-2 mb-8 max-w-xs mx-auto">
+                                Que tal reservar um momento exclusivo para cuidar de você hoje?
+                            </p>
+
                             <Link
                                 href="/#agendamento"
-                                className="inline-flex items-center justify-center gap-2 px-8 py-3 bg-marrom-medio text-white rounded-xl text-sm font-bold shadow-md hover:bg-[#3e2b22] hover:scale-[1.02] active:scale-95 transition-all"
+                                className="inline-flex items-center justify-center gap-2 px-8 py-3.5 bg-caramelo text-[#2a1810] font-sans text-[0.7rem] font-bold uppercase tracking-[0.15em] hover:bg-[#d4b896] transition-colors duration-300"
                             >
                                 Agendar Agora
                             </Link>
                         </div>
                     ) : (
-                        <div className="space-y-3">
+                        <div className="space-y-4">
                             {pendentes.map(ag => (
-                                <div key={ag.id} className="bg-white rounded-2xl border border-[#e5d9c5] p-5 shadow-sm flex flex-col md:flex-row gap-4 items-start md:items-center">
-                                    <div className="flex flex-col items-center justify-center min-w-[90px] py-3 bg-orange-50 rounded-xl border border-orange-100 text-center">
-                                        <span className="text-xl font-black text-marrom-medio leading-none">
+                                <div key={ag.id} className="bg-white border border-[rgba(197,168,124,0.15)] p-5 md:p-6 shadow-sm hover:shadow-[0_8px_30px_rgba(42,24,16,0.04)] transition-all duration-300 flex flex-col md:flex-row gap-5 items-start md:items-center group">
+
+                                    {/* Data Block */}
+                                    <div className="flex flex-col items-center justify-center min-w-[100px] py-4 bg-[rgba(197,168,124,0.04)] border border-[rgba(197,168,124,0.1)] group-hover:bg-[rgba(197,168,124,0.08)] transition-colors">
+                                        <span className="text-2xl font-serif font-medium text-[#2a1810] leading-none">
                                             {new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' }).format(new Date(ag.dataHoraInicio))}
                                         </span>
-                                        <span className="text-[10px] font-semibold text-marrom-claro mt-1 uppercase tracking-wider">
-                                            {new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short' }).format(new Date(ag.dataHoraInicio))}
+                                        <span className="text-[0.6rem] font-sans font-bold text-caramelo mt-2 uppercase tracking-widest">
+                                            {new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'short' }).format(new Date(ag.dataHoraInicio)).replace('.', '')}
                                         </span>
                                     </div>
 
+                                    {/* Details */}
                                     <div className="flex-1">
-                                        <p className="font-semibold text-gray-800 text-sm">
-                                            Com: <strong className="text-marrom-medio">{ag.funcionario.nome}</strong>
+                                        <p className="font-sans text-[0.7rem] text-[#9c8070] uppercase tracking-[0.1em] mb-1">
+                                            Profissional: <strong className="text-[#2a1810] font-bold">{ag.funcionario.nome}</strong>
                                         </p>
-                                        <div className="flex flex-wrap gap-1.5 mt-2">
+                                        <div className="flex flex-wrap gap-2 mt-3">
                                             {ag.servicos.map(s => (
-                                                <span key={s.servico.nome} className="text-[10px] font-bold uppercase tracking-wider bg-gray-100 text-gray-600 px-2 py-0.5 rounded">
+                                                <span key={s.servico.nome} className="text-[0.65rem] font-medium font-sans uppercase tracking-[0.08em] bg-[#fdfaf6] border border-[rgba(197,168,124,0.2)] text-[#2a1810] px-2.5 py-1">
                                                     {s.servico.nome}
                                                 </span>
                                             ))}
                                         </div>
                                     </div>
 
-                                    <span className={`px-2.5 py-1 text-[10px] font-bold rounded uppercase tracking-wider ${STATUS_BADGE.pendente}`}>
-                                        Pendente
+                                    <span className={`px-3 py-1.5 text-[0.6rem] font-bold uppercase tracking-[0.15em] ${STATUS_BADGE.pendente}`}>
+                                        Aguardando
                                     </span>
                                 </div>
                             ))}
@@ -197,41 +220,43 @@ export default function ClienteDashboardUI({
                 {/* Histórico */}
                 {concluidos.length > 0 && (
                     <section>
-                        <h2 className="font-bold text-marrom-medio text-lg mb-3 flex items-center gap-2">
-                            <span className="w-1.5 h-6 bg-green-500 rounded-full inline-block" />
-                            Histórico de Visitas
-                        </h2>
-                        <div className="space-y-3">
+                        <div className="flex items-center gap-3 mb-6 mt-12">
+                            <span className="w-1.5 h-6 bg-[#2a1810] rounded-sm inline-block" />
+                            <h2 className="font-serif text-2xl text-[#2a1810] font-light">Seu Histórico</h2>
+                        </div>
+
+                        <div className="space-y-4">
                             {concluidos.map(ag => {
-                                // CORREÇÃO 2: Uso de tipo definido em vez de 'any'
                                 const itemComAvaliacao = ag as HistoricoItemComAvaliacao;
                                 const jaAvaliado = itemComAvaliacao.avaliacao != null || avaliadosLocalmente.includes(ag.id);
 
                                 return (
-                                    <div key={ag.id} className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm flex flex-col md:flex-row gap-4 items-start md:items-center">
+                                    <div key={ag.id} className="bg-white border border-[rgba(197,168,124,0.15)] p-5 md:p-6 shadow-sm hover:border-[rgba(197,168,124,0.3)] transition-colors duration-300 flex flex-col md:flex-row gap-5 items-start md:items-center">
                                         <div className="flex-1 w-full">
                                             <div className="flex justify-between items-start w-full">
                                                 <div>
-                                                    <p className="text-xs text-gray-400">{formatarData(ag.dataHoraInicio)}</p>
-                                                    <p className="font-semibold text-gray-700 text-sm mt-0.5">
-                                                        Com: {ag.funcionario.nome}
+                                                    <p className="text-[0.65rem] font-sans uppercase tracking-[0.1em] text-[#9c8070]">
+                                                        {formatarData(ag.dataHoraInicio).replace('.', '')}
+                                                    </p>
+                                                    <p className="font-serif text-[1.1rem] text-[#2a1810] mt-1">
+                                                        Com {ag.funcionario.nome}
                                                     </p>
                                                 </div>
-                                                <div className="text-right flex flex-col items-end gap-1">
-                                                    <span className="font-black text-marrom-claro">
+                                                <div className="text-right flex flex-col items-end gap-2">
+                                                    <span className="font-serif text-lg text-caramelo font-medium">
                                                         R$ {ag.valorBruto.toFixed(2)}
                                                     </span>
-                                                    <span className={`px-2.5 py-1 text-[10px] font-bold rounded uppercase tracking-wider ${STATUS_BADGE.concluido}`}>
-                                                        Faturado
+                                                    <span className={`px-2 py-1 text-[0.55rem] font-bold uppercase tracking-[0.15em] ${STATUS_BADGE.concluido}`}>
+                                                        Finalizado
                                                     </span>
                                                 </div>
                                             </div>
 
-                                            <div className="flex flex-wrap items-center justify-between gap-4 mt-3 pt-3 border-t border-gray-50">
-                                                <div className="flex flex-wrap gap-1.5">
+                                            <div className="flex flex-wrap items-center justify-between gap-4 mt-4 pt-4 border-t border-[rgba(197,168,124,0.1)]">
+                                                <div className="flex flex-wrap gap-2">
                                                     {ag.servicos.map(s => (
-                                                        <span key={s.servico.nome} className="text-[10px] font-bold uppercase tracking-wider bg-gray-100 text-gray-500 px-2 py-0.5 rounded">
-                                                            {s.servico.nome}
+                                                        <span key={s.servico.nome} className="text-[0.6rem] font-medium font-sans uppercase tracking-[0.08em] text-[#9c8070]">
+                                                            • {s.servico.nome}
                                                         </span>
                                                     ))}
                                                 </div>
@@ -240,13 +265,15 @@ export default function ClienteDashboardUI({
                                                 {!jaAvaliado ? (
                                                     <button
                                                         onClick={() => setAvaliandoId(ag.id)}
-                                                        className="px-3 py-1.5 bg-orange-50 text-marrom-claro border border-orange-200 rounded text-xs font-bold hover:bg-marrom-claro hover:text-white transition-colors flex items-center gap-1 shadow-sm"
+                                                        className="px-4 py-2 border border-caramelo text-caramelo text-[0.65rem] font-bold uppercase tracking-[0.1em] hover:bg-caramelo hover:text-white transition-colors flex items-center gap-1.5"
                                                     >
-                                                        <span>⭐</span> Avaliar Atendimento
+                                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>
+                                                        Avaliar Atendimento
                                                     </button>
                                                 ) : (
-                                                    <span className="text-xs font-medium text-green-600 flex items-center gap-1">
-                                                        <span>✓</span> Avaliado
+                                                    <span className="text-[0.65rem] font-medium uppercase tracking-[0.1em] text-[rgba(197,168,124,0.7)] flex items-center gap-1">
+                                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
+                                                        Avaliado
                                                     </span>
                                                 )}
                                             </div>
@@ -259,40 +286,46 @@ export default function ClienteDashboardUI({
                 )}
 
                 {/* Zona de perigo LGPD */}
-                <section className="bg-red-50 border border-red-200 rounded-2xl p-6">
-                    <h3 className="text-red-800 font-bold text-base mb-1">Zona de Perigo</h3>
-                    <p className="text-sm text-red-600 mb-4">
-                        Ao excluir sua conta, seus dados pessoais serão removidos conforme a LGPD.
-                        O histórico financeiro é mantido de forma anônima.
-                    </p>
+                <section className="mt-16 pt-8 border-t border-red-100 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                    <div>
+                        <h3 className="text-[#2a1810] font-sans font-bold text-[0.7rem] uppercase tracking-[0.1em] mb-1 flex items-center gap-2">
+                            <Trash2 className="w-3.5 h-3.5 text-red-500" />
+                            Gerenciar Conta
+                        </h3>
+                        <p className="text-[0.75rem] text-[#9c8070] font-light max-w-md">
+                            Ao solicitar a exclusão, seus dados pessoais serão removidos conforme a LGPD. Históricos financeiros permanecem anônimos.
+                        </p>
+                    </div>
                     <button
                         onClick={handleExcluirConta}
                         disabled={isProcessing}
-                        className="bg-red-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-red-700 disabled:opacity-50 transition-colors text-sm"
+                        className="bg-transparent border border-red-200 text-red-600 px-5 py-2.5 font-sans text-[0.65rem] font-bold uppercase tracking-[0.1em] hover:bg-red-50 disabled:opacity-50 transition-colors whitespace-nowrap"
                     >
-                        {isProcessing ? 'Excluindo...' : 'Excluir Meus Dados'}
+                        {isProcessing ? 'Processando...' : 'Excluir Meus Dados'}
                     </button>
                 </section>
             </div>
 
-            {/* Modal de Avaliação (Sobreposto) */}
+            {/* Modal de Avaliação Elegante */}
             {avaliandoId && (
-                <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
-                    <div className="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-sm border-t-4 border-marrom-claro animate-in fade-in zoom-in duration-200">
-                        <div className="text-center mb-6">
-                            <h2 className="text-2xl font-bold text-marrom-medio">Como foi sua experiência?</h2>
-                            <p className="text-gray-500 text-sm mt-1">Sua opinião nos ajuda a melhorar.</p>
+                <div className="fixed inset-0 bg-[#0e0905]/80 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
+                    <div className="bg-white p-8 md:p-10 shadow-2xl w-full max-w-md border-t-2 border-caramelo animate-in fade-in zoom-in duration-300 relative overflow-hidden">
+                        <div className="absolute top-0 right-0 w-32 h-32 bg-[radial-gradient(circle,rgba(197,168,124,0.08)_0%,transparent_70%)] rounded-full blur-xl pointer-events-none" />
+
+                        <div className="text-center mb-8 relative z-10">
+                            <h2 className="text-2xl font-serif font-light text-[#2a1810]">Sua Experiência</h2>
+                            <p className="text-[#9c8070] text-[0.8rem] font-light mt-2">Sua opinião é fundamental para mantermos nossa excelência.</p>
                         </div>
 
-                        <form onSubmit={handleSalvarAvaliacao} className="space-y-6">
+                        <form onSubmit={handleSalvarAvaliacao} className="space-y-8 relative z-10">
                             {/* Estrelas Interativas */}
-                            <div className="flex justify-center gap-2">
+                            <div className="flex justify-center gap-3">
                                 {[1, 2, 3, 4, 5].map((star) => (
                                     <button
                                         key={star}
                                         type="button"
                                         onClick={() => setNota(star)}
-                                        className={`text-4xl transition-all hover:scale-110 ${nota >= star ? 'text-yellow-400 drop-shadow-sm' : 'text-gray-200'}`}
+                                        className={`text-3xl transition-all duration-300 hover:scale-110 ${nota >= star ? 'text-caramelo drop-shadow-sm' : 'text-gray-200 hover:text-caramelo/50'}`}
                                     >
                                         ★
                                     </button>
@@ -300,12 +333,12 @@ export default function ClienteDashboardUI({
                             </div>
 
                             <div>
-                                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 text-center">
+                                <label className="block text-[0.65rem] font-bold text-[#2a1810] uppercase tracking-[0.15em] mb-3 text-center">
                                     Deixe um comentário (Opcional)
                                 </label>
                                 <textarea
-                                    className="w-full border border-gray-300 rounded-lg p-3 text-sm outline-none focus:border-marrom-claro resize-none h-24 bg-gray-50"
-                                    placeholder="Conte-nos o que achou do atendimento..."
+                                    className="w-full border border-[rgba(197,168,124,0.3)] bg-[#fdfaf6] p-4 text-[0.8rem] font-light text-[#2a1810] outline-none focus:border-caramelo focus:bg-white transition-colors resize-none h-28 placeholder:text-[#9c8070]/50"
+                                    placeholder="Conte-nos os detalhes do seu atendimento..."
                                     value={comentario}
                                     onChange={(e) => setComentario(e.target.value)}
                                     maxLength={300}
@@ -316,16 +349,16 @@ export default function ClienteDashboardUI({
                                 <button
                                     type="button"
                                     onClick={() => { setAvaliandoId(null); setNota(5); setComentario(''); }}
-                                    className="flex-1 py-3 text-gray-600 font-bold bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors text-sm"
+                                    className="flex-1 py-3.5 text-[#2a1810] font-sans text-[0.7rem] font-bold uppercase tracking-[0.15em] bg-transparent border border-[rgba(197,168,124,0.3)] hover:bg-[rgba(197,168,124,0.05)] transition-colors"
                                 >
                                     Cancelar
                                 </button>
                                 <button
                                     type="submit"
                                     disabled={loadingAvaliacao}
-                                    className="flex-1 py-3 bg-marrom-medio text-white font-bold rounded-xl hover:bg-[#3e2b22] disabled:opacity-70 transition-colors shadow-sm text-sm"
+                                    className="flex-1 py-3.5 bg-caramelo text-[#2a1810] font-sans text-[0.7rem] font-bold uppercase tracking-[0.15em] hover:bg-[#d4b896] disabled:opacity-70 transition-colors"
                                 >
-                                    {loadingAvaliacao ? 'Enviando...' : 'Enviar Avaliação'}
+                                    {loadingAvaliacao ? 'Enviando...' : 'Enviar'}
                                 </button>
                             </div>
                         </form>
