@@ -2,7 +2,8 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import Link from 'next/link' // 1. Importação adicionada
+import Link from 'next/link'
+import { CalendarOff } from 'lucide-react'
 import { logoutCliente } from '@/app/actions/auth'
 import { excluirContaCliente } from '@/app/actions/cliente'
 import { criarAvaliacao } from '@/app/actions/avaliacao'
@@ -144,12 +145,16 @@ export default function ClienteDashboardUI({
                     </h2>
 
                     {pendentes.length === 0 ? (
-                        <div className="bg-white rounded-2xl border border-dashed border-[#e5d9c5] p-10 text-center text-gray-400">
-                            <p className="text-base font-medium">Nenhum agendamento pendente.</p>
-                            {/* CORREÇÃO 1: Substituído <a> por <Link> */}
+                        <div className="bg-white rounded-3xl border border-dashed border-marrom-claro/30 p-12 text-center text-gray-400 flex flex-col items-center justify-center">
+                            <div className="w-16 h-16 bg-orange-50 rounded-full flex items-center justify-center mb-4">
+                                <CalendarOff className="w-8 h-8 text-marrom-claro/60" strokeWidth={2} />
+                            </div>
+                            <p className="text-lg font-bold text-gray-700">Parece que a sua agenda está livre</p>
+                            <p className="text-sm font-medium text-gray-500 mt-1 mb-6">Que tal marcar um momento dedicado a si?</p>
+                            
                             <Link
                                 href="/#agendamento"
-                                className="inline-block mt-4 px-6 py-2.5 bg-marrom-claro text-white rounded-lg text-sm font-semibold hover:bg-[#704620] transition-colors"
+                                className="inline-flex items-center justify-center gap-2 px-8 py-3 bg-marrom-medio text-white rounded-xl text-sm font-bold shadow-md hover:bg-[#3e2b22] hover:scale-[1.02] active:scale-95 transition-all"
                             >
                                 Agendar Agora
                             </Link>

@@ -16,6 +16,7 @@ import {
 } from '@/app/actions/admin'
 import { listarServicosAdmin } from '@/app/actions/servico'
 import AdminHeader from '@/components/admin/AdminHeader'
+import { UserPlus } from 'lucide-react'
 // ── Schemas Zod ──────────────────────────────────────────────────────────────
 
 const schemaCadastro = z.object({
@@ -349,8 +350,28 @@ export default function TorreControleDashboard() {
                             <tbody>
                                 {equipaFiltrada.length === 0 ? (
                                     <tr>
-                                        <td colSpan={4} className="px-5 py-12 text-center text-gray-500 text-sm">
-                                            {busca ? 'Nenhum profissional encontrado para a pesquisa.' : 'Nenhum profissional cadastrado.'}
+                                        <td colSpan={4} className="px-5 py-16">
+                                            <div className="flex flex-col items-center justify-center text-center max-w-sm mx-auto">
+                                                <div className="w-16 h-16 bg-blue-50 text-blue-500 rounded-full flex items-center justify-center mb-4 border border-blue-100 shadow-sm">
+                                                    <UserPlus className="w-8 h-8" strokeWidth={1.5} />
+                                                </div>
+                                                <p className="text-lg font-bold text-gray-800 tracking-tight">
+                                                    {busca ? 'Nenhum resultado' : 'Equipe Vazia'}
+                                                </p>
+                                                <p className="text-sm text-gray-500 mt-1 mb-6 leading-relaxed">
+                                                    {busca 
+                                                        ? 'Não encontramos nenhum membro que corresponda à sua busca. Tente outros termos.' 
+                                                        : 'A sua base de talentos está vazia. Adicione membros para que possam gerir agendas e atendimentos.'}
+                                                </p>
+                                                {!busca && (
+                                                    <button
+                                                        onClick={() => { setCredenciaisNovo(null); setIsModalOpen(true) }}
+                                                        className="px-6 py-2.5 bg-marrom-medio text-white font-bold rounded-xl hover:bg-[#3e2b22] transition-all shadow-md active:scale-95 text-sm"
+                                                    >
+                                                        + Adicionar Profissional
+                                                    </button>
+                                                )}
+                                            </div>
                                         </td>
                                     </tr>
                                 ) : (
