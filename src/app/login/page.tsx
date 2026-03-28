@@ -2,12 +2,15 @@
 
 import { useState, useEffect } from 'react';
 import { loginCliente } from '@/app/actions/auth';
-// 1. Importando a Server Action recém-criada
 import { validarWhatsAppAction } from '@/app/actions/whatsapp';
+import { validarTelefoneBrasileiro } from '@/lib/telefone';
 
 export default function LoginPage() {
     const [telefone, setTelefone] = useState('');
     const [nome, setNome] = useState('');
+
+    // Novo estado para rastrear interação do usuário com o input
+    const [inputTocado, setInputTocado] = useState(false);
 
     // Flags de fluxo de login
     const [precisaNovoNome, setPrecisaNovoNome] = useState(false);
@@ -28,25 +31,30 @@ export default function LoginPage() {
         return v;
     };
 
+    // VALIDAÇÃO EM TEMPO REAL
+    const telefoneLimpo = telefone.replace(/\D/g, '');
+    const telefoneValido = validarTelefoneBrasileiro(telefoneLimpo);
+    const mostrarErroValidacao = inputTocado && !telefoneValido && telefoneLimpo.length >= 10 && !precisaNovoNome && !precisaConfirmarNome;
+
     const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
-        setLoading(true);
-        setErro('');
 
-        // Um celular brasileiro com máscara (XX) 9XXXX-XXXX tem exatamente 15 caracteres
-        if (telefone.length < 15) {
-            setErro('Por favor, insira um celular válido com DDD e o 9º dígito.');
-            setLoading(false);
+        // Bloqueio de segurança redundante caso o HTML seja manipulado
+        if (!telefoneValido && !precisaNovoNome && !precisaConfirmarNome) {
+            setErro('Por favor, insira um celular ou fixo válido dentro das regras da Anatel.');
             return;
         }
 
+        setLoading(true);
+        setErro('');
+
         try {
-            // 2. NOVA VALIDAÇÃO: Verifica o WhatsApp apenas na primeira etapa (quando pede o número)
+            // Verifica o WhatsApp apenas na primeira etapa (quando pede o número)
             if (!precisaNovoNome && !precisaConfirmarNome) {
                 const numeroAtivo = await validarWhatsAppAction(telefone);
 
                 if (!numeroAtivo) {
-                    setErro('O número digitado é inválido ou não possui uma conta de WhatsApp ativa.');
+                    setErro('O número digitado não possui uma conta de WhatsApp ativa.');
                     setLoading(false);
                     return;
                 }
@@ -282,6 +290,15 @@ export default function LoginPage() {
                     box-shadow: 0 0 0 3px rgba(139, 90, 43, 0.08);
                 }
 
+                input.invalido {
+                    border-color: #ef4444;
+                }
+
+                input.invalido:focus {
+                    border-color: #dc2626;
+                    box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1);
+                }
+
                 input:disabled {
                     background: #f0e6d8;
                     color: #9c8070;
@@ -300,6 +317,14 @@ export default function LoginPage() {
                     font-size: 0.8rem;
                     margin-bottom: 1.25rem;
                 }
+                
+                .helper-text {
+                    color: #ef4444;
+                    font-size: 0.72rem;
+                    margin-top: 0.4rem;
+                    display: block;
+                    font-weight: 500;
+                }
 
                 .btn-entrar {
                     width: 100%;
@@ -315,12 +340,12 @@ export default function LoginPage() {
                     text-transform: uppercase;
                     cursor: pointer;
                     margin-top: 0.5rem;
-                    transition: background 0.2s, transform 0.1s;
+                    transition: background 0.2s, transform 0.1s, opacity 0.2s;
                 }
 
                 .btn-entrar:hover:not(:disabled) { background: #5C4033; }
                 .btn-entrar:active:not(:disabled) { transform: scale(0.99); }
-                .btn-entrar:disabled { opacity: 0.6; cursor: not-allowed; }
+                .btn-entrar:disabled { opacity: 0.5; cursor: not-allowed; }
 
                 .loader { display: inline-flex; align-items: center; gap: 0.4rem; }
                 .loader-dot {
@@ -378,12 +403,21 @@ export default function LoginPage() {
                                     type="tel"
                                     required
                                     value={telefone}
-                                    onChange={(e) => setTelefone(formatarTelefone(e.target.value))}
+                                    onChange={(e) => {
+                                        setTelefone(formatarTelefone(e.target.value));
+                                        setInputTocado(true);
+                                    }}
                                     placeholder="(11) 90000-0000"
                                     autoComplete="tel"
                                     maxLength={15}
                                     disabled={precisaNovoNome || precisaConfirmarNome}
+                                    className={mostrarErroValidacao ? 'invalido' : ''}
                                 />
+                                {mostrarErroValidacao && (
+                                    <span className="helper-text fade-in">
+                                        Formato inválido. Verifique o DDD e as regras da Anatel.
+                                    </span>
+                                )}
                             </div>
 
                             {/* Fluxo: Novo Cadastro */}
@@ -406,12 +440,12 @@ export default function LoginPage() {
                             {/* Fluxo: Confirmação de Segurança (Máscara) */}
                             {precisaConfirmarNome && (
                                 <div className="campo fade-in p-4 bg-orange-50 border border-orange-200 rounded text-center">
-                                    <p className="text-xs text-marrom-claro font-bold mb-2 uppercase tracking-wider">
+                                    <p className="text-xs text-marrom-claro font-bold mb-2 uppercase tracking-wider" style={{ color: '#8B5A2B' }}>
                                         🔒 Verificação de Segurança
                                     </p>
                                     <p className="text-sm text-gray-700 mb-4">
                                         Para confirmar que é você, digite o seu primeiro nome.<br />
-                                        <span className="block mt-1 font-mono text-marrom-medio bg-white p-1 rounded font-bold border border-orange-100">
+                                        <span className="block mt-1 font-mono text-marrom-medio bg-white p-1 rounded font-bold border border-orange-100" style={{ color: '#5C4033' }}>
                                             {nomeMascarado}
                                         </span>
                                     </p>
@@ -423,12 +457,17 @@ export default function LoginPage() {
                                         onChange={(e) => setNome(e.target.value)}
                                         placeholder="Digite o seu primeiro nome"
                                         autoFocus
-                                        className="text-center"
+                                        style={{ textAlign: 'center' }}
                                     />
                                 </div>
                             )}
 
-                            <button type="submit" disabled={loading} className="btn-entrar">
+                            {/* BOTÃO INTELIGENTE: Fica disabled se o telefone estiver errado na fase inicial */}
+                            <button
+                                type="submit"
+                                disabled={loading || (!telefoneValido && !precisaNovoNome && !precisaConfirmarNome)}
+                                className="btn-entrar"
+                            >
                                 {loading ? (
                                     <span className="loader">
                                         <span className="loader-dot" /><span className="loader-dot" /><span className="loader-dot" />
