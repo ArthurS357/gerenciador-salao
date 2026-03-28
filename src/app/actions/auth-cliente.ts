@@ -4,6 +4,8 @@
 import { prisma } from '@/lib/prisma'
 import { cookies } from 'next/headers'
 import { SignJWT } from 'jose'
+import { validarTelefoneBrasileiro } from '@/lib/telefone'
+import { verificarNumeroExisteNoWhatsApp } from '@/lib/whatsapp'
 
 const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || 'chave_secreta')
 
@@ -21,15 +23,32 @@ const NOMES_FALSOS = [
     "Ana Beatriz Sousa", "Pedro Henrique Lima", "Camila Alves"
 ];
 
-export async function iniciarLoginCliente(telefoneLimpo: string) {
-    // 1. Validação de formato (Apenas números e 11 dígitos para celular BR)
-    const regexCelular = /^\d{11}$/;
-    if (!regexCelular.test(telefoneLimpo)) {
-        return { sucesso: false, erro: 'Número de telemóvel inválido. Formato: (DDD) 9XXXX-XXXX' }
+export async function iniciarLoginCliente(telefoneForm: string) {
+    const telefoneSanitizado = telefoneForm.replace(/\D/g, '');
+
+    // 1ª BARREIRA: Validação Estrutural e Lógica
+    if (!validarTelefoneBrasileiro(telefoneSanitizado)) {
+        return { 
+            sucesso: false, 
+            erro: 'Número inválido. Por favor, insira um telefone real com DDD.' 
+        };
+    }
+
+    // 2ª BARREIRA: Prova de Vida via WhatsApp
+    try {
+        const whatsappAtivo = await verificarNumeroExisteNoWhatsApp(telefoneSanitizado);
+        if (!whatsappAtivo) {
+            return { 
+                sucesso: false, 
+                erro: 'Este número não possui um WhatsApp válido ou ativo.' 
+            };
+        }
+    } catch (err) {
+        console.warn('Falha na checagem da API do WhatsApp, prosseguindo com login local...', err);
     }
 
     const cliente = await prisma.cliente.findUnique({
-        where: { telefone: telefoneLimpo }
+        where: { telefone: telefoneSanitizado }
     })
 
     if (!cliente) {
