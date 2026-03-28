@@ -6,6 +6,7 @@ import { formatInTimeZone } from 'date-fns-tz'
 import { ptBR } from 'date-fns/locale'
 import { verificarRateLimit } from '@/lib/rateLimit'
 import { after } from 'next/server'
+import { verificarSessaoCliente, verificarSessaoFuncionario } from '@/app/actions/auth'
 
 // ── Tipagens Estritas ─────────────────────────────────────────────────────────
 
@@ -62,9 +63,6 @@ export type AgendamentoGlobalItem = {
 export type FuncionarioComExpedienteItem = {
     id: string
     nome: string
-    email: string
-    role: string
-    ativo: boolean
     expedientes: {
         id: string
         diaSemana: number
@@ -74,22 +72,27 @@ export type FuncionarioComExpedienteItem = {
     }[]
 }
 
-// ── FUNÇÃO AUXILIAR: Validador de Expediente ──────────────────────────────────
+// ── FUNÇÃO AUXILIAR: Validador de Expediente Seguro (Timezone Proof) ──────────
 async function validarHorarioExpediente(funcionarioId: string, dataHoraInicio: Date, dataHoraFim: Date): Promise<string | null> {
-    const inicioLocal = new Date(dataHoraInicio.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }))
-    const fimLocal = new Date(dataHoraFim.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }))
+    const FUSO = 'America/Sao_Paulo'
 
-    const diaSemana = inicioLocal.getDay()
+    // Extracão matemática pura: evita o bug letal do new Date() em servidores UTC
+    const diaSemanaInicioLocal = Number(formatInTimeZone(dataHoraInicio, FUSO, 'i')) % 7 // 'i' retorna 1(Seg) a 7(Dom). %7 converte Dom para 0.
+    const diaSemanaFimLocal = Number(formatInTimeZone(dataHoraFim, FUSO, 'i')) % 7
+
+    const agendamentoInicioMinutos = Number(formatInTimeZone(dataHoraInicio, FUSO, 'H')) * 60 + Number(formatInTimeZone(dataHoraInicio, FUSO, 'm'))
+    const agendamentoFimMinutos = Number(formatInTimeZone(dataHoraFim, FUSO, 'H')) * 60 + Number(formatInTimeZone(dataHoraFim, FUSO, 'm'))
+
     const diasNomes = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado']
 
     const expediente = await prisma.expediente.findUnique({
         where: {
-            funcionarioId_diaSemana: { funcionarioId, diaSemana }
+            funcionarioId_diaSemana: { funcionarioId, diaSemana: diaSemanaInicioLocal }
         }
     })
 
     if (!expediente || !expediente.ativo) {
-        return `O profissional selecionado não atende ao(à) ${diasNomes[diaSemana]}. Por favor, escolha outro dia.`
+        return `O profissional selecionado não atende ao(à) ${diasNomes[diaSemanaInicioLocal]}. Por favor, escolha outro dia.`
     }
 
     const [expHoraIn, expMinIn] = expediente.horaInicio.split(':').map(Number)
@@ -97,10 +100,7 @@ async function validarHorarioExpediente(funcionarioId: string, dataHoraInicio: D
     const expInicioMinutos = expHoraIn * 60 + expMinIn
     const expFimMinutos = expHoraFim * 60 + expMinFim
 
-    const agendamentoInicioMinutos = inicioLocal.getHours() * 60 + inicioLocal.getMinutes()
-    const agendamentoFimMinutos = fimLocal.getHours() * 60 + fimLocal.getMinutes()
-
-    if (fimLocal.getDay() !== diaSemana) {
+    if (diaSemanaFimLocal !== diaSemanaInicioLocal) {
         return 'A duração dos serviços ultrapassa a meia-noite.'
     }
 
@@ -119,12 +119,21 @@ export async function criarAgendamentoMultiplo(
     dataHoraInicio: Date,
     servicosIds: string[]
 ): Promise<ActionResult<{ agendamentoId: string }>> {
+    // ── Blindagem Híbrida (Prevenção de IDOR) ────────────────────────────────
+    const sessaoCli = await verificarSessaoCliente()
+    const sessaoFunc = await verificarSessaoFuncionario()
+
+    if (!sessaoFunc.logado) {
+        if (!sessaoCli.logado) return { sucesso: false, erro: 'Acesso negado. Faça login para agendar.' }
+        if (sessaoCli.id !== clienteId) return { sucesso: false, erro: 'Operação não permitida (Violação de Identidade).' }
+    }
+
     const requisicaoPermitida = verificarRateLimit(clienteId);
-    
+
     if (!requisicaoPermitida) {
-        return { 
-            sucesso: false, 
-            erro: 'Muitas tentativas de agendamento em um curto período. Aguarde um minuto e tente novamente.' 
+        return {
+            sucesso: false,
+            erro: 'Muitas tentativas de agendamento em um curto período. Aguarde um minuto e tente novamente.'
         };
     }
 
@@ -224,11 +233,10 @@ export async function criarAgendamentoMultiplo(
         const novoAgendamento = resultadoTransacao.novoAgendamento
 
         // ── INTEGRAÇÃO WHATSAPP (Assíncrono, não trava a resposta) ──
-        // Formatação robusta de Data com Fuso Horário protegido via date-fns-tz
         const dataFormatada = formatInTimeZone(
-            dataHoraInicio, 
-            'America/Sao_Paulo', 
-            "EEEE, dd 'de' MMMM 'às' HH:mm", 
+            dataHoraInicio,
+            'America/Sao_Paulo',
+            "EEEE, dd 'de' MMMM 'às' HH:mm",
             { locale: ptBR }
         );
 
@@ -241,19 +249,17 @@ export async function criarAgendamentoMultiplo(
 
 📅 *Data:* ${dataFormatada}
 💅 *Serviço(s):* ${nomesServicos}
-👨‍🎨 *Profissional:* ${novoAgendamento.funcionario.nome}
+👨‍🎨 *Profissional:* ${novoAgendamento!.funcionario.nome}
 
 Para cancelar ou reagendar, por favor acesse o painel no nosso site. Estamos ansiosos para te receber!`;
 
-        // Disparo em Background Real: after() garante a execução após o envio da resposta,
-        // sem atrasar a latência nem ser morto prematuramente em ambientes serverless (Vercel/AWS).
         after(async () => {
-            await enviarMensagemWhatsApp(cliente.telefone, mensagemConfirmacao).catch(err => {
+            await enviarMensagemWhatsApp(cliente.telefone!, mensagemConfirmacao).catch(err => {
                 console.warn(`[Background Task] Falha silenciosa ao notificar cliente ${clienteId}:`, err);
             });
         });
 
-        return { sucesso: true, agendamentoId: novoAgendamento.id }
+        return { sucesso: true, agendamentoId: novoAgendamento!.id }
     } catch (error) {
         console.error('Erro na orquestração do agendamento múltiplo:', error)
         return { sucesso: false, erro: 'Falha técnica ao processar a reserva.' }
@@ -264,6 +270,13 @@ export async function listarAgendaProfissional(
     funcionarioId: string
 ): Promise<ActionResult<{ agendamentos: AgendaProfissionalItem[] }>> {
     try {
+        // Blindagem RBAC: Apenas o próprio profissional ou Admin podem ver a agenda detalhada
+        const sessao = await verificarSessaoFuncionario();
+        if (!sessao.logado) return { sucesso: false, erro: 'Acesso negado.' };
+        if (sessao.role !== 'ADMIN' && sessao.id !== funcionarioId) {
+            return { sucesso: false, erro: 'Você não tem permissão para ver a agenda de outro profissional.' };
+        }
+
         const agendamentos = await prisma.agendamento.findMany({
             where: {
                 funcionarioId,
@@ -298,6 +311,18 @@ export async function cancelarAgendamentoPendente(id: string): Promise<ActionRes
             return { sucesso: false, erro: 'Agendamento não encontrado.' }
         }
 
+        // ── Blindagem IDOR: Quem pode cancelar? ──────────────────────────────
+        const sessaoCli = await verificarSessaoCliente();
+        const sessaoFunc = await verificarSessaoFuncionario();
+
+        const isDono = sessaoCli.logado && sessaoCli.id === agendamento.clienteId;
+        const isProfissional = sessaoFunc.logado && sessaoFunc.id === agendamento.funcionarioId;
+        const isAdmin = sessaoFunc.logado && sessaoFunc.role === 'ADMIN';
+
+        if (!isDono && !isProfissional && !isAdmin) {
+            return { sucesso: false, erro: 'Acesso negado. Você não tem permissão para cancelar este agendamento.' }
+        }
+
         if (agendamento.concluido) {
             return {
                 sucesso: false,
@@ -317,7 +342,7 @@ export async function cancelarAgendamentoPendente(id: string): Promise<ActionRes
 
             await tx.notificacao.create({
                 data: {
-                    mensagem: `⚠️ Agenda Cancelada: O atendimento de ${agendamento.cliente.nome} com ${agendamento.funcionario.nome} foi desmarcado. Verifique a necessidade de remanejar o cliente.`
+                    mensagem: `⚠️ Agenda Cancelada: O atendimento de ${agendamento.cliente.nome} com ${agendamento.funcionario.nome} foi desmarcado.`
                 }
             })
         })
@@ -330,6 +355,12 @@ export async function cancelarAgendamentoPendente(id: string): Promise<ActionRes
 
 export async function listarAgendamentosGlobais(): Promise<ActionResult<{ agendamentos: AgendamentoGlobalItem[] }>> {
     try {
+        // Blindagem Absoluta: Apenas a gerência pode ver todos os horários do salão
+        const sessao = await verificarSessaoFuncionario();
+        if (!sessao.logado || sessao.role !== 'ADMIN') {
+            return { sucesso: false, erro: 'Acesso negado. Apenas diretores podem visualizar a agenda global.' }
+        }
+
         const agendamentos = await prisma.agendamento.findMany({
             orderBy: { dataHoraInicio: 'desc' },
             include: {
@@ -351,20 +382,33 @@ export async function editarAgendamentoPendente(
     dataHoraInicio: Date
 ): Promise<ActionResult> {
     try {
-        const dataAtual = new Date();
-        const limitePassado = new Date(dataAtual.getTime() - 5 * 60_000);
-
-        if (dataHoraInicio < limitePassado) {
-            return { sucesso: false, erro: 'Não é possível remanejar para horários no passado.' };
-        }
-
         const agendamento = await prisma.agendamento.findUnique({
             where: { id },
             include: { servicos: { include: { servico: true } } }
         })
 
         if (!agendamento) return { sucesso: false, erro: 'Agendamento não encontrado.' }
+
+        // ── Blindagem IDOR: Apenas Dono, Profissional ou Admin ────────────────
+        const sessaoCli = await verificarSessaoCliente();
+        const sessaoFunc = await verificarSessaoFuncionario();
+
+        const isDono = sessaoCli.logado && sessaoCli.id === agendamento.clienteId;
+        const isProfissional = sessaoFunc.logado && sessaoFunc.id === agendamento.funcionarioId;
+        const isAdmin = sessaoFunc.logado && sessaoFunc.role === 'ADMIN';
+
+        if (!isDono && !isProfissional && !isAdmin) {
+            return { sucesso: false, erro: 'Acesso negado para editar este agendamento.' }
+        }
+
         if (agendamento.concluido) return { sucesso: false, erro: 'Não é possível editar uma comanda que já foi faturada.' }
+
+        const dataAtual = new Date();
+        const limitePassado = new Date(dataAtual.getTime() - 5 * 60_000);
+
+        if (dataHoraInicio < limitePassado) {
+            return { sucesso: false, erro: 'Não é possível remanejar para horários no passado.' };
+        }
 
         const TEMPO_BUFFER_MINUTOS = Number(process.env.TEMPO_BUFFER_MINUTOS) || 5
         let tempoTotalMinutos = 0
@@ -382,7 +426,7 @@ export async function editarAgendamentoPendente(
             const conflito = await tx.agendamento.findFirst({
                 where: {
                     funcionarioId,
-                    id: { not: id },
+                    id: { not: id }, // Exclui a si mesmo da busca
                     concluido: false,
                     canceladoEm: null,
                     AND: [
@@ -417,9 +461,23 @@ export async function editarAgendamentoPendente(
 
 export async function listarEquipaComExpediente(): Promise<ActionResult<{ equipa: FuncionarioComExpedienteItem[] }>> {
     try {
+        // Blindagem de Select: Mantém acesso público para a página inicial/clientes logados, 
+        // mas filtra EXCLUSIVAMENTE o que é seguro trafegar pela internet
         const equipa = await prisma.funcionario.findMany({
             where: { ativo: true, role: 'PROFISSIONAL' },
-            include: { expedientes: true },
+            select: {
+                id: true,
+                nome: true,
+                expedientes: {
+                    select: {
+                        id: true,
+                        diaSemana: true,
+                        horaInicio: true,
+                        horaFim: true,
+                        ativo: true
+                    }
+                }
+            },
             orderBy: { nome: 'asc' }
         })
         return { sucesso: true, equipa: equipa as FuncionarioComExpedienteItem[] }

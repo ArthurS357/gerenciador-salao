@@ -2,10 +2,11 @@
 
 import { prisma } from '@/lib/prisma'
 import { cookies } from 'next/headers'
-import type { Cliente } from '@/types/domain'
+import { verificarSessaoCliente, verificarSessaoFuncionario } from '@/app/actions/auth'
 
-type ActionResult<T = object> =
-    | ({ sucesso: true } & T)
+// ── TIPAGEM ESTRITA ──────────────────────────────────────────────────────────
+type ActionResult<T = void> =
+    | (T extends void ? { sucesso: true } : { sucesso: true } & T)
     | { sucesso: false; erro: string }
 
 export type HistoricoAgendamentoItem = {
@@ -19,9 +20,28 @@ export type HistoricoAgendamentoItem = {
 }
 
 export type HistoricoClienteData = {
-    cliente: { nome: string; telefone: string | null; email: string | null; cpf: string | null; anonimizado: boolean }
+    cliente: { nome: string; telefone: string; email: string | null; cpf: string | null; anonimizado: boolean }
     totalGasto: number
     agendamentos: HistoricoAgendamentoItem[]
+}
+
+export type ClienteResumo = {
+    id: string
+    nome: string
+    telefone: string
+    email: string | null
+    cpf: string | null
+    anonimizado: boolean
+    _count: { agendamentos: number }
+}
+
+export type ClienteDados = {
+    id: string
+    nome: string
+    telefone: string
+    email: string | null
+    cpf: string | null
+    anonimizado: boolean
 }
 
 type DadosCliente = {
@@ -31,31 +51,47 @@ type DadosCliente = {
     cpf?: string | null
 }
 
+// ── AUXILIARES DE SEGURANÇA ──────────────────────────────────────────────────
+async function garantirPermissaoAdmin() {
+    const sessao = await verificarSessaoFuncionario()
+    if (!sessao.logado || sessao.role !== 'ADMIN') {
+        throw new Error('Acesso negado. Requer privilégios de administrador.')
+    }
+}
+
+// Garante que a ação só seja feita pelo próprio cliente dono da conta ou por um ADMIN
+async function garantirPermissaoDonoOuAdmin(clienteIdAlvo: string) {
+    const sessaoCli = await verificarSessaoCliente()
+    const sessaoFunc = await verificarSessaoFuncionario()
+
+    const isDono = sessaoCli.logado && sessaoCli.id === clienteIdAlvo
+    const isAdmin = sessaoFunc.logado && sessaoFunc.role === 'ADMIN'
+
+    if (!isDono && !isAdmin) {
+        throw new Error('Acesso negado. Você só pode visualizar ou alterar os seus próprios dados.')
+    }
+}
+
 // ── CRIAR CLIENTE (Admin) ────────────────────────────────────────────────────
 
-export async function criarCliente(dados: DadosCliente): Promise<ActionResult<{ cliente: Cliente }>> {
+export async function criarCliente(dados: DadosCliente): Promise<ActionResult<{ cliente: ClienteDados }>> {
     try {
-        // Validações básicas
+        await garantirPermissaoAdmin()
+
         const telefoneLimpo = dados.telefone.replace(/\D/g, '')
         if (telefoneLimpo.length < 10 || telefoneLimpo.length > 11) {
             return { sucesso: false, erro: 'Número de telefone inválido.' }
         }
 
         const existente = await prisma.cliente.findUnique({ where: { telefone: telefoneLimpo } })
-        if (existente) {
-            return { sucesso: false, erro: 'Já existe um cliente com este telefone.' }
-        }
+        if (existente) return { sucesso: false, erro: 'Já existe um cliente com este telefone.' }
 
-        // Verificar CPF único se fornecido
         if (dados.cpf) {
             const cpfLimpo = dados.cpf.replace(/\D/g, '')
-            if (cpfLimpo.length !== 11) {
-                return { sucesso: false, erro: 'CPF inválido. Informe os 11 dígitos.' }
-            }
-            const cpfExistente = await prisma.cliente.findFirst({ where: { cpf: cpfLimpo } })
-            if (cpfExistente) {
-                return { sucesso: false, erro: 'Já existe um cliente com este CPF.' }
-            }
+            if (cpfLimpo.length !== 11) return { sucesso: false, erro: 'CPF inválido. Informe os 11 dígitos.' }
+
+            const cpfExistente = await prisma.cliente.findUnique({ where: { cpf: cpfLimpo } })
+            if (cpfExistente) return { sucesso: false, erro: 'Já existe um cliente com este CPF.' }
         }
 
         const cliente = await prisma.cliente.create({
@@ -64,45 +100,42 @@ export async function criarCliente(dados: DadosCliente): Promise<ActionResult<{ 
                 telefone: telefoneLimpo,
                 email: dados.email?.trim() || null,
                 cpf: dados.cpf ? dados.cpf.replace(/\D/g, '') : null,
-            }
+            },
+            select: { id: true, nome: true, telefone: true, email: true, cpf: true, anonimizado: true }
         })
 
-        return { sucesso: true, cliente: cliente as unknown as Cliente }
+        return { sucesso: true, cliente }
     } catch (error) {
+        if (error instanceof Error && error.message.includes('Acesso negado')) return { sucesso: false, erro: error.message }
         console.error('Erro ao criar cliente:', error)
         return { sucesso: false, erro: 'Falha técnica ao criar o cliente.' }
     }
 }
 
-// ── EDITAR CLIENTE (Admin) ───────────────────────────────────────────────────
+// ── EDITAR CLIENTE (Híbrido) ─────────────────────────────────────────────────
 
 export async function editarCliente(id: string, dados: DadosCliente): Promise<ActionResult> {
     try {
+        await garantirPermissaoDonoOuAdmin(id)
+
         const telefoneLimpo = dados.telefone.replace(/\D/g, '')
         if (telefoneLimpo.length < 10 || telefoneLimpo.length > 11) {
             return { sucesso: false, erro: 'Número de telefone inválido.' }
         }
 
-        // Verificar telefone único (excluindo o próprio cliente)
         const telefoneExistente = await prisma.cliente.findFirst({
             where: { telefone: telefoneLimpo, NOT: { id } }
         })
-        if (telefoneExistente) {
-            return { sucesso: false, erro: 'Este telefone já está cadastrado em outro cliente.' }
-        }
+        if (telefoneExistente) return { sucesso: false, erro: 'Este telefone já está cadastrado noutra conta.' }
 
-        // Verificar CPF único se fornecido
         if (dados.cpf) {
             const cpfLimpo = dados.cpf.replace(/\D/g, '')
-            if (cpfLimpo.length !== 11) {
-                return { sucesso: false, erro: 'CPF inválido. Informe os 11 dígitos.' }
-            }
+            if (cpfLimpo.length !== 11) return { sucesso: false, erro: 'CPF inválido. Informe os 11 dígitos.' }
+
             const cpfExistente = await prisma.cliente.findFirst({
                 where: { cpf: cpfLimpo, NOT: { id } }
             })
-            if (cpfExistente) {
-                return { sucesso: false, erro: 'Este CPF já está cadastrado em outro cliente.' }
-            }
+            if (cpfExistente) return { sucesso: false, erro: 'Este CPF já está cadastrado noutra conta.' }
         }
 
         await prisma.cliente.update({
@@ -117,15 +150,18 @@ export async function editarCliente(id: string, dados: DadosCliente): Promise<Ac
 
         return { sucesso: true }
     } catch (error) {
+        if (error instanceof Error && error.message.includes('Acesso negado')) return { sucesso: false, erro: error.message }
         console.error('Erro ao editar cliente:', error)
-        return { sucesso: false, erro: 'Falha técnica ao atualizar o cliente.' }
+        return { sucesso: false, erro: 'Falha técnica ao atualizar o perfil.' }
     }
 }
 
-// ── EXCLUSÃO / LGPD ──────────────────────────────────────────────────────────
+// ── EXCLUSÃO / LGPD (Híbrido) ────────────────────────────────────────────────
 
 export async function excluirContaCliente(clienteId: string): Promise<ActionResult> {
     try {
+        await garantirPermissaoDonoOuAdmin(clienteId)
+
         const cliente = await prisma.cliente.findUnique({ where: { id: clienteId } })
         if (!cliente) return { sucesso: false, erro: 'Cliente não encontrado.' }
 
@@ -141,42 +177,62 @@ export async function excluirContaCliente(clienteId: string): Promise<ActionResu
             }
         })
 
-        const cookieStore = await cookies()
-        cookieStore.delete('cliente_session')
+        // Apenas apaga a cookie se foi o próprio cliente a excluir a conta
+        const sessaoCli = await verificarSessaoCliente()
+        if (sessaoCli.logado && sessaoCli.id === clienteId) {
+            const cookieStore = await cookies()
+            cookieStore.delete('cliente_session')
+        }
 
         return { sucesso: true }
     } catch (error) {
+        if (error instanceof Error && error.message.includes('Acesso negado')) return { sucesso: false, erro: error.message }
         console.error('Erro ao anonimizar cliente:', error)
         return { sucesso: false, erro: 'Falha técnica ao excluir os dados.' }
     }
 }
 
-export async function listarTodosClientes(): Promise<ActionResult<{ clientes: (Cliente & { _count: { agendamentos: number } })[] }>> {
+// ── LISTAGEM GLOBAL (Apenas Admin) ───────────────────────────────────────────
+
+export async function listarTodosClientes(): Promise<ActionResult<{ clientes: ClienteResumo[] }>> {
     try {
+        await garantirPermissaoAdmin()
+
         const clientes = await prisma.cliente.findMany({
             orderBy: { nome: 'asc' },
-            include: {
-                _count: { select: { agendamentos: true } },
-            },
+            select: {
+                id: true, nome: true, telefone: true, email: true, cpf: true, anonimizado: true,
+                _count: { select: { agendamentos: true } }
+            }
         })
-        return { sucesso: true, clientes: clientes as unknown as (Cliente & { _count: { agendamentos: number } })[] }
-    } catch {
+        return { sucesso: true, clientes }
+    } catch (error) {
+        if (error instanceof Error && error.message.includes('Acesso negado')) return { sucesso: false, erro: error.message }
         return { sucesso: false, erro: 'Falha ao listar clientes.' }
     }
 }
 
+// ── HISTÓRICO INDIVIDUAL (Híbrido) ───────────────────────────────────────────
+
 export async function obterHistoricoCliente(clienteId: string): Promise<ActionResult<{ dados: HistoricoClienteData }>> {
     try {
-        const cliente = await prisma.cliente.findUnique({ where: { id: clienteId } })
+        await garantirPermissaoDonoOuAdmin(clienteId)
+
+        const cliente = await prisma.cliente.findUnique({
+            where: { id: clienteId },
+            select: { nome: true, telefone: true, email: true, cpf: true, anonimizado: true }
+        })
+
         if (!cliente) return { sucesso: false, erro: 'Cliente não encontrado.' }
 
         const agendamentos = await prisma.agendamento.findMany({
             where: { clienteId },
             orderBy: { dataHoraInicio: 'desc' },
-            include: {
+            select: {
+                id: true, dataHoraInicio: true, valorBruto: true, concluido: true,
                 funcionario: { select: { nome: true } },
-                servicos: { include: { servico: { select: { nome: true } } } },
-                produtos: { include: { produto: { select: { nome: true } } } }
+                servicos: { select: { servico: { select: { nome: true } } } },
+                produtos: { select: { produto: { select: { nome: true } } } }
             }
         })
 
@@ -187,20 +243,13 @@ export async function obterHistoricoCliente(clienteId: string): Promise<ActionRe
         return {
             sucesso: true,
             dados: {
-                cliente: {
-                    nome: cliente.nome,
-                    telefone: cliente.telefone,
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    email: (cliente as any).email ?? null,
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    cpf: (cliente as any).cpf ?? null,
-                    anonimizado: cliente.anonimizado
-                },
+                cliente,
                 totalGasto,
-                agendamentos: agendamentos as unknown as HistoricoAgendamentoItem[]
+                agendamentos
             }
         }
     } catch (error) {
+        if (error instanceof Error && error.message.includes('Acesso negado')) return { sucesso: false, erro: error.message }
         console.error('Erro ao obter histórico do cliente:', error)
         return { sucesso: false, erro: 'Falha técnica ao carregar o histórico.' }
     }
@@ -212,9 +261,11 @@ export async function anonimizarClienteLGPD(id: string): Promise<ActionResult> {
 
 export async function excluirClientePermanente(id: string): Promise<ActionResult> {
     try {
+        await garantirPermissaoAdmin()
         await prisma.cliente.delete({ where: { id } })
         return { sucesso: true }
-    } catch {
+    } catch (error) {
+        if (error instanceof Error && error.message.includes('Acesso negado')) return { sucesso: false, erro: error.message }
         return { sucesso: false, erro: 'Não é possível excluir clientes com histórico financeiro atrelado.' }
     }
 }

@@ -5,7 +5,7 @@ import { cookies } from 'next/headers'
 import { SignJWT, jwtVerify } from 'jose'
 import { validarTelefoneBrasileiro } from '@/lib/telefone'
 import { verificarNumeroExisteNoWhatsApp } from '@/lib/whatsapp'
-import { JWT_SECRET, criarSessaoCliente } from './auth'
+import { JWT_SECRET, criarSessaoCliente } from '@/lib/jwt'
 
 function mascararNome(nome: string): string {
     return nome.split(' ').map(parte => {

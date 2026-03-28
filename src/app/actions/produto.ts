@@ -2,18 +2,34 @@
 
 import { prisma } from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
-import type { Produto } from '@/types/domain'
+import { verificarSessaoFuncionario } from '@/app/actions/auth'
 
-type ActionResult<T = object> =
-    | ({ sucesso: true } & T)
+// ── TIPAGEM ESTRITA ──────────────────────────────────────────────────────────
+// Utilização de void para eliminar o tipo genérico "object"
+type ActionResult<T = void> =
+    | (T extends void ? { sucesso: true } : { sucesso: true } & T)
     | { sucesso: false; erro: string }
+
+// Definição da interface que substitui a necessidade do cast externo "as unknown as Produto"
+export type ProdutoItem = {
+    id: string
+    nome: string
+    descricao: string | null
+    precoCusto: number | null
+    precoVenda: number
+    estoque: number
+    unidadeMedida: string
+    tamanhoUnidade: number
+    ativo: boolean
+    createdAt: Date
+    updatedAt: Date
+}
 
 type DadosCriarProduto = {
     nome: string
     descricao?: string
     precoCusto: number | string
     precoVenda: number | string
-    // Novos campos para a Ficha Técnica
     unidadeMedida: string
     tamanhoUnidade: number | string
     estoqueInicialEmFrascos: number | string
@@ -24,20 +40,35 @@ type DadosEditarProduto = {
     descricao?: string
     precoCusto?: number | string
     precoVenda?: number | string
-    // A unidade de medida e o tamanho não devem ser alterados após criados 
-    // para não quebrar a integridade do estoque passado.
+}
+
+// ── BLINDAGEM DE SEGURANÇA ───────────────────────────────────────────────────
+async function garantirPermissaoAdmin() {
+    const sessao = await verificarSessaoFuncionario()
+    if (!sessao.logado || sessao.role !== 'ADMIN') {
+        throw new Error('Acesso negado. Apenas a gerência pode gerir o catálogo de inventário.')
+    }
 }
 
 // ── 1. LISTAGEM ───────────────────────────────────────────────────────────────
 
-export async function listarProdutosAdmin(): Promise<ActionResult<{ produtos: Produto[] }>> {
+export async function listarProdutosAdmin(): Promise<ActionResult<{ produtos: ProdutoItem[] }>> {
     try {
+        await garantirPermissaoAdmin()
+
         const produtos = await prisma.produto.findMany({
             where: { ativo: true },
-            orderBy: { nome: 'asc' }
+            orderBy: { nome: 'asc' },
+            // Mapeamento explícito elimina os erros do TypeScript
+            select: {
+                id: true, nome: true, descricao: true, precoCusto: true, precoVenda: true,
+                estoque: true, unidadeMedida: true, tamanhoUnidade: true, ativo: true,
+                createdAt: true, updatedAt: true
+            }
         })
         return { sucesso: true, produtos }
     } catch (error) {
+        if (error instanceof Error && error.message.includes('Acesso negado')) return { sucesso: false, erro: error.message }
         console.error('Erro ao listar produtos:', error)
         return { sucesso: false, erro: 'Falha ao carregar o estoque.' }
     }
@@ -47,8 +78,10 @@ export async function listarProdutosAdmin(): Promise<ActionResult<{ produtos: Pr
 
 export async function criarProdutoAdmin(
     dados: DadosCriarProduto
-): Promise<ActionResult<{ produto: Produto }>> {
+): Promise<ActionResult<{ produto: ProdutoItem }>> {
     try {
+        await garantirPermissaoAdmin()
+
         const precoCusto = Number(dados.precoCusto) || 0
         const precoVenda = Number(dados.precoVenda) || 0
         const tamanhoUnidade = Number(dados.tamanhoUnidade) || 1
@@ -61,7 +94,6 @@ export async function criarProdutoAdmin(
             return { sucesso: false, erro: 'O preço de venda não pode ser inferior ao custo.' }
         }
 
-        // Cálculo Mágico: Se recebi 3 frascos de 700ml, o banco guarda 2100 (ml)
         const estoqueAbsoluto = estoqueInicialEmFrascos * tamanhoUnidade;
 
         const produto = await prisma.produto.create({
@@ -74,11 +106,17 @@ export async function criarProdutoAdmin(
                 tamanhoUnidade: tamanhoUnidade,
                 estoque: estoqueAbsoluto,
             },
+            select: {
+                id: true, nome: true, descricao: true, precoCusto: true, precoVenda: true,
+                estoque: true, unidadeMedida: true, tamanhoUnidade: true, ativo: true,
+                createdAt: true, updatedAt: true
+            }
         })
 
         revalidatePath('/admin/estoque')
-        return { sucesso: true, produto: produto as unknown as Produto }
+        return { sucesso: true, produto }
     } catch (error) {
+        if (error instanceof Error && error.message.includes('Acesso negado')) return { sucesso: false, erro: error.message }
         console.error('Erro ao criar produto:', error)
         return { sucesso: false, erro: 'Falha ao cadastrar o produto.' }
     }
@@ -89,8 +127,10 @@ export async function criarProdutoAdmin(
 export async function editarProduto(
     id: string,
     dados: DadosEditarProduto
-): Promise<ActionResult<{ produto: Produto }>> {
+): Promise<ActionResult<{ produto: ProdutoItem }>> {
     try {
+        await garantirPermissaoAdmin()
+
         const dataUpdate: Record<string, unknown> = {}
 
         if (dados.nome !== undefined) dataUpdate.nome = dados.nome.trim()
@@ -101,9 +141,17 @@ export async function editarProduto(
         const produto = await prisma.produto.update({
             where: { id },
             data: dataUpdate,
+            select: {
+                id: true, nome: true, descricao: true, precoCusto: true, precoVenda: true,
+                estoque: true, unidadeMedida: true, tamanhoUnidade: true, ativo: true,
+                createdAt: true, updatedAt: true
+            }
         })
-        return { sucesso: true, produto: produto as unknown as Produto }
-    } catch {
+
+        revalidatePath('/admin/estoque')
+        return { sucesso: true, produto }
+    } catch (error) {
+        if (error instanceof Error && error.message.includes('Acesso negado')) return { sucesso: false, erro: error.message }
         return { sucesso: false, erro: 'Falha ao editar o produto.' }
     }
 }
@@ -115,6 +163,8 @@ export async function adicionarEstoqueFrascos(
     quantidadeFrascos: number
 ): Promise<ActionResult> {
     try {
+        await garantirPermissaoAdmin()
+
         if (quantidadeFrascos <= 0) {
             return { sucesso: false, erro: 'A quantidade de frascos deve ser maior que zero.' }
         }
@@ -126,7 +176,6 @@ export async function adicionarEstoqueFrascos(
 
         if (!produto) return { sucesso: false, erro: 'Produto não encontrado.' }
 
-        // Multiplica a quantidade de novos frascos pelo tamanho do frasco cadastrado
         const quantidadeAdicionarAbsoluta = quantidadeFrascos * produto.tamanhoUnidade;
 
         await prisma.produto.update({
@@ -139,58 +188,69 @@ export async function adicionarEstoqueFrascos(
         revalidatePath('/admin/estoque')
         return { sucesso: true }
     } catch (error) {
+        if (error instanceof Error && error.message.includes('Acesso negado')) return { sucesso: false, erro: error.message }
         console.error('Erro ao adicionar estoque:', error)
         return { sucesso: false, erro: 'Falha técnica ao dar entrada no estoque.' }
     }
 }
 
-// ── 5. SAÍDA DIRETA DE ESTOQUE (Baixa Manual ou por Ficha Técnica) ────────────
+// ── 5. SAÍDA DIRETA DE ESTOQUE (Baixa Manual) ─────────────────────────────────
 
 export async function baixarEstoqueAbsoluto(
     id: string,
     quantidadeAbsoluta: number
-): Promise<ActionResult<{ produto: Produto }>> {
+): Promise<ActionResult<{ produto: ProdutoItem }>> {
     try {
-        const atual = await prisma.produto.findUnique({
-            where: { id },
-            select: { estoque: true },
-        })
+        await garantirPermissaoAdmin()
 
-        if (!atual) return { sucesso: false, erro: 'Produto não encontrado.' }
-
-        const novoEstoque = atual.estoque - quantidadeAbsoluta
-        if (novoEstoque < 0) {
-            return {
-                sucesso: false,
-                erro: `Estoque insuficiente. Estoque atual: ${atual.estoque}.`,
-            }
+        if (quantidadeAbsoluta <= 0) {
+            return { sucesso: false, erro: 'A quantidade a baixar deve ser maior que zero.' }
         }
 
+        // Delega o decremento seguro (Race-Condition proof) ao banco de dados com limite de >=
         const produto = await prisma.produto.update({
-            where: { id },
+            where: {
+                id,
+                estoque: { gte: quantidadeAbsoluta } // Bloqueia atomicamente se não houver stock
+            },
             data: { estoque: { decrement: quantidadeAbsoluta } },
-        })
-        return { sucesso: true, produto: produto as unknown as Produto }
-    } catch {
+            select: {
+                id: true, nome: true, descricao: true, precoCusto: true, precoVenda: true,
+                estoque: true, unidadeMedida: true, tamanhoUnidade: true, ativo: true,
+                createdAt: true, updatedAt: true
+            }
+        }).catch(() => null)
+
+        if (!produto) {
+            return { sucesso: false, erro: 'O produto não possui estoque suficiente para esta baixa.' }
+        }
+
+        revalidatePath('/admin/estoque')
+        return { sucesso: true, produto }
+    } catch (error) {
+        if (error instanceof Error && error.message.includes('Acesso negado')) return { sucesso: false, erro: error.message }
         return { sucesso: false, erro: 'Erro ao atualizar o estoque.' }
     }
 }
 
-
-// ── 6. INATIVAÇÃO (soft delete — preserva histórico financeiro) ───────────────
+// ── 6. INATIVAÇÃO (soft delete) ───────────────────────────────────────────────
 
 export async function excluirProdutoLogico(id: string): Promise<ActionResult<{ mensagem: string }>> {
     try {
+        await garantirPermissaoAdmin()
+
         await prisma.produto.update({
             where: { id },
             data: { ativo: false },
         })
+
         revalidatePath('/admin/estoque')
         return {
             sucesso: true,
             mensagem: 'Produto removido do catálogo. O histórico financeiro foi preservado.',
         }
-    } catch {
+    } catch (error) {
+        if (error instanceof Error && error.message.includes('Acesso negado')) return { sucesso: false, erro: error.message }
         return { sucesso: false, erro: 'Falha ao remover o produto do catálogo.' }
     }
 }

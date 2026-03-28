@@ -92,7 +92,7 @@ export default function PainelComanda({ agendamento, produtosDisponiveis, podeVe
         setIsFinalizando(true)
         setErro('')
 
-        const res = await finalizarComanda(agendamento.id)
+        const res = await finalizarComanda(agendamento.id, 3, 0)
         if (res.sucesso) {
             startTransition(() => {
                 router.push('/profissional/agenda')

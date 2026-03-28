@@ -4,18 +4,7 @@ import { SignJWT, jwtVerify } from 'jose'
 import { cookies } from 'next/headers'
 import { prisma } from '@/lib/prisma'
 import { compare } from 'bcrypt'
-
-// ── TRAVA FATAL DE SEGURANÇA ─────────────────────────────────────────────────
-if (!process.env.JWT_SECRET && process.env.NODE_ENV === 'production') {
-    throw new Error(
-        'FATAL: JWT_SECRET não está definido nas variáveis de ambiente de produção.'
-    )
-}
-
-// Exportado para ser a ÚNICA fonte de verdade da aplicação
-export const JWT_SECRET = new TextEncoder().encode(
-    process.env.JWT_SECRET ?? 'chave_secreta_desenvolvimento'
-)
+import { JWT_SECRET } from '@/lib/jwt'
 
 type LoginFuncionarioResult =
     | { success: true; role: string }
@@ -28,25 +17,6 @@ type SessaoClienteResult =
 type SessaoFuncionarioResult =
     | { logado: true; id: string; nome: string; role: 'ADMIN' | 'PROFISSIONAL' }
     | { logado: false }
-
-// ── FUNÇÃO DE UTILIDADE UNIFICADA PARA CLIENTES ──────────────────────────────
-export async function criarSessaoCliente(clienteId: string, nome: string) {
-    const token = await new SignJWT({ role: 'CLIENTE', nome })
-        .setProtectedHeader({ alg: 'HS256' })
-        .setSubject(clienteId)
-        .setIssuedAt()
-        .setExpirationTime('30d')
-        .sign(JWT_SECRET)
-
-    const cookieStore = await cookies()
-    cookieStore.set('cliente_session', token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        maxAge: 60 * 60 * 24 * 30, // 30 dias unificado
-        path: '/',
-        sameSite: 'lax',
-    })
-}
 
 // ── Autenticação de Funcionários (E-mail e Senha) ─────────────────────────
 export async function loginFuncionario(

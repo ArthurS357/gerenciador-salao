@@ -223,6 +223,8 @@ const ServicosVitrine = memo(function ServicosVitrine({
                 isOpen={modalAberto}
                 onClose={() => setModalAberto(false)}
                 servicosSelecionados={servicosParaOModal}
+                profissionalId={null}
+                onConfirmar={() => setModalAberto(false)}
             />
 
         </section>

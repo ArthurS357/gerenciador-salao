@@ -1,35 +1,63 @@
 'use server'
 
 import { prisma } from '@/lib/prisma'
+import { verificarSessaoCliente, verificarSessaoFuncionario } from '@/app/actions/auth'
 
-type ActionResult<T = object> =
-    | ({ sucesso: true } & T)
+// ── Tipo base local (padrão robusto, sem union com 'object') ─────────────────
+type ActionResult<T = void> =
+    | (T extends void ? { sucesso: true } : { sucesso: true } & T)
     | { sucesso: false; erro: string }
 
+// ── 1. Criar Avaliação (NPS do Cliente) ──────────────────────────────────────
+/**
+ * Apenas o próprio cliente autenticado pode avaliar o seu agendamento.
+ * Evita IDOR: verifica que o agendamentoId pertence à sessão ativa antes de gravar.
+ */
 export async function criarAvaliacao(
     agendamentoId: string,
     nota: number,
     comentario?: string
 ): Promise<ActionResult> {
     try {
-        if (nota < 1 || nota > 5) {
-            return { sucesso: false, erro: 'A nota deve estar entre 1 e 5 estrelas.' }
+        // ── Blindagem: Apenas clientes autenticados podem avaliar ────────────
+        const sessao = await verificarSessaoCliente()
+        if (!sessao.logado) {
+            return { sucesso: false, erro: 'Faça login para avaliar seu atendimento.' }
         }
 
+        // ── Validação da nota: inteiro entre 1 e 5 ──────────────────────────
+        if (!Number.isInteger(nota) || nota < 1 || nota > 5) {
+            return { sucesso: false, erro: 'A nota deve ser um número inteiro entre 1 e 5 estrelas.' }
+        }
+
+        // ── Anti-IDOR: confirma que o agendamento pertence a este cliente ────
+        // Sem essa verificação, qualquer cliente logado poderia avaliar o
+        // agendamento de outro cliente apenas passando outro agendamentoId.
+        const agendamento = await prisma.agendamento.findUnique({
+            where: { id: agendamentoId },
+            select: { clienteId: true, concluido: true }
+        })
+
+        if (!agendamento) {
+            return { sucesso: false, erro: 'Agendamento não encontrado.' }
+        }
+        if (agendamento.clienteId !== sessao.id) {
+            return { sucesso: false, erro: 'Acesso negado. Este agendamento não pertence à sua conta.' }
+        }
+        if (!agendamento.concluido) {
+            return { sucesso: false, erro: 'Só é possível avaliar atendimentos concluídos.' }
+        }
+
+        // ── Idempotência: impede avaliação dupla ─────────────────────────────
         const existente = await prisma.avaliacao.findUnique({
             where: { agendamentoId }
         })
-
         if (existente) {
             return { sucesso: false, erro: 'Você já avaliou este atendimento. Obrigado!' }
         }
 
         await prisma.avaliacao.create({
-            data: {
-                agendamentoId,
-                nota,
-                comentario
-            }
+            data: { agendamentoId, nota, comentario }
         })
 
         return { sucesso: true }
@@ -39,6 +67,9 @@ export async function criarAvaliacao(
     }
 }
 
+// ── 2. Listar Avaliações (Painel Admin) ──────────────────────────────────────
+
+// Tipo exportado apenas para uso no front-end admin — não é uma Server Action
 export type AvaliacaoAdminItem = {
     id: string
     nota: number
@@ -53,9 +84,21 @@ export type AvaliacaoAdminItem = {
 
 export async function listarAvaliacoesAdmin(): Promise<ActionResult<{ avaliacoes: AvaliacaoAdminItem[], mediaGeral: number }>> {
     try {
+        // ── Blindagem RBAC: apenas ADMIN pode ler avaliações no painel ───────
+        const sessao = await verificarSessaoFuncionario()
+        if (!sessao.logado || sessao.role !== 'ADMIN') {
+            return { sucesso: false, erro: 'Acesso negado. Área restrita à administração.' }
+        }
+
         const avaliacoes = await prisma.avaliacao.findMany({
             orderBy: { criadoEm: 'desc' },
-            include: {
+            // Usando select explícito em vez de include para bater com
+            // AvaliacaoAdminItem e eliminar o cast "as AvaliacaoAdminItem[]"
+            select: {
+                id: true,
+                nota: true,
+                comentario: true,
+                criadoEm: true,
                 agendamento: {
                     select: {
                         cliente: { select: { nome: true } },
@@ -66,15 +109,12 @@ export async function listarAvaliacoesAdmin(): Promise<ActionResult<{ avaliacoes
             }
         })
 
-        // Calcula a média geral do salão
         const somaNotas = avaliacoes.reduce((acc, av) => acc + av.nota, 0)
-        const mediaGeral = avaliacoes.length > 0 ? somaNotas / avaliacoes.length : 0
+        const mediaGeral = avaliacoes.length > 0
+            ? Math.round((somaNotas / avaliacoes.length) * 10) / 10 // 1 casa decimal
+            : 0
 
-        return {
-            sucesso: true,
-            avaliacoes: avaliacoes as AvaliacaoAdminItem[],
-            mediaGeral
-        }
+        return { sucesso: true, avaliacoes, mediaGeral }
     } catch (error) {
         console.error('Erro ao listar avaliações:', error)
         return { sucesso: false, erro: 'Falha ao carregar as avaliações.' }

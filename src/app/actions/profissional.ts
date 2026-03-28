@@ -1,18 +1,16 @@
 'use server'
 
 import { prisma } from '@/lib/prisma'
-import { cookies } from 'next/headers'
-import { jwtVerify } from 'jose'
 import { hash } from 'bcrypt'
-import type { AgendamentoProfissional } from '@/types/domain'
+import { formatInTimeZone } from 'date-fns-tz'
+import { verificarSessaoFuncionario } from '@/app/actions/auth'
+import { Prisma } from '@prisma/client'
 
-const JWT_SECRET = new TextEncoder().encode(
-    process.env.JWT_SECRET ?? 'chave_secreta_desenvolvimento'
-)
+const TZ = 'America/Sao_Paulo'
 
-// ── CORREÇÃO: Definição do ActionResult adicionada aqui ──
-type ActionResult<T = object> =
-    | ({ sucesso: true } & T)
+// ── Tipagem Estrita ──────────────────────────────────────────────────────────
+type ActionResult<T = void> =
+    | (T extends void ? { sucesso: true } : { sucesso: true } & T)
     | { sucesso: false; erro: string }
 
 type ProfissionalInfo = {
@@ -22,16 +20,17 @@ type ProfissionalInfo = {
     comissaoMensal: number
 }
 
-type PainelResult =
-    | {
-        sucesso: true
-        profissional: ProfissionalInfo
-        agendamentosHoje: AgendamentoProfissional[]
+// Extrai o tipo exato do agendamento com as relações incluídas
+export type AgendamentoComRelações = Prisma.AgendamentoGetPayload<{
+    include: {
+        cliente: { select: { nome: true, telefone: true } },
+        servicos: {
+            include: { servico: { select: { id: true, nome: true, preco: true } } }
+        }
     }
-    | { sucesso: false; erro: string }
+}>
 
-// Novo tipo para definir a estrutura do expediente retornado
-type ExpedientePayload = {
+export type ExpedientePayload = {
     diaSemana: number
     horaInicio: string
     horaFim: string
@@ -40,32 +39,31 @@ type ExpedientePayload = {
     funcionarioId?: string
 }
 
-export async function obterDadosPainelProfissional(): Promise<PainelResult> {
+// ── 1. Painel Principal ───────────────────────────────────────────────────────
+export async function obterDadosPainelProfissional(): Promise<ActionResult<{
+    profissional: ProfissionalInfo
+    agendamentosHoje: AgendamentoComRelações[]
+}>> {
     try {
-        const cookieStore = await cookies()
-        const token = cookieStore.get('funcionario_session')?.value
-
-        if (!token) return { sucesso: false, erro: 'Não autenticado.' }
-
-        const { payload } = await jwtVerify(token, JWT_SECRET)
-        const funcionarioId = payload.sub
-
-        if (!funcionarioId) return { sucesso: false, erro: 'Token inválido.' }
+        const sessao = await verificarSessaoFuncionario()
+        if (!sessao.logado) return { sucesso: false, erro: 'Sessão expirada.' }
 
         const funcionario = await prisma.funcionario.findUnique({
-            where: { id: funcionarioId },
+            where: { id: sessao.id },
+            select: { nome: true, podeVerComissao: true, comissao: true }
         })
 
         if (!funcionario) return { sucesso: false, erro: 'Profissional não encontrado.' }
 
         const agora = new Date()
-        const inicioDoDia = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate(), 0, 0, 0)
-        const fimDoDia = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate(), 23, 59, 59)
+        const inicioDia = new Date(formatInTimeZone(agora, TZ, "yyyy-MM-dd'T'00:00:00xxx"))
+        const fimDia = new Date(formatInTimeZone(agora, TZ, "yyyy-MM-dd'T'23:59:59xxx"))
 
         const agendamentosHoje = await prisma.agendamento.findMany({
             where: {
-                funcionarioId,
-                dataHoraInicio: { gte: inicioDoDia, lte: fimDoDia },
+                funcionarioId: sessao.id,
+                dataHoraInicio: { gte: inicioDia, lte: fimDia },
+                canceladoEm: null,
             },
             orderBy: { dataHoraInicio: 'asc' },
             include: {
@@ -77,23 +75,18 @@ export async function obterDadosPainelProfissional(): Promise<PainelResult> {
         })
 
         let comissaoMensal = 0
-
         if (funcionario.podeVerComissao) {
-            const inicioDoMes = new Date(agora.getFullYear(), agora.getMonth(), 1)
+            const inicioMes = new Date(formatInTimeZone(agora, TZ, "yyyy-MM-01'T'00:00:00xxx"))
 
-            const agendamentosMes = await prisma.agendamento.findMany({
+            const agregacao = await prisma.agendamento.aggregate({
                 where: {
-                    funcionarioId,
+                    funcionarioId: sessao.id,
                     concluido: true,
-                    dataHoraInicio: { gte: inicioDoMes },
+                    dataHoraInicio: { gte: inicioMes },
                 },
-                include: { servicos: true },
+                _sum: { valorComissao: true }
             })
-
-            for (const ag of agendamentosMes) {
-                const valorServicos = ag.servicos.reduce((acc, s) => acc + (s.precoCobrado ?? 0), 0)
-                comissaoMensal += valorServicos * (funcionario.comissao / 100)
-            }
+            comissaoMensal = agregacao._sum.valorComissao ?? 0
         }
 
         return {
@@ -104,28 +97,29 @@ export async function obterDadosPainelProfissional(): Promise<PainelResult> {
                 taxaComissao: funcionario.comissao,
                 comissaoMensal,
             },
-            agendamentosHoje: agendamentosHoje as unknown as AgendamentoProfissional[],
+            agendamentosHoje // Tipagem garantida pelo Prisma, sem 'as unknown'
         }
     } catch (error) {
-        console.error('Erro ao carregar painel do profissional:', error)
-        return { sucesso: false, erro: 'Falha técnica ao carregar o seu painel.' }
+        console.error('Erro ao carregar painel:', error)
+        return { sucesso: false, erro: 'Falha técnica ao carregar dados.' }
     }
 }
 
-// Correção: Substituído 'any[]' pelo tipo definido 'ExpedientePayload[]'
-export async function obterPerfilEExpediente(): Promise<ActionResult<{ fotoUrl: string | null, expedientes: ExpedientePayload[] }>> {
+// ── 2. Perfil e Expediente ────────────────────────────────────────────────────
+export async function obterPerfilEExpediente(): Promise<ActionResult<{
+    fotoUrl: string | null
+    expedientes: ExpedientePayload[]
+}>> {
     try {
-        const cookieStore = await cookies()
-        const token = cookieStore.get('funcionario_session')?.value
-        if (!token) return { sucesso: false, erro: 'Não autenticado.' }
-
-        const { payload } = await jwtVerify(token, JWT_SECRET)
-        const funcionarioId = payload.sub as string
+        const sessao = await verificarSessaoFuncionario()
+        if (!sessao.logado) return { sucesso: false, erro: 'Não autenticado.' }
 
         const funcionario = await prisma.funcionario.findUnique({
-            where: { id: funcionarioId },
-            include: {
+            where: { id: sessao.id },
+            select: {
+                fotoUrl: true,
                 expedientes: {
+                    select: { diaSemana: true, horaInicio: true, horaFim: true, ativo: true },
                     orderBy: { diaSemana: 'asc' }
                 }
             }
@@ -133,98 +127,79 @@ export async function obterPerfilEExpediente(): Promise<ActionResult<{ fotoUrl: 
 
         if (!funcionario) return { sucesso: false, erro: 'Profissional não encontrado.' }
 
-        // Correção: Variável tipada explicitamente para evitar 'any' implícito e permitir atribuição posterior
-        let expedientes: ExpedientePayload[] = funcionario.expedientes;
+        let expedientes: ExpedientePayload[] = funcionario.expedientes
 
         if (expedientes.length === 0) {
-            const diasPadrao = Array.from({ length: 7 }).map((_, index) => ({
+            expedientes = Array.from({ length: 7 }).map((_, index) => ({
                 diaSemana: index,
                 horaInicio: '09:00',
                 horaFim: '18:00',
-                ativo: false
-            }));
-            // Correção: Removido 'as any', pois 'diasPadrao' é compatível com 'ExpedientePayload[]'
-            expedientes = diasPadrao;
+                ativo: false,
+            }))
         }
 
-        return {
-            sucesso: true,
-            fotoUrl: funcionario.fotoUrl,
-            expedientes
-        }
+        return { sucesso: true, fotoUrl: funcionario.fotoUrl, expedientes }
     } catch {
-        // Correção: Removido parâmetro 'error' não utilizado
         return { sucesso: false, erro: 'Erro ao carregar perfil.' }
     }
 }
 
+// ── 3. Persistência ───────────────────────────────────────────────────────────
 export async function salvarPerfilEExpediente(
     fotoUrl: string | null,
-    expedientes: Array<{ diaSemana: number, horaInicio: string, horaFim: string, ativo: boolean }>
+    expedientes: Array<{ diaSemana: number; horaInicio: string; horaFim: string; ativo: boolean }>
 ): Promise<ActionResult> {
     try {
-        const cookieStore = await cookies()
-        const token = cookieStore.get('funcionario_session')?.value
-        if (!token) return { sucesso: false, erro: 'Não autenticado.' }
+        const sessao = await verificarSessaoFuncionario()
+        if (!sessao.logado) return { sucesso: false, erro: 'Não autorizado.' }
 
-        const { payload } = await jwtVerify(token, JWT_SECRET)
-        const funcionarioId = payload.sub as string
+        await prisma.$transaction(async (tx) => {
+            if (fotoUrl !== undefined) {
+                await tx.funcionario.update({
+                    where: { id: sessao.id },
+                    data: { fotoUrl }
+                })
+            }
 
-        // 1. Atualiza a foto do perfil
-        if (fotoUrl !== undefined) {
-            await prisma.funcionario.update({
-                where: { id: funcionarioId },
-                data: { fotoUrl }
-            })
-        }
-
-        // 2. Atualiza ou cria o expediente usando uma transação para segurança
-        const transacoes = expedientes.map(exp => {
-            return prisma.expediente.upsert({
-                where: {
-                    funcionarioId_diaSemana: {
-                        funcionarioId: funcionarioId,
-                        diaSemana: exp.diaSemana
+            const upserts = expedientes.map(exp =>
+                tx.expediente.upsert({
+                    where: { funcionarioId_diaSemana: { funcionarioId: sessao.id, diaSemana: exp.diaSemana } },
+                    update: { horaInicio: exp.horaInicio, horaFim: exp.horaFim, ativo: exp.ativo },
+                    create: {
+                        funcionarioId: sessao.id,
+                        diaSemana: exp.diaSemana,
+                        horaInicio: exp.horaInicio,
+                        horaFim: exp.horaFim,
+                        ativo: exp.ativo
                     }
-                },
-                update: {
-                    horaInicio: exp.horaInicio,
-                    horaFim: exp.horaFim,
-                    ativo: exp.ativo
-                },
-                create: {
-                    funcionarioId: funcionarioId,
-                    diaSemana: exp.diaSemana,
-                    horaInicio: exp.horaInicio,
-                    horaFim: exp.horaFim,
-                    ativo: exp.ativo
-                }
-            })
+                })
+            )
+            await Promise.all(upserts)
         })
-
-        await prisma.$transaction(transacoes)
 
         return { sucesso: true }
     } catch (error) {
-        console.error('Erro ao salvar perfil:', error)
-        return { sucesso: false, erro: 'Erro ao salvar o horário de trabalho.' }
+        console.error('Erro ao salvar escala:', error)
+        return { sucesso: false, erro: 'Falha ao salvar o horário de trabalho.' }
     }
 }
 
+// ── 4. Alteração de Senha ─────────────────────────────────────────────────────
 export async function alterarSenhaProfissional(novaSenha: string): Promise<ActionResult> {
     try {
-        const cookieStore = await cookies()
-        const token = cookieStore.get('funcionario_session')?.value
-        if (!token) return { sucesso: false, erro: 'Não autenticado.' }
+        const sessao = await verificarSessaoFuncionario()
+        if (!sessao.logado) return { sucesso: false, erro: 'Acesso negado.' }
 
-        const { payload } = await jwtVerify(token, JWT_SECRET)
-        const funcionarioId = payload.sub as string
+        // Validação de segurança reforçada
+        const regexSenha = /^(?=.*[A-Za-z])(?=.*\d).{6,}$/
+        if (!regexSenha.test(novaSenha)) {
+            return { sucesso: false, erro: 'A senha deve ter pelo menos 6 caracteres, incluindo letras e números.' }
+        }
 
-        const senhaHasheada = await hash(novaSenha, 12)
-
+        const senhaHash = await hash(novaSenha, 12)
         await prisma.funcionario.update({
-            where: { id: funcionarioId },
-            data: { senhaHash: senhaHasheada }
+            where: { id: sessao.id },
+            data: { senhaHash }
         })
 
         return { sucesso: true }
@@ -232,4 +207,4 @@ export async function alterarSenhaProfissional(novaSenha: string): Promise<Actio
         console.error('Erro ao alterar senha:', error)
         return { sucesso: false, erro: 'Falha ao comunicar com o servidor.' }
     }
-}
+}
