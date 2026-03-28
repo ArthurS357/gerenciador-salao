@@ -2,6 +2,9 @@
 
 import { prisma } from '@/lib/prisma'
 import { verificarNumeroExisteNoWhatsApp, enviarMensagemWhatsApp } from '@/lib/whatsapp'
+import { formatInTimeZone } from 'date-fns-tz'
+import { ptBR } from 'date-fns/locale'
+import { verificarRateLimit } from '@/lib/rateLimit'
 
 // ── Tipagens Estritas ─────────────────────────────────────────────────────────
 
@@ -115,7 +118,16 @@ export async function criarAgendamentoMultiplo(
     dataHoraInicio: Date,
     servicosIds: string[]
 ): Promise<ActionResult<{ agendamentoId: string }>> {
-    const TEMPO_BUFFER_MINUTOS = 5
+    const requisicaoPermitida = verificarRateLimit(clienteId);
+    
+    if (!requisicaoPermitida) {
+        return { 
+            sucesso: false, 
+            erro: 'Muitas tentativas de agendamento em um curto período. Aguarde um minuto e tente novamente.' 
+        };
+    }
+
+    const TEMPO_BUFFER_MINUTOS = Number(process.env.TEMPO_BUFFER_MINUTOS) || 5
 
     try {
         const dataAtual = new Date();
@@ -175,6 +187,7 @@ export async function criarAgendamentoMultiplo(
                 where: {
                     funcionarioId,
                     concluido: false,
+                    canceladoEm: null,
                     AND: [
                         { dataHoraInicio: { lt: dataHoraFim } },
                         { dataHoraFim: { gt: dataHoraInicio } },
@@ -210,9 +223,13 @@ export async function criarAgendamentoMultiplo(
         const novoAgendamento = resultadoTransacao.novoAgendamento
 
         // ── INTEGRAÇÃO WHATSAPP (Assíncrono, não trava a resposta) ──
-        const dataFormatada = new Intl.DateTimeFormat('pt-BR', {
-            weekday: 'long', day: '2-digit', month: 'long', hour: '2-digit', minute: '2-digit'
-        }).format(dataHoraInicio);
+        // Formatação robusta de Data com Fuso Horário protegido via date-fns-tz
+        const dataFormatada = formatInTimeZone(
+            dataHoraInicio, 
+            'America/Sao_Paulo', 
+            "EEEE, dd 'de' MMMM 'às' HH:mm", 
+            { locale: ptBR }
+        );
 
         const nomesServicos = itensParaCriar.map(item => {
             return servicos.find(s => s.id === item.servicoId)?.nome || 'Serviço'
@@ -294,7 +311,7 @@ export async function cancelarAgendamentoPendente(id: string): Promise<ActionRes
                 })
             }
 
-            await tx.agendamento.delete({ where: { id } })
+            await tx.agendamento.update({ where: { id }, data: { canceladoEm: new Date() } })
 
             await tx.notificacao.create({
                 data: {
@@ -347,7 +364,7 @@ export async function editarAgendamentoPendente(
         if (!agendamento) return { sucesso: false, erro: 'Agendamento não encontrado.' }
         if (agendamento.concluido) return { sucesso: false, erro: 'Não é possível editar uma comanda que já foi faturada.' }
 
-        const TEMPO_BUFFER_MINUTOS = 5
+        const TEMPO_BUFFER_MINUTOS = Number(process.env.TEMPO_BUFFER_MINUTOS) || 5
         let tempoTotalMinutos = 0
         agendamento.servicos.forEach(item => {
             tempoTotalMinutos += item.servico.tempoMinutos ?? 30
@@ -365,6 +382,7 @@ export async function editarAgendamentoPendente(
                     funcionarioId,
                     id: { not: id },
                     concluido: false,
+                    canceladoEm: null,
                     AND: [
                         { dataHoraInicio: { lt: dataHoraFim } },
                         { dataHoraFim: { gt: dataHoraInicio } },

@@ -120,6 +120,7 @@ model Agendamento {
   valorBruto     Float
   taxas          Float    @default(0)
   concluido      Boolean  @default(false)
+  canceladoEm    DateTime?
   
   custoInsumos   Float    @default(0) 
 
@@ -129,6 +130,8 @@ model Agendamento {
   servicos       ItemServico[]
   produtos       ItemProduto[]
   avaliacao      Avaliacao?
+
+  @@index([funcionarioId, dataHoraInicio, dataHoraFim])
 }
 
 model ItemServico {

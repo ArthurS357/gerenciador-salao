@@ -1,0 +1,33 @@
+name: CI - Otimizações e Concorrência
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x]
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Usar o Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v3
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+
+    - name: Instalar Dependências
+      run: npm ci
+
+    - name: Gerar Prisma Client
+      run: npx prisma generate
+
+    - name: Run Vitest
+      run: npx vitest run

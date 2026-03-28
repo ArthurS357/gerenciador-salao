@@ -20,14 +20,25 @@ const Hero = memo(function Hero() {
         const glow = glowRef.current;
         if (!el || !img) return;
 
+        let ticking = false;
         const onMove = (e: MouseEvent) => {
-            const { left, top, width, height } = el.getBoundingClientRect();
-            const pctX = (e.clientX - left - width / 2) / (width / 2);
-            const pctY = (e.clientY - top - height / 2) / (height / 2);
-            img.style.transform = `translateZ(80px) rotateY(${pctX * 18}deg) rotateX(${pctY * -18}deg)`;
-            if (glow) {
-                glow.style.transform = `translate(${pctX * 24}px, ${pctY * 24}px)`;
-                glow.style.opacity = "1";
+            if (!ticking) {
+                window.requestAnimationFrame(() => {
+                    const { left, top, width, height } = el.getBoundingClientRect();
+                    const pctX = (e.clientX - left - width / 2) / (width / 2);
+                    const pctY = (e.clientY - top - height / 2) / (height / 2);
+                    
+                    img.style.willChange = 'transform';
+                    if (glow) glow.style.willChange = 'transform, opacity';
+
+                    img.style.transform = `translateZ(80px) rotateY(${pctX * 18}deg) rotateX(${pctY * -18}deg)`;
+                    if (glow) {
+                        glow.style.transform = `translate(${pctX * 24}px, ${pctY * 24}px)`;
+                        glow.style.opacity = "1";
+                    }
+                    ticking = false;
+                });
+                ticking = true;
             }
         };
         const onLeave = () => {
@@ -65,11 +76,11 @@ const Hero = memo(function Hero() {
                         backgroundSize: "96px 96px",
                     }}
                 />
-                {/* Ruído de grão */}
+                {/* Ruído de grão - Simplificado s/ mix-blend-mode para performance */}
                 <div
-                    className="absolute inset-0 opacity-[0.035] mix-blend-overlay"
+                    className="absolute inset-0 opacity-[0.02]"
                     style={{
-                        backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)'/%3E%3C/svg%3E")`,
+                        backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)'/%3E%3C/svg%3E")`,
                     }}
                 />
             </div>
