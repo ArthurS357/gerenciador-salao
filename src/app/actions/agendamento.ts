@@ -118,6 +118,12 @@ export async function criarAgendamentoMultiplo(
     const TEMPO_BUFFER_MINUTOS = 5
 
     try {
+        const dataAtual = new Date();
+        const limitePassado = new Date(dataAtual.getTime() - 5 * 60_000); // Tolerância de 5 minutos
+
+        if (dataHoraInicio < limitePassado) {
+            return { sucesso: false, erro: 'Não é possível registrar agendamentos em horários passados.' };
+        }
         if (!servicosIds.length) {
             return { sucesso: false, erro: 'Selecione pelo menos um serviço.' }
         }
@@ -163,34 +169,45 @@ export async function criarAgendamentoMultiplo(
             return { sucesso: false, erro: erroExpediente }
         }
 
-        const conflito = await prisma.agendamento.findFirst({
-            where: {
-                funcionarioId,
-                concluido: false,
-                AND: [
-                    { dataHoraInicio: { lt: dataHoraFim } },
-                    { dataHoraFim: { gt: dataHoraInicio } },
-                ],
-            },
+        // Garante que a checagem e a inserção ocorram juntas (Double Booking Prevention)
+        const resultadoTransacao = await prisma.$transaction(async (tx) => {
+            const conflito = await tx.agendamento.findFirst({
+                where: {
+                    funcionarioId,
+                    concluido: false,
+                    AND: [
+                        { dataHoraInicio: { lt: dataHoraFim } },
+                        { dataHoraFim: { gt: dataHoraInicio } },
+                    ],
+                },
+            })
+
+            if (conflito) {
+                return { sucesso: false as const, erro: 'Choque de horários. O profissional já tem marcações neste intervalo de tempo.' }
+            }
+
+            const novoAgendamento = await tx.agendamento.create({
+                data: {
+                    clienteId,
+                    funcionarioId,
+                    valorBruto,
+                    taxas: 0,
+                    dataHoraInicio,
+                    dataHoraFim,
+                    concluido: false,
+                    servicos: { create: itensParaCriar },
+                },
+                include: { funcionario: { select: { nome: true } } }
+            })
+
+            return { sucesso: true as const, novoAgendamento }
         })
 
-        if (conflito) {
-            return { sucesso: false, erro: 'Choque de horários. O profissional já tem marcações neste intervalo de tempo.' }
+        if (!resultadoTransacao.sucesso) {
+            return { sucesso: false, erro: resultadoTransacao.erro }
         }
 
-        const novoAgendamento = await prisma.agendamento.create({
-            data: {
-                clienteId,
-                funcionarioId,
-                valorBruto,
-                taxas: 0,
-                dataHoraInicio,
-                dataHoraFim,
-                concluido: false,
-                servicos: { create: itensParaCriar },
-            },
-            include: { funcionario: { select: { nome: true } } }
-        })
+        const novoAgendamento = resultadoTransacao.novoAgendamento
 
         // ── INTEGRAÇÃO WHATSAPP (Assíncrono, não trava a resposta) ──
         const dataFormatada = new Intl.DateTimeFormat('pt-BR', {
@@ -315,6 +332,13 @@ export async function editarAgendamentoPendente(
     dataHoraInicio: Date
 ): Promise<ActionResult> {
     try {
+        const dataAtual = new Date();
+        const limitePassado = new Date(dataAtual.getTime() - 5 * 60_000);
+
+        if (dataHoraInicio < limitePassado) {
+            return { sucesso: false, erro: 'Não é possível remanejar para horários no passado.' };
+        }
+
         const agendamento = await prisma.agendamento.findUnique({
             where: { id },
             include: { servicos: { include: { servico: true } } }
@@ -335,26 +359,34 @@ export async function editarAgendamentoPendente(
             return { sucesso: false, erro: erroExpediente }
         }
 
-        const conflito = await prisma.agendamento.findFirst({
-            where: {
-                funcionarioId,
-                id: { not: id },
-                concluido: false,
-                AND: [
-                    { dataHoraInicio: { lt: dataHoraFim } },
-                    { dataHoraFim: { gt: dataHoraInicio } },
-                ],
-            },
+        const resultadoTransacao = await prisma.$transaction(async (tx) => {
+            const conflito = await tx.agendamento.findFirst({
+                where: {
+                    funcionarioId,
+                    id: { not: id },
+                    concluido: false,
+                    AND: [
+                        { dataHoraInicio: { lt: dataHoraFim } },
+                        { dataHoraFim: { gt: dataHoraInicio } },
+                    ],
+                },
+            })
+
+            if (conflito) {
+                return { sucesso: false as const, erro: 'Choque de horários. Profissional indisponível neste novo horário.' }
+            }
+
+            await tx.agendamento.update({
+                where: { id },
+                data: { funcionarioId, dataHoraInicio, dataHoraFim }
+            })
+
+            return { sucesso: true as const }
         })
 
-        if (conflito) {
-            return { sucesso: false, erro: 'Choque de horários. Profissional indisponível neste novo horário.' }
+        if (!resultadoTransacao.sucesso) {
+            return { sucesso: false, erro: resultadoTransacao.erro }
         }
-
-        await prisma.agendamento.update({
-            where: { id },
-            data: { funcionarioId, dataHoraInicio, dataHoraFim }
-        })
 
         return { sucesso: true }
     } catch (error) {
