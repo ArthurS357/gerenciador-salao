@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { CalendarOff, LogOut, Trash2 } from 'lucide-react'
+import { CalendarOff, LogOut, Trash2, Home } from 'lucide-react'
 import { logoutCliente } from '@/app/actions/auth'
 import { excluirContaCliente } from '@/app/actions/cliente'
 import { criarAvaliacao } from '@/app/actions/avaliacao'
@@ -123,13 +123,24 @@ export default function ClienteDashboardUI({
                         </p>
                     </div>
 
-                    <button
-                        onClick={handleLogout}
-                        className="relative z-10 flex items-center gap-2 border border-[rgba(197,168,124,0.3)] bg-transparent text-[#2a1810] px-5 py-2.5 rounded-full font-sans text-[0.65rem] font-semibold uppercase tracking-[0.15em] hover:bg-[rgba(197,168,124,0.05)] hover:border-caramelo transition-all duration-300"
-                    >
-                        <LogOut className="w-3.5 h-3.5 text-caramelo" />
-                        Sair da Conta
-                    </button>
+                    {/* Container de Botões (Início e Logout) */}
+                    <div className="relative z-10 flex flex-wrap items-center gap-3">
+                        <Link
+                            href="/"
+                            className="flex items-center gap-2 bg-caramelo text-white px-5 py-2.5 rounded-full font-sans text-[0.65rem] font-semibold uppercase tracking-[0.15em] hover:bg-[#d4b896] shadow-sm hover:shadow-md transition-all duration-300"
+                        >
+                            <Home className="w-3.5 h-3.5" />
+                            Página Inicial
+                        </Link>
+
+                        <button
+                            onClick={handleLogout}
+                            className="flex items-center gap-2 border border-[rgba(197,168,124,0.3)] bg-transparent text-[#2a1810] px-5 py-2.5 rounded-full font-sans text-[0.65rem] font-semibold uppercase tracking-[0.15em] hover:bg-[rgba(197,168,124,0.05)] hover:border-caramelo transition-all duration-300"
+                        >
+                            <LogOut className="w-3.5 h-3.5 text-caramelo" />
+                            Sair
+                        </button>
+                    </div>
                 </div>
 
                 {/* Resumo Financeiro Premium */}
