@@ -2,7 +2,8 @@
 import { memo, useState } from 'react'
 import { cn } from './cn'
 import type { ServicosVitrineProps, Servico } from './types'
-
+// IMPORTANTE: Ajuste o caminho de importação abaixo conforme a pasta onde você salvou
+import { ModalAgendamento } from '../ModalAgendamento'
 // SVG icons — sem emoji (regra UI/UX)
 const ICONES_SVG = [
     // Tesoura (corte)
@@ -110,9 +111,17 @@ const ServicosVitrine = memo(function ServicosVitrine({
 }: ServicosVitrineProps) {
     const [busca, setBusca] = useState("");
 
+    // 1. Estado para controlar a abertura do Modal
+    const [modalAberto, setModalAberto] = useState(false);
+
     const servicosFiltrados = catalogoServicos.filter(s =>
         s.nome.toLowerCase().includes(busca.toLowerCase()) ||
         (s.descricao && s.descricao.toLowerCase().includes(busca.toLowerCase()))
+    );
+
+    // 2. Transforma o array de IDs em array de Objetos (Servico) para enviar ao Modal
+    const servicosParaOModal = catalogoServicos.filter(s =>
+        servicosSelecionados.includes(s.id)
     );
 
     return (
@@ -195,18 +204,27 @@ const ServicosVitrine = memo(function ServicosVitrine({
                                 R$ {totalSelecionado.toFixed(2)}
                             </span>
                         </div>
-                        <a
-                            href="#agendamento"
-                            className="inline-flex items-center gap-2.5 py-3 px-7 bg-caramelo text-[#2a1810] font-sans text-[0.7rem] font-semibold tracking-[0.18em] uppercase transition-colors duration-300 hover:bg-[#d4b896] whitespace-nowrap"
+                        {/* 3. Botão substituindo a Tag de âncora anterior */}
+                        <button
+                            onClick={() => setModalAberto(true)}
+                            className="inline-flex items-center gap-2.5 py-3 px-7 bg-caramelo text-[#2a1810] font-sans text-[0.7rem] font-semibold tracking-[0.18em] uppercase transition-colors duration-300 hover:bg-[#d4b896] whitespace-nowrap border-none cursor-pointer"
                         >
                             Confirmar
                             <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
                                 <path d="M1 6h10M7 2l4 4-4 4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
                             </svg>
-                        </a>
+                        </button>
                     </div>
                 </div>
             )}
+
+            {/* 4. Renderiza o Componente do Modal no final da section */}
+            <ModalAgendamento
+                isOpen={modalAberto}
+                onClose={() => setModalAberto(false)}
+                servicosSelecionados={servicosParaOModal}
+            />
+
         </section>
     )
 })
