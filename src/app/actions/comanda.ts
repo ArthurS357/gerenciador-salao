@@ -2,173 +2,197 @@
 
 import { prisma } from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
+import { verificarSessaoFuncionario } from '@/app/actions/auth';
+import type { FechamentoComanda } from '@/types/domain';
 
-// 1. Lista produtos para a vitrine da comanda (Revenda)
+// ── Tipagens Estritas ─────────────────────────────────────────────────────────
+type ActionResult<T = void> =
+    | (T extends void ? { sucesso: true } : { sucesso: true } & T)
+    | { sucesso: false; erro: string }
+
+// ── 1. Listagem de Produtos ───────────────────────────────────────────────────
 export async function listarProdutosDisponiveis() {
+    // Blindagem de Leitura
+    const sessao = await verificarSessaoFuncionario();
+    if (!sessao.logado) throw new Error('Acesso negado.');
+
     return await prisma.produto.findMany({
-        // Traz apenas produtos ativos e que tenham pelo menos 1 frasco inteiro em estoque
-        // (comparamos o estoque absoluto com o tamanhoUnidade)
-        where: {
-            ativo: true,
-        },
+        where: { ativo: true },
         orderBy: { nome: 'asc' }
     }).then(produtos => produtos.filter(p => p.estoque >= p.tamanhoUnidade));
 }
 
-// 2. Adiciona produto inteiro à comanda (Venda Direta para o cliente levar)
-export async function adicionarProdutoNaComanda(agendamentoId: string, produtoId: string, quantidadeFrascos: number) {
+// ── 2. Adição de Produto à Comanda (Venda Direta) ─────────────────────────────
+export async function adicionarProdutoNaComanda(
+    agendamentoId: string,
+    produtoId: string,
+    quantidadeFrascos: number
+): Promise<ActionResult> {
     try {
-        // Passo 1: Descobrir o tamanho do frasco para calcular a baixa absoluta
-        const produtoInfo = await prisma.produto.findUnique({
-            where: { id: produtoId },
-            select: { precoVenda: true, tamanhoUnidade: true }
-        });
+        // 1. Blindagem de Acesso
+        const sessao = await verificarSessaoFuncionario();
+        if (!sessao.logado) return { sucesso: false, erro: 'Acesso negado.' };
 
-        if (!produtoInfo) {
-            return { sucesso: false, erro: 'Produto não encontrado.' };
+        // 2. Validação Estrita de Entrada (Impede manipulação financeira e geração mágica de estoque)
+        if (!quantidadeFrascos || quantidadeFrascos <= 0 || !Number.isInteger(quantidadeFrascos)) {
+            return { sucesso: false, erro: 'Quantidade inválida. Deve ser um número inteiro maior que zero.' };
         }
 
-        const baixaAbsoluta = quantidadeFrascos * produtoInfo.tamanhoUnidade;
+        // 3. Transação Interativa (Garante Atomicidade: Tudo ou Nada)
+        await prisma.$transaction(async (tx) => {
+            const produtoInfo = await tx.produto.findUnique({
+                where: { id: produtoId },
+                select: { precoVenda: true, tamanhoUnidade: true, estoque: true }
+            });
 
-        // Passo 2: Atualização atômica (Só atualiza se o estoque atual for >= à baixa)
-        const produtoAtualizado = await prisma.produto.update({
-            where: {
-                id: produtoId,
-                estoque: { gte: baixaAbsoluta } // Proteção no banco de dados contra estoque negativo
-            },
-            data: { estoque: { decrement: baixaAbsoluta } }
-        }).catch(() => null);
+            if (!produtoInfo) throw new Error('Produto não encontrado no catálogo.');
 
-        if (!produtoAtualizado) {
-            return { sucesso: false, erro: 'Estoque insuficiente para a quantidade solicitada.' };
-        }
+            const baixaAbsoluta = quantidadeFrascos * produtoInfo.tamanhoUnidade;
 
-        // Passo 3: Adiciona à comanda e consolida o financeiro (Valor Bruto)
-        await prisma.$transaction([
-            prisma.itemProduto.create({
+            if (produtoInfo.estoque < baixaAbsoluta) {
+                throw new Error('Estoque insuficiente para a quantidade solicitada.');
+            }
+
+            // Etapa A: Reduz o estoque físico
+            await tx.produto.update({
+                where: { id: produtoId },
+                data: { estoque: { decrement: baixaAbsoluta } }
+            });
+
+            // Etapa B: Insere o item na comanda
+            await tx.itemProduto.create({
                 data: {
                     agendamentoId,
                     produtoId,
                     quantidade: quantidadeFrascos,
                     precoCobrado: produtoInfo.precoVenda
                 }
-            }),
-            prisma.agendamento.update({
+            });
+
+            // Etapa C: Incrementa o valor da comanda baseando no preço oficial congelado
+            await tx.agendamento.update({
                 where: { id: agendamentoId },
                 data: { valorBruto: { increment: produtoInfo.precoVenda * quantidadeFrascos } }
-            })
-        ]);
+            });
+        });
 
+        revalidatePath(`/profissional/comanda/${agendamentoId}`);
         return { sucesso: true };
+        // Remoção do 'any' e aplicação do type guard seguro
     } catch (error) {
         console.error("Erro ao adicionar produto:", error);
-        return { sucesso: false, erro: 'Falha técnica ao adicionar produto à comanda.' };
+        return {
+            sucesso: false,
+            erro: error instanceof Error ? error.message : 'Falha técnica ao adicionar produto à comanda.'
+        };
     }
 }
 
-// 3. Fatura a comanda e processa os custos da Ficha Técnica e Financeiros
-export async function finalizarComanda(agendamentoId: string) {
+// ── 3. Fechamento Absoluto (Físico + Financeiro) ──────────────────────────────
+/**
+ * Unificação da baixa de estoque (Insumos) e do Snapshot Financeiro.
+ * Executa todas as atualizações de forma atômica (ACID).
+ */
+export async function finalizarComanda(
+    agendamentoId: string,
+    taxaAdquirentePercentual: number = 3,
+    custoInsumosValidado: number // Segue a abordagem Híbrida definida anteriormente
+): Promise<ActionResult<{ financeiro: FechamentoComanda }>> {
     try {
-        // Busca a comanda com os serviços (e as suas fichas técnicas) e produtos diretos vendidos
-        const agendamento = await prisma.agendamento.findUnique({
-            where: { id: agendamentoId },
-            include: {
-                funcionario: true,
-                servicos: {
-                    include: {
-                        servico: {
-                            include: {
-                                insumos: {
-                                    include: { produto: true } // Necessário para acessar o precoCusto
-                                }
-                            }
+        // Blindagem de Acesso
+        const sessao = await verificarSessaoFuncionario();
+        if (!sessao.logado) return { sucesso: false, erro: 'Acesso negado.' };
+
+        // Inicia a super-transação do fechamento da comanda
+        const resultadoFechamento = await prisma.$transaction(async (tx) => {
+            const agendamento = await tx.agendamento.findUnique({
+                where: { id: agendamentoId },
+                include: {
+                    funcionario: { select: { comissao: true } },
+                    servicos: {
+                        include: {
+                            servico: { include: { insumos: { include: { produto: true } } } }
                         }
+                    },
+                    produtos: {
+                        include: { produto: true }
                     }
-                },
-                produtos: {
-                    include: { produto: true } // Necessário para acessar o custo dos produtos de revenda
+                }
+            });
+
+            if (!agendamento) throw new Error('Comanda não encontrada.');
+            if (agendamento.concluido) throw new Error('Esta comanda já foi faturada.');
+
+            const valorBruto = agendamento.valorBruto;
+            const comissaoSnap = agendamento.funcionario.comissao;
+
+            // 1. Processamento Físico: Baixa de Insumos da Ficha Técnica
+            const consumoTotalInsumos = new Map<string, number>();
+            for (const itemServico of agendamento.servicos) {
+                for (const insumo of itemServico.servico.insumos) {
+                    const atual = consumoTotalInsumos.get(insumo.produtoId) || 0;
+                    consumoTotalInsumos.set(insumo.produtoId, atual + insumo.quantidadeUsada);
                 }
             }
-        });
 
-        if (!agendamento) {
-            return { sucesso: false, erro: 'Comanda não encontrada.' };
-        }
-
-        if (agendamento.concluido) {
-            return { sucesso: false, erro: 'Esta comanda já foi faturada.' };
-        }
-
-        let custoTotalDespesas = 0; // Guardará o custo monetário total (insumos + revenda)
-        const consumoTotalInsumos = new Map<string, number>();
-
-        // 1.1 Calcular os Insumos Fracionados (Ficha Técnica)
-        for (const itemServico of agendamento.servicos) {
-            for (const insumo of itemServico.servico.insumos) {
-                // Guarda a quantidade física para dar baixa no estoque mais tarde
-                const atual = consumoTotalInsumos.get(insumo.produtoId) || 0;
-                consumoTotalInsumos.set(insumo.produtoId, atual + insumo.quantidadeUsada);
-
-                // Cálculo Monetário: (Custo do Frasco / Tamanho do Frasco) * Quantidade Usada
-                const precoCusto = insumo.produto.precoCusto || 0;
-                const tamanhoUnidade = insumo.produto.tamanhoUnidade || 1;
-                const custoFracionado = (precoCusto / tamanhoUnidade) * insumo.quantidadeUsada;
-
-                custoTotalDespesas += custoFracionado;
-            }
-        }
-
-        // 1.2 Calcular os Custos de Produtos de Revenda Direta
-        for (const itemProduto of agendamento.produtos) {
-            const precoCustoRevenda = itemProduto.produto.precoCusto || 0;
-            // A quantidade vendida ao cliente vezes o que o salão pagou pelo produto no fornecedor
-            custoTotalDespesas += (precoCustoRevenda * itemProduto.quantidade);
-        }
-
-        // Passo 2: Preparar todas as transações de banco de dados
-        // Usamos o tipo genérico any devido às assinaturas diferentes do Prisma (update de produto vs agendamento)
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const transacoes: any[] = [];
-
-        // 2.1 Adiciona a baixa física de estoque de cada insumo consumido internamente
-        for (const [produtoId, quantidadeTotalGasta] of consumoTotalInsumos.entries()) {
-            transacoes.push(
-                prisma.produto.update({
+            // Executa a baixa de estoque dos insumos de uso interno
+            for (const [produtoId, quantidadeGasta] of consumoTotalInsumos.entries()) {
+                await tx.produto.update({
                     where: { id: produtoId },
-                    data: { estoque: { decrement: quantidadeTotalGasta } }
-                })
-            );
-        }
+                    data: { estoque: { decrement: quantidadeGasta } }
+                });
+            }
 
-        // 2.2 Lógica Matemática de Fecho (Cartão)
-        // Idealmente, a taxa deve vir de uma configuração do salão ou seleção no momento do checkout
-        const taxaAdquirentePercentual = 3;
-        const valorTaxaCartao = agendamento.valorBruto * (taxaAdquirentePercentual / 100);
+            // 2. Processamento Financeiro: Custo de Revenda
+            let custoRevenda = 0;
+            for (const item of agendamento.produtos) {
+                const custoUnitario = item.produto?.precoCusto ?? (item.precoCobrado * 0.5);
+                custoRevenda += custoUnitario * item.quantidade;
+            }
 
-        // 2.3 Fatura a comanda guardando todas as deduções consolidadas
-        transacoes.push(
-            prisma.agendamento.update({
+            // 3. Regras de Negócio Financeiras (Imutáveis)
+            const valorTaxaCartao = valorBruto * (taxaAdquirentePercentual / 100);
+            const deducoesTotais = valorTaxaCartao + custoInsumosValidado + custoRevenda;
+
+            const baseLiquidaComissao = Math.max(0, valorBruto - deducoesTotais);
+            const valorComissao = baseLiquidaComissao * (comissaoSnap / 100);
+            const lucroSalao = valorBruto - deducoesTotais - valorComissao;
+
+            // 4. Selo de Imutabilidade (Snapshot)
+            await tx.agendamento.update({
                 where: { id: agendamentoId },
                 data: {
                     concluido: true,
                     taxas: valorTaxaCartao,
-                    custoInsumos: custoTotalDespesas
+                    custoInsumos: custoInsumosValidado,
+                    custoRevenda,
+                    valorComissao,
+                    comissaoSnap,
                 }
-            })
-        );
+            });
 
-        // Executa todas as atualizações de forma atômica (All-or-Nothing)
-        await prisma.$transaction(transacoes);
+            return {
+                bruto: valorBruto,
+                deducoes: deducoesTotais,
+                baseReal: valorBruto - deducoesTotais,
+                comissao: valorComissao,
+                lucroSalao,
+            };
+        });
 
-        // Revalida o cache das rotas que dependem destes dados
+        // Revalida o cache
         revalidatePath('/profissional/agenda');
         revalidatePath(`/profissional/comanda/${agendamentoId}`);
         revalidatePath('/admin/estoque');
         revalidatePath('/admin/financeiro');
 
-        return { sucesso: true };
+        return { sucesso: true, financeiro: resultadoFechamento };
+        // Remoção do 'any' e aplicação do type guard seguro
     } catch (error) {
-        console.error("Erro ao finalizar comanda:", error);
-        return { sucesso: false, erro: 'Falha ao processar o faturamento e ficha técnica.' };
+        console.error("Erro crítico ao faturar comanda:", error);
+        return {
+            sucesso: false,
+            erro: error instanceof Error ? error.message : 'Falha técnica ao faturar a comanda.'
+        };
     }
 }

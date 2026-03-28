@@ -33,6 +33,12 @@ export async function calcularFechamentoComanda(
     custoInsumos: number
 ): Promise<ActionResult<{ financeiro: FechamentoComanda }>> {
     try {
+        // ── Blindagem de Autenticação ────────────────────────────────────────
+        const sessao = await verificarSessaoFuncionario()
+        if (!sessao.logado) {
+            return { sucesso: false, erro: 'Sessão expirada ou acesso negado.' }
+        }
+
         const agendamento = await prisma.agendamento.findUnique({
             where: { id: agendamentoId },
             include: {
@@ -121,6 +127,12 @@ export async function obterResumoFinanceiro(
     filtro?: { dataInicio: Date; dataFim: Date }
 ): Promise<ActionResult<FinanceiroResumo>> {
     try {
+        // ── Blindagem de Leitura (Apenas ADMIN) ──────────────────────────────
+        const sessao = await verificarSessaoFuncionario()
+        if (!sessao.logado || sessao.role !== 'ADMIN') {
+            return { sucesso: false, erro: 'Acesso negado. Relatórios financeiros são restritos à diretoria.' }
+        }
+
         const whereClause: Prisma.AgendamentoWhereInput = { concluido: true }
 
         if (filtro) {
@@ -188,7 +200,7 @@ export async function atualizarComissaoFuncionario(
     podeVerComissao: boolean
 ): Promise<ActionResult> {
     try {
-        // Blindagem RBAC
+        // ── Blindagem RBAC (Apenas ADMIN) ────────────────────────────────────
         const sessao = await verificarSessaoFuncionario()
         if (!sessao.logado || sessao.role !== 'ADMIN') {
             return { sucesso: false, erro: 'Acesso negado. Apenas administradores podem alterar comissões.' }
@@ -214,6 +226,12 @@ export async function atualizarComissaoFuncionario(
  */
 export async function obterDadosGraficosFinanceiros(dias: number = 7) {
     try {
+        // ── Blindagem de Leitura (Apenas ADMIN) ──────────────────────────────
+        const sessao = await verificarSessaoFuncionario()
+        if (!sessao.logado || sessao.role !== 'ADMIN') {
+            return { sucesso: false, erro: 'Acesso negado. Relatórios financeiros são restritos à diretoria.' }
+        }
+
         // Calcula o início do período no fuso brasileiro para filtrar o banco
         const agora = new Date()
         const inicioStr = formatInTimeZone(
@@ -286,7 +304,7 @@ export async function reabrirComanda(
     motivo: string
 ): Promise<ActionResult> {
     try {
-        // ── Blindagem RBAC obrigatória ────────────────────────────────────────
+        // ── Blindagem RBAC obrigatória (Apenas ADMIN) ────────────────────────
         // Server Actions são endpoints POST públicos — não basta ocultar o botão no front-end.
         // A verificação de role deve ocorrer aqui, antes de qualquer leitura do banco.
         const sessao = await verificarSessaoFuncionario()
