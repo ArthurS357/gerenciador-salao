@@ -111,17 +111,15 @@ const FormularioReserva = function FormularioReserva({
     const inicial = (n?: string) => n?.charAt(0).toUpperCase() ?? '?'
 
     const formatarTelefone = (valor: string) => {
-        let v = valor.replace(/\D/g, '')
-        if (v.length > 11) v = v.slice(0, 11)
-        if (v.length > 2) v = v.replace(/^(\d{2})(\d)/g, '($1) $2')
-        if (v.length > 7) v = v.replace(/(\d{5})(\d)/, '$1-$2')
-        return v
+        // Melhora UX: Impede o "pulo" do cursor ao não forçar uma máscara engessada no onChange.
+        // Apenas bloqueia a digitação de letras e caracteres inválidos.
+        return valor.replace(/[^\d() -]/g, '')
     }
 
     const prontoParaAgendar =
         servicosSelecionados.length > 0 &&
         nome.length > 2 &&
-        telefone.length >= 14 &&
+        telefone.replace(/\D/g, '').length >= 10 &&
         dataHora // Exige que a Data e a Hora tenham sido combinadas
 
     return (
