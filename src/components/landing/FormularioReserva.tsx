@@ -1,10 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import Link from 'next/link'
 import { cn } from './cn'
 import type { FormularioReservaProps, TipoMensagem } from './types'
-import { obterHorariosDisponiveis } from '@/app/actions/agenda'
 import { ModalAgendamento } from '../ModalAgendamento'
 
 const FEEDBACK: Record<Exclude<TipoMensagem, ''>, string> = {
@@ -62,13 +61,7 @@ const FormularioReserva = function FormularioReserva({
     const [nome, setNome] = useState('')
     const [telefone, setTelefone] = useState('')
 
-    // Novos estados para gerenciar o calendário e horários
-    const [dataCalendario, setDataCalendario] = useState('')
-    const [horaSelecionada, setHoraSelecionada] = useState('')
-    const [horariosDisponiveis, setHorariosDisponiveis] = useState<string[]>([])
-    const [buscandoHorarios, setBuscandoHorarios] = useState(false)
-
-    // Estado para controlar a abertura do modal
+    // Estado para controlar a abertura do modal de agenda
     const [modalAberto, setModalAberto] = useState(false)
 
     // Mapeia os IDs dos serviços selecionados para os objetos completos que o Modal exige
@@ -76,64 +69,29 @@ const FormularioReserva = function FormularioReserva({
         servicosSelecionados.includes(s.id)
     )
 
-    useEffect(() => {
-        if (sessao.logado && sessao.nome) {
-            setNome(sessao.nome)
-        }
-    }, [sessao.logado, sessao.nome])
-
-    // Dispara a busca de slots sempre que os pré-requisitos forem atendidos
-    useEffect(() => {
-        async function buscarVagas() {
-            if (!dataCalendario || servicosSelecionados.length === 0) {
-                setHorariosDisponiveis([])
-                setHoraSelecionada('')
-                setDataHora('')
-                return
-            }
-
-            setBuscandoHorarios(true)
-            setHoraSelecionada('')
-            setDataHora('')
-
-            try {
-                // Passamos o profissionalId (que pode ser vazio "") para a action
-                const vagas = await obterHorariosDisponiveis(profissionalId || undefined, dataCalendario, servicosSelecionados)
-                setHorariosDisponiveis(vagas)
-            } catch (error) {
-                console.error("Erro ao buscar vagas", error)
-                setHorariosDisponiveis([])
-            } finally {
-                setBuscandoHorarios(false)
-            }
-        }
-
-        buscarVagas()
-    }, [profissionalId, dataCalendario, servicosSelecionados, setDataHora])
-
-    const handleSelecionarHora = (hora: string) => {
-        setHoraSelecionada(hora)
-        // Monta o formato esperado pelo componente pai 'LandingInterativo'
-        setDataHora(`${dataCalendario}T${hora}:00`)
-    }
+    // Derivação limpa do estado, substitui o antigo useEffect falho e evita renders encadeados
+    const nomeFinal = sessao.logado && sessao.nome ? sessao.nome : nome
 
     const inicial = (n?: string) => n?.charAt(0).toUpperCase() ?? '?'
 
     const formatarTelefone = (valor: string) => {
-        // Melhora UX: Impede o "pulo" do cursor ao não forçar uma máscara engessada no onChange.
-        // Apenas bloqueia a digitação de letras e caracteres inválidos.
+        // Apenas bloqueia a digitação de letras e caracteres inválidos
         return valor.replace(/[^\d() -]/g, '')
+    }
+
+    // Função que o Modal vai chamar quando o cliente confirmar o horário
+    const lidarComHorarioConfirmado = (dataISO: string, hora: string) => {
+        setDataHora(`${dataISO}T${hora}:00`)
     }
 
     const prontoParaAgendar =
         servicosSelecionados.length > 0 &&
-        nome.length > 2 &&
+        nomeFinal.length > 2 &&
         telefone.replace(/\D/g, '').length >= 10 &&
         dataHora // Exige que a Data e a Hora tenham sido combinadas
 
     return (
         <section id="agendamento" className="relative bg-[#0e0905] py-24 md:py-32 overflow-hidden">
-            {/* Atmosfera (mantida) */}
             <div aria-hidden="true" className="pointer-events-none absolute inset-0">
                 <div className="absolute top-0 inset-x-0 h-px bg-gradient-to-r from-transparent via-[rgba(197,168,124,0.15)] to-transparent" />
                 <div className="absolute top-[20%] right-[-5%] w-[40%] h-[60%] rounded-full bg-[radial-gradient(ellipse,rgba(139,90,43,0.1)_0%,transparent_65%)] blur-3xl" />
@@ -209,15 +167,6 @@ const FormularioReserva = function FormularioReserva({
                     )}
 
                     <form onSubmit={handleAgendar}>
-                        <button
-                            type="button"
-                            onClick={() => setModalAberto(true)}
-                            disabled={servicosSelecionados.length === 0}
-                            className="w-full mb-6 py-3 border border-caramelo text-caramelo font-sans text-[0.72rem] font-semibold tracking-[0.2em] uppercase transition-colors hover:bg-caramelo/10 disabled:opacity-30 disabled:border-[rgba(197,168,124,0.3)] disabled:text-[rgba(197,168,124,0.5)]"
-                        >
-                            Ver Grade de Horários Avançada
-                        </button>
-
                         {/* 1. Dados do Cliente */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-5">
                             <div>
@@ -230,7 +179,7 @@ const FormularioReserva = function FormularioReserva({
                                     type="text"
                                     required
                                     placeholder="Ex: Ana Silva"
-                                    value={nome}
+                                    value={nomeFinal}
                                     onChange={(e) => setNome(e.target.value)}
                                     disabled={sessao.logado}
                                 />
@@ -277,7 +226,7 @@ const FormularioReserva = function FormularioReserva({
                             </DarkSelect>
                         </div>
 
-                        {/* 2. Seleção de Profissional e Data */}
+                        {/* 2. Seleção de Profissional e ABERTURA DO MODAL (Agenda) */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-5">
                             <div>
                                 <label htmlFor="profissional" className="block font-sans text-[0.62rem] font-medium tracking-[0.2em] uppercase text-[rgba(197,168,124,0.75)] mb-2.5">
@@ -297,10 +246,13 @@ const FormularioReserva = function FormularioReserva({
                                         id="profissional"
                                         required={false}
                                         value={profissionalId || ""}
-                                        onChange={e => setProfissionalId(e.target.value)}
+                                        onChange={e => {
+                                            setProfissionalId(e.target.value)
+                                            setDataHora('') // Reseta a data se mudar de profissional
+                                        }}
                                         style={{ flex: 1 }}
                                     >
-                                        <option value="">Qualquer profissional disponível</option>
+                                        <option value="">Qualquer profissional</option>
                                         {profissionais.map(p => (
                                             <option key={p.id} value={p.id}>{p.nome}</option>
                                         ))}
@@ -308,64 +260,40 @@ const FormularioReserva = function FormularioReserva({
                                 </div>
                             </div>
 
+                            {/* Botão Único da Agenda */}
                             <div>
-                                <label htmlFor="dataCalendario" className="block font-sans text-[0.62rem] font-medium tracking-[0.2em] uppercase text-[rgba(197,168,124,0.75)] mb-2.5">
-                                    Selecione a Data *
+                                <label className="block font-sans text-[0.62rem] font-medium tracking-[0.2em] uppercase text-[rgba(197,168,124,0.75)] mb-2.5">
+                                    Data e Horário *
                                 </label>
-                                <DarkInput
-                                    id="dataCalendario"
-                                    type="date"
-                                    required
-                                    min={new Date().toISOString().split('T')[0]}
-                                    value={dataCalendario}
-                                    onChange={e => setDataCalendario(e.target.value)}
+                                <button
+                                    type="button"
+                                    onClick={() => setModalAberto(true)}
                                     disabled={servicosSelecionados.length === 0}
-                                />
-                            </div>
-
-                            {/* Renderização dinâmica dos Slots de Horário */}
-                            {dataCalendario && servicosSelecionados.length > 0 && (
-                                <div className="col-span-1 md:col-span-2 mt-2 p-5 bg-white/[0.02] border border-[rgba(197,168,124,0.08)]">
-                                    <label className="block font-sans text-[0.62rem] font-medium tracking-[0.2em] uppercase text-[rgba(197,168,124,0.75)] mb-4 text-center">
-                                        Horários Disponíveis
-                                    </label>
-
-                                    {buscandoHorarios ? (
-                                        <p className="text-sm text-caramelo/60 font-light text-center animate-pulse">Consultando agenda...</p>
-                                    ) : horariosDisponiveis.length > 0 ? (
-                                        <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 gap-2.5">
-                                            {horariosDisponiveis.map(h => (
-                                                <button
-                                                    key={h}
-                                                    type="button"
-                                                    onClick={() => handleSelecionarHora(h)}
-                                                    className={cn(
-                                                        "py-2.5 px-2 rounded-md text-[0.8rem] font-medium transition-all duration-200 border",
-                                                        horaSelecionada === h
-                                                            ? "bg-caramelo text-[#0e0905] border-caramelo shadow-[0_0_12px_rgba(197,168,124,0.3)]"
-                                                            : "bg-white/[0.04] text-caramelo/80 border-[rgba(197,168,124,0.15)] hover:border-caramelo/50 hover:bg-white/[0.08]"
-                                                    )}
-                                                >
-                                                    {h}
-                                                </button>
-                                            ))}
-                                        </div>
-                                    ) : (
-                                        <div className="bg-[rgba(235,87,87,0.08)] border border-[rgba(235,87,87,0.2)] p-4 rounded-lg text-center mt-3 flex flex-col gap-2">
-                                            <p className="text-sm text-[#f08080] font-light">
-                                                Infelizmente não temos profissionais disponíveis para realizar todos os serviços selecionados neste mesmo dia.
-                                            </p>
-                                            <button
-                                                type="button"
-                                                onClick={() => (document.getElementById('dataCalendario') as HTMLInputElement | null)?.showPicker()}
-                                                className="text-xs font-bold text-[#f08080] bg-[#f08080]/10 hover:bg-[#f08080]/20 px-3 py-2 rounded transition-colors w-fit mx-auto border border-[#f08080]/20"
-                                            >
-                                                Gostaria de agendar para outro dia?
-                                            </button>
-                                        </div>
+                                    className={cn(
+                                        "w-full py-[0.85rem] px-4 bg-white/[0.04] border text-left font-sans text-[0.875rem] font-light outline-none transition-all duration-300 disabled:opacity-30 disabled:cursor-not-allowed flex justify-between items-center rounded-none",
+                                        dataHora
+                                            ? "border-caramelo text-white shadow-[0_0_10px_rgba(197,168,124,0.1)]"
+                                            : "border-[rgba(197,168,124,0.15)] text-white/50 hover:bg-white/[0.07]"
                                     )}
-                                </div>
-                            )}
+                                >
+                                    <span>
+                                        {dataHora
+                                            ? new Intl.DateTimeFormat('pt-BR', {
+                                                day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'
+                                            }).format(new Date(dataHora)) + 'h'
+                                            : 'Selecionar na Agenda...'}
+                                    </span>
+                                    <svg className="text-caramelo" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                                        <line x1="16" y1="2" x2="16" y2="6"></line>
+                                        <line x1="8" y1="2" x2="8" y2="6"></line>
+                                        <line x1="3" y1="10" x2="21" y2="10"></line>
+                                    </svg>
+                                </button>
+                                {servicosSelecionados.length === 0 && (
+                                    <p className="text-[0.6rem] text-red-400 mt-1 opacity-70">Selecione um serviço primeiro</p>
+                                )}
+                            </div>
                         </div>
 
                         {servicosSelecionados.length > 0 && totalSelecionado > 0 && (
@@ -396,11 +324,12 @@ const FormularioReserva = function FormularioReserva({
                 </div>
             </div>
 
-            {/* Renderiza o Componente do Modal */}
             <ModalAgendamento
                 isOpen={modalAberto}
                 onClose={() => setModalAberto(false)}
                 servicosSelecionados={servicosParaOModal}
+                profissionalId={profissionalId}
+                onConfirmar={lidarComHorarioConfirmado}
             />
         </section>
     )
