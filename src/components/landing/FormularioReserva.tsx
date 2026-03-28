@@ -4,7 +4,8 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { cn } from './cn'
 import type { FormularioReservaProps, TipoMensagem } from './types'
-import { obterHorariosDisponiveis } from '@/app/actions/agenda' // Importação da Server Action
+import { obterHorariosDisponiveis } from '@/app/actions/agenda'
+import { ModalAgendamento } from '../ModalAgendamento'
 
 const FEEDBACK: Record<Exclude<TipoMensagem, ''>, string> = {
     sucesso: 'bg-[rgba(52,199,89,0.08)] border border-[rgba(52,199,89,0.2)] text-[#6fcf97]',
@@ -66,6 +67,14 @@ const FormularioReserva = function FormularioReserva({
     const [horaSelecionada, setHoraSelecionada] = useState('')
     const [horariosDisponiveis, setHorariosDisponiveis] = useState<string[]>([])
     const [buscandoHorarios, setBuscandoHorarios] = useState(false)
+
+    // Estado para controlar a abertura do modal
+    const [modalAberto, setModalAberto] = useState(false)
+
+    // Mapeia os IDs dos serviços selecionados para os objetos completos que o Modal exige
+    const servicosParaOModal = catalogoServicos.filter(s =>
+        servicosSelecionados.includes(s.id)
+    )
 
     useEffect(() => {
         if (sessao.logado && sessao.nome) {
@@ -200,6 +209,15 @@ const FormularioReserva = function FormularioReserva({
                     )}
 
                     <form onSubmit={handleAgendar}>
+                        <button
+                            type="button"
+                            onClick={() => setModalAberto(true)}
+                            disabled={servicosSelecionados.length === 0}
+                            className="w-full mb-6 py-3 border border-caramelo text-caramelo font-sans text-[0.72rem] font-semibold tracking-[0.2em] uppercase transition-colors hover:bg-caramelo/10 disabled:opacity-30 disabled:border-[rgba(197,168,124,0.3)] disabled:text-[rgba(197,168,124,0.5)]"
+                        >
+                            Ver Grade de Horários Avançada
+                        </button>
+
                         {/* 1. Dados do Cliente */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-5">
                             <div>
@@ -337,9 +355,9 @@ const FormularioReserva = function FormularioReserva({
                                             <p className="text-sm text-[#f08080] font-light">
                                                 Infelizmente não temos profissionais disponíveis para realizar todos os serviços selecionados neste mesmo dia.
                                             </p>
-                                            <button 
+                                            <button
                                                 type="button"
-                                                onClick={() => (document.getElementById('dataCalendario') as HTMLInputElement | null)?.showPicker()} 
+                                                onClick={() => (document.getElementById('dataCalendario') as HTMLInputElement | null)?.showPicker()}
                                                 className="text-xs font-bold text-[#f08080] bg-[#f08080]/10 hover:bg-[#f08080]/20 px-3 py-2 rounded transition-colors w-fit mx-auto border border-[#f08080]/20"
                                             >
                                                 Gostaria de agendar para outro dia?
@@ -377,6 +395,13 @@ const FormularioReserva = function FormularioReserva({
                     </form>
                 </div>
             </div>
+
+            {/* Renderiza o Componente do Modal */}
+            <ModalAgendamento
+                isOpen={modalAberto}
+                onClose={() => setModalAberto(false)}
+                servicosSelecionados={servicosParaOModal}
+            />
         </section>
     )
 }
