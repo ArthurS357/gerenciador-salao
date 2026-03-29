@@ -2,10 +2,22 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcrypt';
 
-// Corrigido: POST garante semântica HTTP correta e impede CSRF via bots/indexadores.
-// GET nunca deve realizar mutações de estado (viola RFC 7231 §4.3.1).
-export async function POST() {
+// POST garante semântica HTTP correta e impede CSRF via bots/indexadores.
+export async function POST(request: Request) {
     try {
+        // ── BLINDAGEM DE PRODUÇÃO (Vercel) ────────────────────────────────────
+        // Impede que terceiros executem o setup caso descubram a rota,
+        // mesmo que o banco de dados ainda esteja vazio (ou tenha sido limpo em um DR).
+        const authHeader = request.headers.get('Authorization');
+        const setupToken = process.env.SETUP_SECURE_TOKEN;
+
+        if (!setupToken || authHeader !== `Bearer ${setupToken}`) {
+            return NextResponse.json(
+                { erro: 'Não autorizado. Token de setup inválido ou ausente.' },
+                { status: 401 }
+            );
+        }
+
         // Bloqueio global: basta existir UM admin para travar o setup.
         // Impede a criação de um segundo Admin Master caso as variáveis de ambiente
         // sejam alteradas ou vazadas em produção.

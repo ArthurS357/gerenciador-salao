@@ -1,0 +1,48 @@
+Para garantir que você consiga ativar o Admin Master com sucesso na Vercel, aqui está o passo a passo detalhado para você copiar para o seu bloco de notas.
+
+### Passo 1: Onde encontrar a "URL do seu projeto"
+A URL é o endereço onde seu site está "vivo" na internet.
+1.  Acesse o **Dashboard da Vercel**.
+2.  Clique no seu projeto (**gerenciador-salao**).
+3.  Logo abaixo do nome do projeto, você verá um link azul (ex: `gerenciador-salao-seven.vercel.app`).
+4.  **No seu bloco de notas:** A URL completa para o setup será essa URL + o caminho da rota: `https://seu-projeto.vercel.app/api/setup-admin`.
+
+---
+
+### Passo 2: Onde definir o "SETUP_SECURE_TOKEN"
+Este token é a "chave do cofre" que criamos no código para proteger a rota.
+1.  No painel do projeto na Vercel, vá na aba **Settings** (Configurações).
+2.  No menu lateral esquerdo, clique em **Environment Variables**.
+3.  Adicione a nova variável:
+    * **Key:** `SETUP_SECURE_TOKEN`
+    * **Value:** Invente uma senha forte aqui (ex: `MinhaChaveSuperSegura123`).
+4.  Clique em **Save**.
+5.  **IMPORTANTE:** Você precisará fazer um novo **Deploy** para que a Vercel "leia" essa nova chave. Vá na aba **Deployments**, clique nos três pontinhos do último deploy e selecione **Redeploy**.
+
+---
+
+### Passo 3: Onde colocar cada informação na hora de executar
+Como a rota agora exige segurança, você não pode apenas colar o link no navegador. Use uma dessas duas formas:
+
+#### Opção A: Usando o Terminal (Prompt de Comando/PowerShell)
+Copie e cole este comando, substituindo o que está entre aspas:
+```bash
+curl -X POST https://SUA_URL_DA_VERCEL_AQUI/api/setup-admin \
+  -H "Authorization: Bearer SEU_TOKEN_AQUI"
+```
+
+#### Opção B: Usando o Insomnia ou Postman (Mais visual)
+
+1.  **Método:** Mude de `GET` para `POST`.
+2.  **URL:** Coloque `https://seu-projeto.vercel.app/api/setup-admin`.
+3.  **Headers (Cabeçalhos):** Clique na aba "Headers" e adicione:
+    * No campo **Key** (Chave): `Authorization`
+    * No campo **Value** (Valor): `Bearer SEU_TOKEN_AQUI` (Substitua `SEU_TOKEN_AQUI` pela chave que você criou no Passo 2, mantendo a palavra `Bearer` e o espaço).
+4.  Clique em **Send** (Enviar).
+
+---
+
+### Passo 4: Como saber se deu certo
+* Se aparecer `{ "sucesso": true, "mensagem": "Administrador Master criado com sucesso." }`, seu admin já pode logar no sistema.
+* Se aparecer `401 Unauthorized`, você errou o token ou esqueceu a palavra `Bearer`.
+* Se aparecer `403 Forbidden`, significa que já existe um admin no banco e você não pode criar outro por essa rota.

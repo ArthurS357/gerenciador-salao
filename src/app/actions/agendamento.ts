@@ -1,6 +1,7 @@
 'use server'
 
 import { prisma } from '@/lib/prisma'
+import { Prisma } from '@prisma/client'
 import { verificarNumeroExisteNoWhatsApp, enviarMensagemWhatsApp } from '@/lib/whatsapp'
 import { formatInTimeZone } from 'date-fns-tz'
 import { ptBR } from 'date-fns/locale'
@@ -10,7 +11,6 @@ import { verificarSessaoCliente, verificarSessaoFuncionario } from '@/app/action
 import { z } from 'zod'
 
 // ── Schemas de Validação Runtime (Zod) ───────────────────────────────────────
-// Protege contra inputs malformados em endpoints POST públicos (Server Actions)
 const schemaCriarAgendamento = z.object({
     clienteId: z
         .string()
@@ -19,7 +19,6 @@ const schemaCriarAgendamento = z.object({
         .string()
         .min(1, 'Selecione um profissional válido.'),
     dataHoraInicio: z
-        // coerce.date() é vital em Server Actions para converter strings ISO em objetos Date
         .coerce.date()
         .refine(
             (d) => d > new Date(Date.now() - 5 * 60_000),
@@ -37,7 +36,6 @@ const TOLERANCIA_ATRASO_MS = 5 * 60_000
 const TEMPO_SERVICO_FALLBACK_MINUTOS = 30
 
 // ── Tipagens Estritas ─────────────────────────────────────────────────────────
-
 type ActionResult<T = void> =
     | (T extends void ? { sucesso: true } : { sucesso: true } & T)
     | { sucesso: false; erro: string }
@@ -100,24 +98,33 @@ export type FuncionarioComExpedienteItem = {
     }[]
 }
 
-// ── FUNÇÕES AUXILIARES DE DATA E FUSO ─────────────────────────────────────────
+// ── FUNÇÕES AUXILIARES E DE ABSTRAÇÃO (DRY) ───────────────────────────────────
+
+// Correção: Protege contra 0 sendo interpretado como falsy se configurado no .env
+const getTempoBuffer = (): number => {
+    const rawBuffer = process.env.TEMPO_BUFFER_MINUTOS;
+    return rawBuffer !== undefined ? Number(rawBuffer) : 5;
+}
+
+const validarDataRetroativa = (data: Date): boolean => {
+    return data >= new Date(Date.now() - TOLERANCIA_ATRASO_MS);
+}
+
+// Otimização: Evita a criação de múltiplas strings com date-fns para extração numérica
 const extrairMinutosLocal = (dataHora: Date): number => {
-    const hora = Number(formatInTimeZone(dataHora, FUSO_HORARIO, 'H'))
-    const minuto = Number(formatInTimeZone(dataHora, FUSO_HORARIO, 'm'))
-    return hora * 60 + minuto
+    const dateLocal = new Date(dataHora.toLocaleString('en-US', { timeZone: FUSO_HORARIO }));
+    return dateLocal.getHours() * 60 + dateLocal.getMinutes();
 }
 
 const obterDiaSemanaLocal = (dataHora: Date): number => {
-    return Number(formatInTimeZone(dataHora, FUSO_HORARIO, 'i')) % 7
+    const dateLocal = new Date(dataHora.toLocaleString('en-US', { timeZone: FUSO_HORARIO }));
+    return dateLocal.getDay();
 }
 
 // ── FUNÇÃO AUXILIAR: Validador de Expediente Seguro (Timezone Proof) ──────────
 async function validarHorarioExpediente(funcionarioId: string, dataHoraInicio: Date, dataHoraFim: Date): Promise<string | null> {
     const diaSemanaInicioLocal = obterDiaSemanaLocal(dataHoraInicio)
     const diaSemanaFimLocal = obterDiaSemanaLocal(dataHoraFim)
-
-    const agendamentoInicioMinutos = extrairMinutosLocal(dataHoraInicio)
-    const agendamentoFimMinutos = extrairMinutosLocal(dataHoraFim)
 
     const diasNomes = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado']
 
@@ -140,6 +147,9 @@ async function validarHorarioExpediente(funcionarioId: string, dataHoraInicio: D
         return 'A duração dos serviços ultrapassa a meia-noite.'
     }
 
+    const agendamentoInicioMinutos = extrairMinutosLocal(dataHoraInicio)
+    const agendamentoFimMinutos = extrairMinutosLocal(dataHoraFim)
+
     if (agendamentoInicioMinutos < expInicioMinutos || agendamentoFimMinutos > expFimMinutos) {
         return `Horário indisponível. O turno de trabalho deste profissional é das ${expediente.horaInicio} às ${expediente.horaFim}.`
     }
@@ -148,7 +158,6 @@ async function validarHorarioExpediente(funcionarioId: string, dataHoraInicio: D
 }
 
 // ── GUARD DE AUTORIZAÇÃO: Encapsula regras IDOR (DRY) ────────────────────────
-// Retorna true se a sessão ativa tem permissão para operar sobre este agendamento.
 function autorizarAcessoAgendamento(
     clienteId: string,
     funcionarioId: string,
@@ -168,7 +177,6 @@ export async function criarAgendamentoMultiplo(
     dataHoraInicio: Date,
     servicosIds: string[]
 ): Promise<ActionResult<{ agendamentoId: string }>> {
-    // ── Blindagem Híbrida (Prevenção de IDOR) — I/O em paralelo ────────────────
     const [sessaoCli, sessaoFunc] = await Promise.all([
         verificarSessaoCliente(),
         verificarSessaoFuncionario(),
@@ -179,7 +187,6 @@ export async function criarAgendamentoMultiplo(
         if (sessaoCli.id !== clienteId) return { sucesso: false, erro: 'Operação não permitida (Violação de Identidade).' }
     }
 
-    // ── Validação Zod (Runtime Type Safety) ──────────────────────────────────────
     const validacao = schemaCriarAgendamento.safeParse({
         clienteId,
         funcionarioId,
@@ -201,20 +208,14 @@ export async function criarAgendamentoMultiplo(
         }
     }
 
-    const TEMPO_BUFFER_MINUTOS = Number(process.env.TEMPO_BUFFER_MINUTOS) || 5
-
     try {
-        const dataAtual = new Date();
-        const limitePassado = new Date(dataAtual.getTime() - TOLERANCIA_ATRASO_MS)
-
-        if (dataHoraInicio < limitePassado) {
+        if (!validarDataRetroativa(dataHoraInicio)) {
             return { sucesso: false, erro: 'Não é possível registrar agendamentos em horários passados.' };
         }
         if (!servicosIds.length) {
             return { sucesso: false, erro: 'Selecione pelo menos um serviço.' }
         }
 
-        // Otimização: cliente e serviços são independentes — busca em paralelo
         const [cliente, servicos] = await Promise.all([
             prisma.cliente.findUnique({
                 where: { id: clienteId },
@@ -249,7 +250,7 @@ export async function criarAgendamentoMultiplo(
             itensParaCriar.push({ servicoId: s.id, precoCobrado: s.preco })
         }
 
-        const tempoTotalBloqueio = tempoTotalMinutos + TEMPO_BUFFER_MINUTOS
+        const tempoTotalBloqueio = tempoTotalMinutos + getTempoBuffer()
         const dataHoraFim = new Date(dataHoraInicio.getTime() + tempoTotalBloqueio * 60_000)
 
         const erroExpediente = await validarHorarioExpediente(funcionarioId, dataHoraInicio, dataHoraFim)
@@ -257,7 +258,7 @@ export async function criarAgendamentoMultiplo(
             return { sucesso: false, erro: erroExpediente }
         }
 
-        // Garante que a checagem e a inserção ocorram juntas (Double Booking Prevention)
+        // Correção Crítica: Transação definida como Serializable para garantir Lock na verificação de choques
         const resultadoTransacao = await prisma.$transaction(async (tx) => {
             const conflito = await tx.agendamento.findFirst({
                 where: {
@@ -290,6 +291,8 @@ export async function criarAgendamentoMultiplo(
             })
 
             return { sucesso: true as const, novoAgendamento }
+        }, {
+            isolationLevel: Prisma.TransactionIsolationLevel.Serializable
         })
 
         if (!resultadoTransacao.sucesso) {
@@ -298,7 +301,7 @@ export async function criarAgendamentoMultiplo(
 
         const novoAgendamento = resultadoTransacao.novoAgendamento
 
-        // ── INTEGRAÇÃO WHATSAPP (Assíncrono, não trava a resposta) ──
+        // ── INTEGRAÇÃO WHATSAPP ──
         const dataFormatada = formatInTimeZone(
             dataHoraInicio,
             FUSO_HORARIO,
@@ -330,7 +333,6 @@ export async function listarAgendaProfissional(
     funcionarioId: string
 ): Promise<ActionResult<{ agendamentos: AgendaProfissionalItem[] }>> {
     try {
-        // Blindagem RBAC: Apenas o próprio profissional ou Admin podem ver a agenda detalhada
         const sessao = await verificarSessaoFuncionario();
         if (!sessao.logado) return { sucesso: false, erro: 'Acesso negado.' };
         if (sessao.role !== 'ADMIN' && sessao.id !== funcionarioId) {
@@ -375,7 +377,6 @@ export async function cancelarAgendamentoPendente(id: string): Promise<ActionRes
             return { sucesso: false, erro: 'Agendamento não encontrado.' }
         }
 
-        // ── Blindagem IDOR via guard centralizado ─────────────────────────────
         if (!autorizarAcessoAgendamento(agendamento.clienteId, agendamento.funcionarioId, sessaoCli, sessaoFunc)) {
             return { sucesso: false, erro: 'Acesso negado. Você não tem permissão para cancelar este agendamento.' }
         }
@@ -384,20 +385,21 @@ export async function cancelarAgendamentoPendente(id: string): Promise<ActionRes
             return { sucesso: false, erro: 'Não é possível cancelar uma comanda que já foi faturada e enviada ao caixa.' }
         }
 
-        // Agrupa os itens para evitar race conditions (write conflicts) no banco de dados
         const produtosParaRestaurar = agendamento.produtos.reduce((acc, item) => {
             acc[item.produtoId] = (acc[item.produtoId] || 0) + item.quantidade;
             return acc;
         }, {} as Record<string, number>);
 
         await prisma.$transaction(async (tx) => {
-            // Execução sequencial robusta dentro de transação interativa
-            for (const [produtoId, quantidade] of Object.entries(produtosParaRestaurar)) {
-                await tx.produto.update({
+            // Otimização: Executa o restore do estoque paralelamente de forma segura dentro da transação
+            const promessasUpdate = Object.entries(produtosParaRestaurar).map(([produtoId, quantidade]) =>
+                tx.produto.update({
                     where: { id: produtoId },
                     data: { estoque: { increment: quantidade } }
-                });
-            }
+                })
+            );
+
+            await Promise.all(promessasUpdate);
 
             await tx.agendamento.update({ where: { id }, data: { canceladoEm: new Date() } })
 
@@ -417,7 +419,6 @@ export async function cancelarAgendamentoPendente(id: string): Promise<ActionRes
 
 export async function listarAgendamentosGlobais(): Promise<ActionResult<{ agendamentos: AgendamentoGlobalItem[] }>> {
     try {
-        // Blindagem Absoluta: Apenas a gerência pode ver todos os horários do salão
         const sessao = await verificarSessaoFuncionario();
         if (!sessao.logado || sessao.role !== 'ADMIN') {
             return { sucesso: false, erro: 'Acesso negado. Apenas diretores podem visualizar a agenda global.' }
@@ -455,32 +456,28 @@ export async function editarAgendamentoPendente(
 
         if (!agendamento) return { sucesso: false, erro: 'Agendamento não encontrado.' }
 
-        // ── Blindagem IDOR via guard centralizado ─────────────────────────────
         if (!autorizarAcessoAgendamento(agendamento.clienteId, agendamento.funcionarioId, sessaoCli, sessaoFunc)) {
             return { sucesso: false, erro: 'Acesso negado para editar este agendamento.' }
         }
 
         if (agendamento.concluido) return { sucesso: false, erro: 'Não é possível editar uma comanda que já foi faturada.' }
 
-        const dataAtual = new Date();
-        const limitePassado = new Date(dataAtual.getTime() - TOLERANCIA_ATRASO_MS);
-
-        if (dataHoraInicio < limitePassado) {
+        if (!validarDataRetroativa(dataHoraInicio)) {
             return { sucesso: false, erro: 'Não é possível remanejar para horários no passado.' };
         }
 
-        const TEMPO_BUFFER_MINUTOS = Number(process.env.TEMPO_BUFFER_MINUTOS) || 5
         let tempoTotalMinutos = 0
         agendamento.servicos.forEach(item => {
             tempoTotalMinutos += item.servico.tempoMinutos ?? TEMPO_SERVICO_FALLBACK_MINUTOS
         })
-        const dataHoraFim = new Date(dataHoraInicio.getTime() + (tempoTotalMinutos + TEMPO_BUFFER_MINUTOS) * 60_000)
+        const dataHoraFim = new Date(dataHoraInicio.getTime() + (tempoTotalMinutos + getTempoBuffer()) * 60_000)
 
         const erroExpediente = await validarHorarioExpediente(funcionarioId, dataHoraInicio, dataHoraFim)
         if (erroExpediente) {
             return { sucesso: false, erro: erroExpediente }
         }
 
+        // Correção Crítica: Isolamento forte adicionado na edição também
         const resultadoTransacao = await prisma.$transaction(async (tx) => {
             const conflito = await tx.agendamento.findFirst({
                 where: {
@@ -505,6 +502,8 @@ export async function editarAgendamentoPendente(
             })
 
             return { sucesso: true as const }
+        }, {
+            isolationLevel: Prisma.TransactionIsolationLevel.Serializable
         })
 
         if (!resultadoTransacao.sucesso) {
@@ -520,8 +519,6 @@ export async function editarAgendamentoPendente(
 
 export async function listarEquipaComExpediente(): Promise<ActionResult<{ equipa: FuncionarioComExpedienteItem[] }>> {
     try {
-        // Blindagem de Select: Mantém acesso público para a página inicial/clientes logados, 
-        // mas filtra EXCLUSIVAMENTE o que é seguro trafegar pela internet
         const equipa = await prisma.funcionario.findMany({
             where: { ativo: true, role: 'PROFISSIONAL' },
             select: {
