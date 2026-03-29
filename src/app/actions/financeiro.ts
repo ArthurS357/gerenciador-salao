@@ -3,14 +3,9 @@
 import { prisma } from '@/lib/prisma'
 import { Prisma } from '@prisma/client'
 import { formatInTimeZone } from 'date-fns-tz'
-import type { FinanceiroResumo, FuncionarioResumo, FechamentoComanda } from '@/types/domain'
+import { FinanceiroResumo, FuncionarioResumo, FechamentoComanda, ActionResult } from '@/types/domain'
 import { verificarSessaoFuncionario } from '@/app/actions/auth'
-
-// ── Tipo base local ───────────────────────────────────────────────────────────
-// Mantém consistência com o padrão do projeto (ver agendamento.ts)
-type ActionResult<T = void> =
-    | (T extends void ? { sucesso: true } : { sucesso: true } & T)
-    | { sucesso: false; erro: string }
+import { schemaAtualizarComissao } from '@/lib/schemas'
 
 // ── Fuso horário canônico ─────────────────────────────────────────────────────
 const TZ = 'America/Sao_Paulo'
@@ -228,6 +223,11 @@ export async function atualizarComissaoFuncionario(
         const sessao = await verificarSessaoFuncionario()
         if (!sessao.logado || sessao.role !== 'ADMIN') {
             return { sucesso: false, erro: 'Acesso negado. Apenas administradores podem alterar comissões.' }
+        }
+
+        const validacao = schemaAtualizarComissao.safeParse({ id, comissao, podeVerComissao })
+        if (!validacao.success) {
+            return { sucesso: false, erro: validacao.error.issues[0]?.message ?? 'Dados inválidos.' }
         }
 
         await prisma.funcionario.update({

@@ -8,27 +8,8 @@ import { ptBR } from 'date-fns/locale'
 import { verificarRateLimit } from '@/lib/rateLimit'
 import { after } from 'next/server'
 import { verificarSessaoCliente, verificarSessaoFuncionario } from '@/app/actions/auth'
-import { z } from 'zod'
-
-// ── Schemas de Validação Runtime (Zod) ───────────────────────────────────────
-const schemaCriarAgendamento = z.object({
-    clienteId: z
-        .string()
-        .min(1, 'clienteId é obrigatório e não pode ser vazio.'),
-    funcionarioId: z
-        .string()
-        .min(1, 'Selecione um profissional válido.'),
-    dataHoraInicio: z
-        .coerce.date()
-        .refine(
-            (d) => d > new Date(Date.now() - 5 * 60_000),
-            'Não é possível agendar em horários passados.'
-        ),
-    servicosIds: z
-        .array(z.string().min(1, 'ID de serviço inválido.'))
-        .min(1, 'Selecione pelo menos um serviço.')
-        .max(10, 'Máximo de 10 serviços por agendamento.'),
-})
+import { ActionResult } from '@/types/domain'
+import { schemaCriarAgendamento, schemaEditarAgendamento } from '@/lib/schemas'
 
 // ── Constantes de Domínio ────────────────────────────────────────────────────
 const FUSO_HORARIO = 'America/Sao_Paulo'
@@ -36,9 +17,6 @@ const TOLERANCIA_ATRASO_MS = 5 * 60_000
 const TEMPO_SERVICO_FALLBACK_MINUTOS = 30
 
 // ── Tipagens Estritas ─────────────────────────────────────────────────────────
-type ActionResult<T = void> =
-    | (T extends void ? { sucesso: true } : { sucesso: true } & T)
-    | { sucesso: false; erro: string }
 
 export type AgendaProfissionalItem = {
     id: string
@@ -461,6 +439,19 @@ export async function editarAgendamentoPendente(
         }
 
         if (agendamento.concluido) return { sucesso: false, erro: 'Não é possível editar uma comanda que já foi faturada.' }
+
+        const validacao = schemaEditarAgendamento.safeParse({
+            id,
+            funcionarioId,
+            dataHoraInicio,
+        })
+
+        if (!validacao.success) {
+            return {
+                sucesso: false,
+                erro: validacao.error.issues[0]?.message ?? 'Dados de edição inválidos.',
+            }
+        }
 
         if (!validarDataRetroativa(dataHoraInicio)) {
             return { sucesso: false, erro: 'Não é possível remanejar para horários no passado.' };

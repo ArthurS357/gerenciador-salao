@@ -5,10 +5,8 @@ import { Prisma } from '@prisma/client'
 import { revalidatePath } from 'next/cache'
 import { verificarSessaoFuncionario } from '@/app/actions/auth'
 
-// ── TIPAGEM ESTRITA ──────────────────────────────────────────────────────────
-type ActionResult<T = void> =
-    | (T extends void ? { sucesso: true } : { sucesso: true } & T)
-    | { sucesso: false; erro: string }
+import { ActionResult } from '@/types/domain'
+import { schemaServico, schemaInsumoServico } from '@/lib/schemas'
 
 export type ServicoPublicoItem = {
     id: string
@@ -102,16 +100,18 @@ export async function criarServicoAdmin(
     try {
         await garantirPermissaoAdmin()
 
+        const validacao = schemaServico.safeParse(dados)
+        if (!validacao.success) {
+            return { sucesso: false, erro: validacao.error.issues[0]?.message ?? 'Dados do serviço inválidos.' }
+        }
+
         const servico = await prisma.servico.create({
             data: {
-                nome: dados.nome.trim(),
-                descricao: dados.descricao?.trim() ?? null,
-                preco: dados.preco != null && dados.preco !== '' && !isNaN(Number(dados.preco)) ? Number(dados.preco) : null,
-                tempoMinutos:
-                    dados.tempoMinutos != null && dados.tempoMinutos !== '' && !isNaN(Number(dados.tempoMinutos))
-                        ? Number(dados.tempoMinutos)
-                        : null,
-                imagemUrl: dados.imagemUrl?.trim() ?? null,
+                nome: validacao.data.nome.trim(),
+                descricao: validacao.data.descricao ?? null,
+                preco: validacao.data.preco ?? null,
+                tempoMinutos: validacao.data.tempoMinutos ?? null,
+                imagemUrl: validacao.data.imagemUrl ?? null,
             },
             select: {
                 id: true, nome: true, descricao: true, preco: true,
@@ -158,8 +158,9 @@ export async function adicionarInsumoFichaTecnica(
     try {
         await garantirPermissaoAdmin()
 
-        if (!quantidadeUsada || isNaN(quantidadeUsada) || quantidadeUsada <= 0) {
-            return { sucesso: false, erro: 'A quantidade deve ser um número válido maior que zero.' }
+        const validacao = schemaInsumoServico.safeParse({ servicoId, produtoId, quantidadeUsada })
+        if (!validacao.success) {
+            return { sucesso: false, erro: validacao.error.issues[0]?.message ?? 'Dados do insumo inválidos.' }
         }
 
         const insumoExistente = await prisma.insumoServico.findUnique({

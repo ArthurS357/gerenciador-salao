@@ -119,7 +119,7 @@ export interface ItemPortfolioDb {
 }
 
 export type ActionResult<T = void> =
-    | ({ sucesso: true } & (T extends void ? object : T))
+    | (T extends void ? { sucesso: true } : { sucesso: true } & T)
     | { sucesso: false; erro: string }
 
 export interface AgendamentoHistoricoFinanceiro {

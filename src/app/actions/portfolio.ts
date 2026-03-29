@@ -4,10 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
 import { verificarSessaoFuncionario } from '@/app/actions/auth'
 
-// ── TIPAGEM ESTRITA ──────────────────────────────────────────────────────────
-type ActionResult<T = void> =
-    | (T extends void ? { sucesso: true } : { sucesso: true } & T)
-    | { sucesso: false; erro: string }
+import { ActionResult } from '@/types/domain'
 
 // Definição da interface explícita para evitar importação dependente de "as unknown"
 export type ItemPortfolioDb = {

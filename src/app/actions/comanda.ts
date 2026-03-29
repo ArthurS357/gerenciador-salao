@@ -3,12 +3,8 @@
 import { prisma } from '@/lib/prisma';
 import { revalidatePath } from 'next/cache';
 import { verificarSessaoFuncionario } from '@/app/actions/auth';
-import type { FechamentoComanda } from '@/types/domain';
-
-// ── Tipagens Estritas ─────────────────────────────────────────────────────────
-type ActionResult<T = void> =
-    | (T extends void ? { sucesso: true } : { sucesso: true } & T)
-    | { sucesso: false; erro: string }
+import { ActionResult, FechamentoComanda } from '@/types/domain';
+import { schemaAdicionarProdutoComanda, schemaFinalizarComanda } from '@/lib/schemas';
 
 // ── 1. Listagem de Produtos ───────────────────────────────────────────────────
 export async function listarProdutosDisponiveis() {
@@ -33,9 +29,18 @@ export async function adicionarProdutoNaComanda(
         const sessao = await verificarSessaoFuncionario();
         if (!sessao.logado) return { sucesso: false, erro: 'Acesso negado.' };
 
-        // 2. Validação Estrita de Entrada (Impede manipulação financeira e geração mágica de estoque)
-        if (!quantidadeFrascos || quantidadeFrascos <= 0 || !Number.isInteger(quantidadeFrascos)) {
-            return { sucesso: false, erro: 'Quantidade inválida. Deve ser um número inteiro maior que zero.' };
+        // 2. Validação Estrita de Entrada (Zod)
+        const validacao = schemaAdicionarProdutoComanda.safeParse({
+            agendamentoId,
+            produtoId,
+            quantidadeFrascos
+        });
+
+        if (!validacao.success) {
+            return {
+                sucesso: false,
+                erro: validacao.error.issues[0]?.message ?? 'Dados de entrada inválidos.'
+            };
         }
 
         // 3. Transação Interativa (Garante Atomicidade: Tudo ou Nada)
@@ -102,6 +107,20 @@ export async function finalizarComanda(
         // Blindagem de Acesso
         const sessao = await verificarSessaoFuncionario();
         if (!sessao.logado) return { sucesso: false, erro: 'Acesso negado.' };
+
+        // Validação Estrita de Entrada (Zod)
+        const validacao = schemaFinalizarComanda.safeParse({
+            agendamentoId,
+            taxaAdquirentePercentual,
+            custoInsumosValidado
+        });
+
+        if (!validacao.success) {
+            return {
+                sucesso: false,
+                erro: validacao.error.issues[0]?.message ?? 'Dados de fechamento inválidos.'
+            };
+        }
 
         // Inicia a super-transação do fechamento da comanda
         const resultadoFechamento = await prisma.$transaction(async (tx) => {

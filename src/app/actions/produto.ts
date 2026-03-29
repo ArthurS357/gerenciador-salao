@@ -4,11 +4,8 @@ import { prisma } from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
 import { verificarSessaoFuncionario } from '@/app/actions/auth'
 
-// ── TIPAGEM ESTRITA ──────────────────────────────────────────────────────────
-// Utilização de void para eliminar o tipo genérico "object"
-type ActionResult<T = void> =
-    | (T extends void ? { sucesso: true } : { sucesso: true } & T)
-    | { sucesso: false; erro: string }
+import { ActionResult } from '@/types/domain'
+import { schemaProduto } from '@/lib/schemas'
 
 // Definição da interface que substitui a necessidade do cast externo "as unknown as Produto"
 export type ProdutoItem = {
@@ -82,29 +79,33 @@ export async function criarProdutoAdmin(
     try {
         await garantirPermissaoAdmin()
 
-        const precoCusto = Number(dados.precoCusto) || 0
-        const precoVenda = Number(dados.precoVenda) || 0
-        const tamanhoUnidade = Number(dados.tamanhoUnidade) || 1
-        const estoqueInicialEmFrascos = Number(dados.estoqueInicialEmFrascos) || 0
+        const validacao = schemaProduto.safeParse({
+            ...dados,
+            precoCusto: Number(dados.precoCusto),
+            precoVenda: Number(dados.precoVenda),
+            tamanhoUnidade: Number(dados.tamanhoUnidade),
+            estoque: Number(dados.estoqueInicialEmFrascos) * (Number(dados.tamanhoUnidade) || 1)
+        })
 
-        if (precoCusto < 0 || precoVenda < 0 || estoqueInicialEmFrascos < 0) {
-            return { sucesso: false, erro: 'Valores numéricos não podem ser negativos.' }
+        if (!validacao.success) {
+            return { sucesso: false, erro: validacao.error.issues[0]?.message ?? 'Dados do produto inválidos.' }
         }
-        if (precoVenda < precoCusto) {
+
+        const { precoCusto, precoVenda, tamanhoUnidade, estoque } = validacao.data
+
+        if (precoVenda < (precoCusto || 0)) {
             return { sucesso: false, erro: 'O preço de venda não pode ser inferior ao custo.' }
         }
 
-        const estoqueAbsoluto = estoqueInicialEmFrascos * tamanhoUnidade;
-
         const produto = await prisma.produto.create({
             data: {
-                nome: dados.nome.trim(),
-                descricao: dados.descricao?.trim() ?? null,
+                nome: validacao.data.nome.trim(),
+                descricao: validacao.data.descricao?.trim() ?? null,
                 precoCusto,
                 precoVenda,
-                unidadeMedida: dados.unidadeMedida,
-                tamanhoUnidade: tamanhoUnidade,
-                estoque: estoqueAbsoluto,
+                unidadeMedida: validacao.data.unidadeMedida,
+                tamanhoUnidade,
+                estoque,
             },
             select: {
                 id: true, nome: true, descricao: true, precoCusto: true, precoVenda: true,

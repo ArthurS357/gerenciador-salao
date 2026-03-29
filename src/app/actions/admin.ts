@@ -6,11 +6,7 @@ import { randomUUID } from 'crypto'
 import { revalidatePath } from 'next/cache'
 import { verificarSessaoFuncionario } from '@/app/actions/auth'
 
-// ── Tipagens Estritas ─────────────────────────────────────────────────────────
-
-export type ActionResult<T = void> =
-    | (T extends void ? { sucesso: true } : { sucesso: true } & T)
-    | { sucesso: false; erro: string }
+import { ActionResult } from '@/types/domain'
 
 export type NotificacaoItem = {
     id: string

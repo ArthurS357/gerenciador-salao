@@ -1,11 +1,7 @@
 'use server'
 
-import { prisma } from '@/lib/prisma';
-
-// ── TIPAGEM ESTRITA ──────────────────────────────────────────────────────────
-type ActionResult<T = void> =
-    | (T extends void ? { sucesso: true } : { sucesso: true } & T)
-    | { sucesso: false; erro: string }
+import { prisma } from '@/lib/prisma'
+import { ActionResult } from '@/types/domain'
 
 export type ProfissionalPublico = {
     id: string

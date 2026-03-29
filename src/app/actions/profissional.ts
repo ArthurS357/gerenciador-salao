@@ -5,13 +5,12 @@ import { hash } from 'bcrypt'
 import { formatInTimeZone } from 'date-fns-tz'
 import { verificarSessaoFuncionario } from '@/app/actions/auth'
 import { Prisma } from '@prisma/client'
+import { ActionResult } from '@/types/domain'
+import { schemaExpediente, schemaAlterarSenha } from '@/lib/schemas'
 
 const TZ = 'America/Sao_Paulo'
 
 // ── Tipagem Estrita ──────────────────────────────────────────────────────────
-type ActionResult<T = void> =
-    | (T extends void ? { sucesso: true } : { sucesso: true } & T)
-    | { sucesso: false; erro: string }
 
 type ProfissionalInfo = {
     nome: string
@@ -153,6 +152,12 @@ export async function salvarPerfilEExpediente(
         const sessao = await verificarSessaoFuncionario()
         if (!sessao.logado) return { sucesso: false, erro: 'Não autorizado.' }
 
+        // Validação Estrita de Entrada (Zod)
+        for (const exp of expedientes) {
+            const v = schemaExpediente.safeParse(exp)
+            if (!v.success) return { sucesso: false, erro: `Dados de expediente inválidos para o dia ${exp.diaSemana}.` }
+        }
+
         await prisma.$transaction(async (tx) => {
             if (fotoUrl !== undefined) {
                 await tx.funcionario.update({
@@ -190,11 +195,9 @@ export async function alterarSenhaProfissional(novaSenha: string): Promise<Actio
         const sessao = await verificarSessaoFuncionario()
         if (!sessao.logado) return { sucesso: false, erro: 'Acesso negado.' }
 
-        // Validação de segurança reforçada
-        const regexSenha = /^(?=.*[A-Za-z])(?=.*\d).{6,}$/
-        if (!regexSenha.test(novaSenha)) {
-            return { sucesso: false, erro: 'A senha deve ter pelo menos 6 caracteres, incluindo letras e números.' }
-        }
+        // Validação via Zod (Substitui regex manual)
+        const v = schemaAlterarSenha.safeParse({ novaSenha })
+        if (!v.success) return { sucesso: false, erro: v.error.issues[0]?.message ?? 'Senha inválida.' }
 
         const senhaHash = await hash(novaSenha, 12)
         await prisma.funcionario.update({

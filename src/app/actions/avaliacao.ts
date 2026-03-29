@@ -2,11 +2,8 @@
 
 import { prisma } from '@/lib/prisma'
 import { verificarSessaoCliente, verificarSessaoFuncionario } from '@/app/actions/auth'
-
-// ── Tipo base local (padrão robusto, sem union com 'object') ─────────────────
-type ActionResult<T = void> =
-    | (T extends void ? { sucesso: true } : { sucesso: true } & T)
-    | { sucesso: false; erro: string }
+import { ActionResult } from '@/types/domain'
+import { schemaAvaliacao } from '@/lib/schemas'
 
 // ── 1. Criar Avaliação (NPS do Cliente) ──────────────────────────────────────
 /**
@@ -25,9 +22,10 @@ export async function criarAvaliacao(
             return { sucesso: false, erro: 'Faça login para avaliar seu atendimento.' }
         }
 
-        // ── Validação da nota: inteiro entre 1 e 5 ──────────────────────────
-        if (!Number.isInteger(nota) || nota < 1 || nota > 5) {
-            return { sucesso: false, erro: 'A nota deve ser um número inteiro entre 1 e 5 estrelas.' }
+        // ── Validação da nota: via Zod ───────────────────────────────────────
+        const validacao = schemaAvaliacao.safeParse({ agendamentoId, nota, comentario })
+        if (!validacao.success) {
+            return { sucesso: false, erro: validacao.error.issues[0]?.message ?? 'Dados de avaliação inválidos.' }
         }
 
         // ── Anti-IDOR: confirma que o agendamento pertence a este cliente ────

@@ -3,11 +3,8 @@
 import { prisma } from '@/lib/prisma'
 import { cookies } from 'next/headers'
 import { verificarSessaoCliente, verificarSessaoFuncionario } from '@/app/actions/auth'
-
-// ── TIPAGEM ESTRITA ──────────────────────────────────────────────────────────
-type ActionResult<T = void> =
-    | (T extends void ? { sucesso: true } : { sucesso: true } & T)
-    | { sucesso: false; erro: string }
+import { ActionResult } from '@/types/domain'
+import { schemaCliente } from '@/lib/schemas'
 
 export type HistoricoAgendamentoItem = {
     id: string
@@ -80,8 +77,11 @@ export async function criarCliente(dados: DadosCliente): Promise<ActionResult<{ 
         await garantirPermissaoAdmin()
 
         const telefoneLimpo = dados.telefone.replace(/\D/g, '')
-        if (telefoneLimpo.length < 10 || telefoneLimpo.length > 11) {
-            return { sucesso: false, erro: 'Número de telefone inválido.' }
+        
+        // Validação Estrita via Zod
+        const validacao = schemaCliente.safeParse({ ...dados, telefone: telefoneLimpo })
+        if (!validacao.success) {
+            return { sucesso: false, erro: validacao.error.issues[0]?.message ?? 'Dados do cliente inválidos.' }
         }
 
         const existente = await prisma.cliente.findUnique({ where: { telefone: telefoneLimpo } })
@@ -120,8 +120,11 @@ export async function editarCliente(id: string, dados: DadosCliente): Promise<Ac
         await garantirPermissaoDonoOuAdmin(id)
 
         const telefoneLimpo = dados.telefone.replace(/\D/g, '')
-        if (telefoneLimpo.length < 10 || telefoneLimpo.length > 11) {
-            return { sucesso: false, erro: 'Número de telefone inválido.' }
+        
+        // Validação Estrita via Zod
+        const validacao = schemaCliente.safeParse({ ...dados, telefone: telefoneLimpo })
+        if (!validacao.success) {
+            return { sucesso: false, erro: validacao.error.issues[0]?.message ?? 'Dados de edição inválidos.' }
         }
 
         const telefoneExistente = await prisma.cliente.findFirst({
@@ -131,8 +134,6 @@ export async function editarCliente(id: string, dados: DadosCliente): Promise<Ac
 
         if (dados.cpf) {
             const cpfLimpo = dados.cpf.replace(/\D/g, '')
-            if (cpfLimpo.length !== 11) return { sucesso: false, erro: 'CPF inválido. Informe os 11 dígitos.' }
-
             const cpfExistente = await prisma.cliente.findFirst({
                 where: { cpf: cpfLimpo, NOT: { id } }
             })
@@ -195,18 +196,28 @@ export async function excluirContaCliente(clienteId: string): Promise<ActionResu
 
 // ── LISTAGEM GLOBAL (Apenas Admin) ───────────────────────────────────────────
 
-export async function listarTodosClientes(): Promise<ActionResult<{ clientes: ClienteResumo[] }>> {
+export async function listarTodosClientes(
+    pagina: number = 1,
+    limite: number = 50
+): Promise<ActionResult<{ clientes: ClienteResumo[]; total: number }>> {
     try {
         await garantirPermissaoAdmin()
 
-        const clientes = await prisma.cliente.findMany({
-            orderBy: { nome: 'asc' },
-            select: {
-                id: true, nome: true, telefone: true, email: true, cpf: true, anonimizado: true,
-                _count: { select: { agendamentos: true } }
-            }
-        })
-        return { sucesso: true, clientes }
+        const skip = (pagina - 1) * limite
+
+        const [clientes, total] = await Promise.all([
+            prisma.cliente.findMany({
+                orderBy: { nome: 'asc' },
+                skip,
+                take: limite,
+                select: {
+                    id: true, nome: true, telefone: true, email: true, cpf: true, anonimizado: true,
+                    _count: { select: { agendamentos: true } }
+                }
+            }),
+            prisma.cliente.count()
+        ])
+        return { sucesso: true, clientes, total }
     } catch (error) {
         if (error instanceof Error && error.message.includes('Acesso negado')) return { sucesso: false, erro: error.message }
         return { sucesso: false, erro: 'Falha ao listar clientes.' }
