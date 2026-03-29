@@ -34,6 +34,7 @@ const schemaCriarAgendamento = z.object({
 // ── Constantes de Domínio ────────────────────────────────────────────────────
 const FUSO_HORARIO = 'America/Sao_Paulo'
 const TOLERANCIA_ATRASO_MS = 5 * 60_000
+const TEMPO_SERVICO_FALLBACK_MINUTOS = 30
 
 // ── Tipagens Estritas ─────────────────────────────────────────────────────────
 
@@ -99,14 +100,24 @@ export type FuncionarioComExpedienteItem = {
     }[]
 }
 
+// ── FUNÇÕES AUXILIARES DE DATA E FUSO ─────────────────────────────────────────
+const extrairMinutosLocal = (dataHora: Date): number => {
+    const hora = Number(formatInTimeZone(dataHora, FUSO_HORARIO, 'H'))
+    const minuto = Number(formatInTimeZone(dataHora, FUSO_HORARIO, 'm'))
+    return hora * 60 + minuto
+}
+
+const obterDiaSemanaLocal = (dataHora: Date): number => {
+    return Number(formatInTimeZone(dataHora, FUSO_HORARIO, 'i')) % 7
+}
+
 // ── FUNÇÃO AUXILIAR: Validador de Expediente Seguro (Timezone Proof) ──────────
 async function validarHorarioExpediente(funcionarioId: string, dataHoraInicio: Date, dataHoraFim: Date): Promise<string | null> {
-    // Extracão matemática pura: evita o bug letal do new Date() em servidores UTC
-    const diaSemanaInicioLocal = Number(formatInTimeZone(dataHoraInicio, FUSO_HORARIO, 'i')) % 7 // 'i' retorna 1(Seg) a 7(Dom). %7 converte Dom para 0.
-    const diaSemanaFimLocal = Number(formatInTimeZone(dataHoraFim, FUSO_HORARIO, 'i')) % 7
+    const diaSemanaInicioLocal = obterDiaSemanaLocal(dataHoraInicio)
+    const diaSemanaFimLocal = obterDiaSemanaLocal(dataHoraFim)
 
-    const agendamentoInicioMinutos = Number(formatInTimeZone(dataHoraInicio, FUSO_HORARIO, 'H')) * 60 + Number(formatInTimeZone(dataHoraInicio, FUSO_HORARIO, 'm'))
-    const agendamentoFimMinutos = Number(formatInTimeZone(dataHoraFim, FUSO_HORARIO, 'H')) * 60 + Number(formatInTimeZone(dataHoraFim, FUSO_HORARIO, 'm'))
+    const agendamentoInicioMinutos = extrairMinutosLocal(dataHoraInicio)
+    const agendamentoFimMinutos = extrairMinutosLocal(dataHoraFim)
 
     const diasNomes = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado']
 
@@ -169,7 +180,6 @@ export async function criarAgendamentoMultiplo(
     }
 
     // ── Validação Zod (Runtime Type Safety) ──────────────────────────────────────
-    // Server Actions são endpoints POST públicos — validar tipos em runtime é obrigatório
     const validacao = schemaCriarAgendamento.safeParse({
         clienteId,
         funcionarioId,
@@ -235,7 +245,7 @@ export async function criarAgendamentoMultiplo(
                 return { sucesso: false, erro: 'Um ou mais serviços são inválidos.' }
             }
             valorBruto += s.preco ?? 0
-            tempoTotalMinutos += s.tempoMinutos ?? 30
+            tempoTotalMinutos += s.tempoMinutos ?? TEMPO_SERVICO_FALLBACK_MINUTOS
             itensParaCriar.push({ servicoId: s.id, precoCobrado: s.preco })
         }
 
@@ -301,13 +311,7 @@ export async function criarAgendamentoMultiplo(
         }).join(', ');
 
         const mensagemConfirmacao =
-            `Olá ${cliente.nome.split(' ')[0]}! 🌟 Sua reserva no Studio LmLu Matiello foi confirmada!
-
-📅 *Data:* ${dataFormatada}
-💅 *Serviço(s):* ${nomesServicos}
-👨‍🎨 *Profissional:* ${novoAgendamento!.funcionario.nome}
-
-Para cancelar ou reagendar, por favor acesse o painel no nosso site. Estamos ansiosos para te receber!`;
+            `Olá ${cliente.nome.split(' ')[0]}! 🌟 Sua reserva no Studio LmLu Matiello foi confirmada!\n\n📅 *Data:* ${dataFormatada}\n💅 *Serviço(s):* ${nomesServicos}\n👨‍🎨 *Profissional:* ${novoAgendamento!.funcionario.nome}\n\nPara cancelar ou reagendar, por favor acesse o painel no nosso site. Estamos ansiosos para te receber!`;
 
         after(async () => {
             await enviarMensagemWhatsApp(cliente.telefone!, mensagemConfirmacao).catch(err => {
@@ -354,7 +358,6 @@ export async function listarAgendaProfissional(
 
 export async function cancelarAgendamentoPendente(id: string): Promise<ActionResult> {
     try {
-        // Otimização: agendamento e sessões são independentes — busca em paralelo
         const [agendamento, sessaoCli, sessaoFunc] = await Promise.all([
             prisma.agendamento.findUnique({
                 where: { id },
@@ -378,22 +381,23 @@ export async function cancelarAgendamentoPendente(id: string): Promise<ActionRes
         }
 
         if (agendamento.concluido) {
-            return {
-                sucesso: false,
-                erro: 'Não é possível cancelar uma comanda que já foi faturada e enviada ao caixa.',
-            }
+            return { sucesso: false, erro: 'Não é possível cancelar uma comanda que já foi faturada e enviada ao caixa.' }
         }
 
+        // Agrupa os itens para evitar race conditions (write conflicts) no banco de dados
+        const produtosParaRestaurar = agendamento.produtos.reduce((acc, item) => {
+            acc[item.produtoId] = (acc[item.produtoId] || 0) + item.quantidade;
+            return acc;
+        }, {} as Record<string, number>);
+
         await prisma.$transaction(async (tx) => {
-            // Otimização: atualizações de estoque são independentes entre si — execução em paralelo
-            await Promise.all(
-                agendamento.produtos.map(item =>
-                    tx.produto.update({
-                        where: { id: item.produtoId },
-                        data: { estoque: { increment: item.quantidade } }
-                    })
-                )
-            )
+            // Execução sequencial robusta dentro de transação interativa
+            for (const [produtoId, quantidade] of Object.entries(produtosParaRestaurar)) {
+                await tx.produto.update({
+                    where: { id: produtoId },
+                    data: { estoque: { increment: quantidade } }
+                });
+            }
 
             await tx.agendamento.update({ where: { id }, data: { canceladoEm: new Date() } })
 
@@ -405,7 +409,8 @@ export async function cancelarAgendamentoPendente(id: string): Promise<ActionRes
         })
 
         return { sucesso: true }
-    } catch {
+    } catch (error) {
+        console.error('[Agendamento Error] Falha técnica ao cancelar agendamento:', error)
         return { sucesso: false, erro: 'Falha técnica ao tentar cancelar o agendamento.' }
     }
 }
@@ -439,7 +444,6 @@ export async function editarAgendamentoPendente(
     dataHoraInicio: Date
 ): Promise<ActionResult> {
     try {
-        // Otimização: agendamento e sessões são independentes — busca em paralelo
         const [agendamento, sessaoCli, sessaoFunc] = await Promise.all([
             prisma.agendamento.findUnique({
                 where: { id },
@@ -468,7 +472,7 @@ export async function editarAgendamentoPendente(
         const TEMPO_BUFFER_MINUTOS = Number(process.env.TEMPO_BUFFER_MINUTOS) || 5
         let tempoTotalMinutos = 0
         agendamento.servicos.forEach(item => {
-            tempoTotalMinutos += item.servico.tempoMinutos ?? 30
+            tempoTotalMinutos += item.servico.tempoMinutos ?? TEMPO_SERVICO_FALLBACK_MINUTOS
         })
         const dataHoraFim = new Date(dataHoraInicio.getTime() + (tempoTotalMinutos + TEMPO_BUFFER_MINUTOS) * 60_000)
 
@@ -535,8 +539,6 @@ export async function listarEquipaComExpediente(): Promise<ActionResult<{ equipa
             },
             orderBy: { nome: 'asc' }
         })
-        // O select do Prisma acima garante exatamente o shape de FuncionarioComExpedienteItem.
-        // Nenhum type cast necessário — o compilador valida a compatibilidade estrutural.
         return { sucesso: true, equipa }
     } catch (error) {
         console.error('Erro ao listar equipa com expediente:', error)

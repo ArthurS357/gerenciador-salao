@@ -1,72 +1,84 @@
 /**
- * rateLimit.ts — Rate Limiting adaptativo
+ * rateLimit.ts — Rate Limiting via Banco de Dados (Prisma)
  *
- * PRODUÇÃO (multi-instância/serverless):
- *   Configure UPSTASH_REDIS_REST_URL e UPSTASH_REDIS_REST_TOKEN
- *   → usa Upstash Redis com sliding window
- *
- * DESENVOLVIMENTO (single-instance):
- *   Sem as variáveis acima → usa Map in-memory
- *   ⚠️  Resetado a cada restart — NÃO usar em produção distribuída
+ * Ideal para Serverless (Vercel) com custo zero.
+ * Garante que o estado seja compartilhado entre todas as instâncias das Serverless Functions.
  */
 
-import { Ratelimit } from '@upstash/ratelimit'
-import { Redis } from '@upstash/redis'
+import { prisma } from '@/lib/prisma'
 
-// ── Upstash Redis (produção) ─────────────────────────────────────────────────
-let upstashLimiter: Ratelimit | null = null
+const JANELA_MS = 60_000      // 1 minuto de janela
+const MAX_REQ = 5             // Limite de 5 tentativas por janela
+const BLOQUEIO_MS = 30_000    // 30 segundos de penalidade (castigo)
 
-if (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) {
-    upstashLimiter = new Ratelimit({
-        redis: Redis.fromEnv(),
-        // 5 tentativas de agendamento por minuto por clienteId
-        limiter: Ratelimit.slidingWindow(5, '60 s'),
-        analytics: false,
-        prefix: 'lmlu:rl:agendamento',
-    })
-} else if (process.env.NODE_ENV === 'production') {
-    console.warn(
-        '[LmLu] AVISO: Rate limiting Redis não configurado em produção.\n' +
-        '       Configure UPSTASH_REDIS_REST_URL e UPSTASH_REDIS_REST_TOKEN.'
-    )
-}
-
-// ── Fallback in-memory (desenvolvimento) ────────────────────────────────────
-type MemEntry = { count: number; windowStart: number; blockedUntil?: number }
-const memMap = new Map<string, MemEntry>()
-
-const JANELA_MS = 60_000  // 1 minuto
-const MAX_REQ = 5       // 5 tentativas por janela
-const BLOQUEIO_MS = 30_000  // 30s de castigo
-
-function checkMemory(key: string): boolean {
-    const now = Date.now()
-    const entry = memMap.get(key)
-
-    if (!entry) {
-        memMap.set(key, { count: 1, windowStart: now })
-        return true
-    }
-    if (entry.blockedUntil && now < entry.blockedUntil) return false
-    if (now - entry.windowStart > JANELA_MS) {
-        memMap.set(key, { count: 1, windowStart: now })
-        return true
-    }
-
-    entry.count += 1
-    if (entry.count > MAX_REQ) {
-        entry.blockedUntil = now + BLOQUEIO_MS
-        console.warn(`[RateLimit] Chave bloqueada por 30s: ${key.substring(0, 8)}...`)
-        return false
-    }
-    return true
-}
-
-// ── API pública (sempre assíncrona para compatibilidade com Upstash) ─────────
 export async function verificarRateLimit(identificador: string): Promise<boolean> {
-    if (upstashLimiter) {
-        const { success } = await upstashLimiter.limit(identificador)
-        return success
+    if (!identificador) return false;
+
+    const agora = new Date();
+
+    try {
+        const registro = await prisma.rateLimit.findUnique({
+            where: { identificador }
+        });
+
+        // 1. Primeira vez do usuário, cria o registro e libera.
+        if (!registro) {
+            await prisma.rateLimit.create({
+                data: {
+                    identificador,
+                    count: 1,
+                    windowStart: agora,
+                }
+            });
+            return true;
+        }
+
+        // 2. Verifica se o usuário está no período de castigo.
+        if (registro.blockedUntil && agora < registro.blockedUntil) {
+            return false;
+        }
+
+        // 3. Verifica se a janela de 1 minuto já expirou (Reseta o contador).
+        if (agora.getTime() - registro.windowStart.getTime() > JANELA_MS) {
+            await prisma.rateLimit.update({
+                where: { identificador },
+                data: {
+                    count: 1,
+                    windowStart: agora,
+                    blockedUntil: null,
+                }
+            });
+            return true;
+        }
+
+        // 4. Se a janela não expirou, incrementa a requisição.
+        const novaContagem = registro.count + 1;
+
+        if (novaContagem > MAX_REQ) {
+            // Abuso detectado: Aplica o bloqueio.
+            await prisma.rateLimit.update({
+                where: { identificador },
+                data: {
+                    count: novaContagem,
+                    blockedUntil: new Date(agora.getTime() + BLOQUEIO_MS)
+                }
+            });
+            console.warn(`[RateLimit] Abuso detectado. Identificador bloqueado no banco: ${identificador.substring(0, 8)}...`);
+            return false;
+        }
+
+        // Atualiza apenas a contagem caso não tenha passado o limite.
+        await prisma.rateLimit.update({
+            where: { identificador },
+            data: { count: novaContagem }
+        });
+
+        return true;
+
+    } catch (error) {
+        console.error('[RateLimit Error] Falha ao conectar no Prisma:', error);
+        // Fail-Open: Se o banco falhar momentaneamente, permite a requisição
+        // para não prejudicar um cliente legítimo por conta de instabilidade de infraestrutura.
+        return true;
     }
-    return checkMemory(identificador)
 }

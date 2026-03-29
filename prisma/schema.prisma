@@ -190,3 +190,12 @@ model Avaliacao {
 
   agendamento   Agendamento @relation(fields: [agendamentoId], references: [id], onDelete: Cascade)
 }
+
+model RateLimit {
+  identificador String    @id
+  count         Int       @default(1)
+  windowStart   DateTime  @default(now())
+  blockedUntil  DateTime?
+
+  @@map("rate_limits") // Opcional: padroniza o nome da tabela no banco
+}
