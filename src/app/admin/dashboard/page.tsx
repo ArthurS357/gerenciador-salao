@@ -91,7 +91,8 @@ export default function TorreControleDashboard() {
     useEffect(() => {
         const init = async () => {
             const [resEq, resSv, resNotif] = await Promise.all([listarEquipaAdmin(), listarServicosAdmin(), listarNotificacoesAdmin()])
-            if (resEq.sucesso && 'equipe' in resEq) setEquipa(resEq.equipe as ProfissionalResumo[])
+            // CORRIGIDO: 'equipa' com A, para bater com o retorno da Action
+            if (resEq.sucesso && 'equipa' in resEq) setEquipa(resEq.equipa as ProfissionalResumo[])
             if (resSv.sucesso && 'servicos' in resSv) setServicosDisponiveis(resSv.servicos as ServicoResumo[])
             if (resNotif.sucesso && 'notificacoes' in resNotif) setNotificacoes(resNotif.notificacoes as NotificacaoItem[])
         }
@@ -100,7 +101,8 @@ export default function TorreControleDashboard() {
 
     const recarregarDados = useCallback(async () => {
         const [resEq, resNotif] = await Promise.all([listarEquipaAdmin(), listarNotificacoesAdmin()])
-        if (resEq.sucesso && 'equipe' in resEq) setEquipa(resEq.equipe as ProfissionalResumo[])
+        // CORRIGIDO: 'equipa' com A
+        if (resEq.sucesso && 'equipa' in resEq) setEquipa(resEq.equipa as ProfissionalResumo[])
         if (resNotif.sucesso && 'notificacoes' in resNotif) setNotificacoes(resNotif.notificacoes as NotificacaoItem[])
     }, [])
 

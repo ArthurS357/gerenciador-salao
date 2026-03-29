@@ -8,7 +8,6 @@ import { verificarSessaoFuncionario } from '@/app/actions/auth'
 
 // ── Tipagens Estritas ─────────────────────────────────────────────────────────
 
-// Atualizado para o padrão robusto que elimina o uso do tipo fraco "object"
 export type ActionResult<T = void> =
     | (T extends void ? { sucesso: true } : { sucesso: true } & T)
     | { sucesso: false; erro: string }
@@ -84,9 +83,6 @@ async function garantirPermissaoAdmin() {
     }
 }
 
-// Nota: A função 'gerarAdminInicial' foi removida pois a responsabilidade
-// agora pertence à rota segura 'POST /api/setup-admin/route.ts'.
-
 // ── 1. CRIAÇÃO E EDIÇÃO ────────────────────────────────────────────────────────
 
 export async function criarFuncionario(
@@ -95,7 +91,7 @@ export async function criarFuncionario(
     try {
         await garantirPermissaoAdmin();
 
-        const senhaHash = await hash('Mudar@123', 12) // Aumentado o custo para 12
+        const senhaHash = await hash('Mudar@123', 12)
         const novoFuncionario = await prisma.funcionario.create({
             data: {
                 nome: dados.nome, email: dados.email, senhaHash, role: 'PROFISSIONAL',
@@ -105,8 +101,6 @@ export async function criarFuncionario(
                 podeCancelar: dados.podeCancelar ?? false,
                 servicos: dados.servicosIds && dados.servicosIds.length > 0 ? { connect: dados.servicosIds.map(id => ({ id })) } : undefined,
             },
-            // Usando select explícito para bater exatamente com a interface ProfissionalResumo
-            // Isso elimina a necessidade do Type Casting perigoso ("as unknown as...")
             select: {
                 id: true, nome: true, email: true, especialidade: true, ativo: true,
                 comissao: true, podeVerComissao: true, podeAgendar: true, podeVerHistorico: true, podeCancelar: true,
@@ -117,7 +111,13 @@ export async function criarFuncionario(
             }
         })
 
-        return { sucesso: true, funcionario: novoFuncionario }
+        return {
+            sucesso: true,
+            funcionario: {
+                ...novoFuncionario,
+                comissao: Number(novoFuncionario.comissao) // Evita erro de serialização do Decimal no Next.js
+            } as ProfissionalResumo
+        }
     } catch (error) {
         if (error instanceof Error && error.message.includes('Acesso negado')) return { sucesso: false, erro: error.message }
         return { sucesso: false, erro: 'Falha ao criar profissional.' }
@@ -145,7 +145,7 @@ export async function editarFuncionarioCompleto(
 // ── 2. PERMISSÕES E EXCLUSÕES ─────────────────────────────────────────────────
 
 export async function atualizarFuncionarioCompleto(
-    id: string, dados: { comissao: number, podeVerComissao: boolean, podeAgendar: boolean, podeVerHistorico: boolean, podeCancelar: boolean }
+    id: string, dados: { comissao?: number, podeVerComissao?: boolean, podeAgendar?: boolean, podeVerHistorico?: boolean, podeCancelar?: boolean, ativo?: boolean }
 ): Promise<ActionResult> {
     try {
         await garantirPermissaoAdmin();
@@ -208,7 +208,6 @@ export async function anonimizarClienteLGPD(clienteId: string): Promise<ActionRe
         await garantirPermissaoAdmin();
 
         const hashNome = `Anonimizado_${randomUUID().substring(0, 8)}`
-        // O hash gerará um telefone e-mail e cpf falsos, liberando os dados originais no banco
         const hashTelefone = `0000_${randomUUID().substring(0, 8)}`
 
         await prisma.cliente.update({
@@ -230,7 +229,7 @@ export async function listarEquipaAdmin(): Promise<ActionResult<{ equipa: Profis
         await garantirPermissaoAdmin();
 
         const equipa = await prisma.funcionario.findMany({
-            where: { role: 'PROFISSIONAL', ativo: true },
+            where: { role: 'PROFISSIONAL' }, // <-- REMOVIDO: ativo: true. Agora busca todos (ativos e inativos)
             orderBy: { nome: 'asc' },
             select: {
                 id: true, nome: true, email: true, especialidade: true, ativo: true,
@@ -244,14 +243,18 @@ export async function listarEquipaAdmin(): Promise<ActionResult<{ equipa: Profis
             let expedientes = prof.expedientes;
             if (expedientes.length === 0) {
                 expedientes = Array.from({ length: 7 }).map((_, index) => ({
-                    id: `temp-${index}`, // Usado apenas como Key no front-end, ignorado no DB via upsert
+                    id: `temp-${index}`,
                     diaSemana: index,
                     horaInicio: '09:00',
                     horaFim: '18:00',
                     ativo: false
                 }))
             }
-            return { ...prof, expedientes }
+            return {
+                ...prof,
+                comissao: Number(prof.comissao), // <-- CORREÇÃO: Evita erro de serialização do Decimal no Next.js
+                expedientes
+            }
         })
 
         return { sucesso: true, equipa: equipaNormalizada }
