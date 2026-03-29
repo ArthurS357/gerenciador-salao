@@ -106,7 +106,6 @@ export default function GestaoClientesAdminPage() {
     const [clientes, setClientes] = useState<ClienteListaItem[]>([])
     const [busca, setBusca] = useState('')
     const [loading, setLoading] = useState(true)
-    const [acaoLoading, setAcaoLoading] = useState<string | null>(null)
 
     const [profissionaisList, setProfissionaisList] = useState<{ id: string, nome: string }[]>([])
     const [servicosList, setServicosList] = useState<{ id: string, nome: string }[]>([])
@@ -177,19 +176,19 @@ export default function GestaoClientesAdminPage() {
             return
         }
 
-        setAcaoLoading(id)
         try {
             const res = await excluirClientePermanente(id)
 
             if (!res.sucesso) {
-                if ('erro' in res) logError('excluirClientePermanente', res.erro)
+                if ('erro' in res) {
+                    alert(res.erro)
+                    logError('excluirClientePermanente', res.erro)
+                }
                 return
             }
             void carregarClientes()
         } catch (error) {
             logError('handleExcluir', error)
-        } finally {
-            setAcaoLoading(null)
         }
     }
 
@@ -198,19 +197,19 @@ export default function GestaoClientesAdminPage() {
             return
         }
 
-        setAcaoLoading(id)
         try {
             const res = await anonimizarClienteLGPD(id)
 
             if (!res.sucesso) {
-                if ('erro' in res) logError('anonimizarClienteLGPD', res.erro)
+                if ('erro' in res) {
+                    alert(res.erro)
+                    logError('anonimizarClienteLGPD', res.erro)
+                }
                 return
             }
             void carregarClientes()
         } catch (error) {
             logError('handleAnonimizar', error)
-        } finally {
-            setAcaoLoading(null)
         }
     }
 
@@ -482,6 +481,8 @@ export default function GestaoClientesAdminPage() {
                                         onHistorico={() => abrirModalHistorico(cliente.id)}
                                         onEditar={!isAnonimizado ? () => abrirModalEditar(cliente) : undefined}
                                         onLgpd={!isAnonimizado ? () => handleAnonimizar(cliente.id, cliente.nome) : undefined}
+                                        // CORREÇÃO AQUI: handleExcluir adicionado para limpar o banco
+                                        onExcluir={!isAnonimizado ? () => handleExcluir(cliente.id, cliente.nome) : undefined}
                                     />
                                 )
                             })}

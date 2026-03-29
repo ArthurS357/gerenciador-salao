@@ -1,36 +1,80 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# ✂️ Gerenciador de Salão - Studio LmLu Matiello
 
-## Getting Started
+Sistema completo de gestão para salões de beleza, focado em automatização de agendamentos, controlo financeiro imutável e conformidade com a LGPD.
 
-First, run the development server:
+## 🚀 Tecnologias
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+Este projeto foi construído com uma stack moderna focada em performance e segurança:
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+- **Framework:** [Next.js 15](https://nextjs.org/) (App Router)
+- **Linguagem:** [TypeScript](https://www.typescriptlang.org/)
+- **Base de Dados & ORM:** [Prisma](https://www.prisma.io/) com SQLite (DB Local)
+- **Estilização:** [Tailwind CSS](https://tailwindcss.com/)
+- **Segurança:** Autenticação baseada em JWT (Stateless para clientes e Stateful para equipa)
+- **Integrações:** API do WhatsApp para notificações automáticas
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 🛠️ Funcionalidades Principais
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### 👤 Área do Cliente
 
-## Learn More
+- **Agendamento Inteligente:** Seleção de serviço, profissional e horário com validação de disponibilidade em tempo real.
+- **Histórico de Beleza:** Visualização de atendimentos passados e total investido.
+- **Sistema de Avaliação (NPS):** Feedback detalhado após a conclusão dos serviços.
+- **Privacidade LGPD:** Opção de anonimização total dos dados pessoais (mantendo dados fiscais anónimos).
 
-To learn more about Next.js, take a look at the following resources:
+### 👔 Portal do Profissional
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- **Dashboard em Tempo Real:** Card dinâmico de "Próximo Atendimento" com integração ao WhatsApp.
+- **Gestão de Comandas:** Fluxo de abertura e fechamento de serviços com cálculo automático de comissões.
+- **Agenda Dinâmica:** Visualização clara de horários pendentes e concluídos.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### ⚙️ Painel Administrativo
 
-## Deploy on Vercel
+- **Motor Financeiro:** Relatórios detalhados com Faturamento Bruto, Custos Operacionais e Lucro Líquido Real.
+- **Gestão de Equipa:** Configuração individual de taxas de comissão e permissões de acesso.
+- **Controlo de Estoque:** Gestão de insumos e produtos de revenda vinculados às comandas.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## 📊 Arquitetura de Dados (Prisma Schema)
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+O projeto utiliza um modelo relacional robusto para garantir a integridade dos dados:
+
+- **Snapshot Financeiro:** Ao concluir um agendamento, o sistema congela valores de comissão e custos (`comissaoSnap`, `custoRevenda`, etc.) para garantir que relatórios históricos nunca mudem, mesmo que os preços actuais sejam alterados.
+- **Anti-Double-Booking:** Índices compostos no banco de dados evitam choques de horários para o mesmo profissional.
+
+## 📦 Como Instalar e Rodar
+
+1.  **Clonar o repositório:**
+
+    ```bash
+    git clone https://github.com/arthurs357/gerenciador-salao.git
+    cd gerenciador-salao
+    ```
+
+2.  **Instalar as dependências:**
+
+    ```bash
+    npm install
+    ```
+
+3.  **Configurar as variáveis de ambiente (`.env`):**
+
+    ```env
+    DATABASE_URL="file:./dev.db"
+    JWT_SECRET="sua_chave_secreta"
+    TEMPO_BUFFER_MINUTOS=5
+    ```
+
+4.  **Preparar a Base de Dados:**
+
+    ```bash
+    npx prisma migrate dev --name init
+    ```
+
+5.  **Iniciar o servidor de desenvolvimento:**
+    ```bash
+    npm run dev
+    ```
+
+## 📝 Licença
+
+Este projeto é de uso restrito do **Studio LmLu Matiello**. Todos os direitos reservados.

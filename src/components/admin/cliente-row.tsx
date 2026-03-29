@@ -4,7 +4,7 @@
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { ChevronDown, CalendarPlus, History, Edit2, ShieldAlert } from "lucide-react";
+import { ChevronDown, CalendarPlus, History, Edit2, ShieldAlert, Trash2 } from "lucide-react";
 
 interface ClienteRowProps {
     cliente: {
@@ -18,9 +18,10 @@ interface ClienteRowProps {
     onHistorico?: (id: string) => void;
     onEditar?: (id: string) => void;
     onLgpd?: (id: string) => void;
+    onExcluir?: (id: string) => void; // <-- ADICIONADO AQUI
 }
 
-export function ClienteRow({ cliente, onAgendar, onHistorico, onEditar, onLgpd }: ClienteRowProps) {
+export function ClienteRow({ cliente, onAgendar, onHistorico, onEditar, onLgpd, onExcluir }: ClienteRowProps) {
     const [expanded, setExpanded] = useState(false);
 
     // Extrai as iniciais para o Avatar (ex: "Maria Silva" -> "MS")
@@ -118,16 +119,27 @@ export function ClienteRow({ cliente, onAgendar, onHistorico, onEditar, onLgpd }
                             <Edit2 className="mr-2 h-3.5 w-3.5" /> Editar
                         </Button>
 
-                        <div className="flex-1" /> {/* Empurra o LGPD para a direita */}
+                        <div className="flex-1" /> {/* Empurra os botões seguintes para a direita */}
 
                         <Button
                             variant="ghost"
                             size="sm"
                             onClick={() => onLgpd?.(cliente.id)}
                             disabled={!onLgpd}
-                            className="h-8 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive font-semibold"
+                            className="h-8 text-xs text-amber-600 hover:bg-amber-100 hover:text-amber-700 font-semibold"
                         >
                             <ShieldAlert className="mr-2 h-3.5 w-3.5" /> LGPD
+                        </Button>
+
+                        {/* NOVO BOTÃO ADICIONADO PARA A AÇÃO DE EXCLUIR */}
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => onExcluir?.(cliente.id)}
+                            disabled={!onExcluir}
+                            className="h-8 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive font-semibold"
+                        >
+                            <Trash2 className="mr-2 h-3.5 w-3.5" /> Excluir
                         </Button>
                     </div>
                 </div>
