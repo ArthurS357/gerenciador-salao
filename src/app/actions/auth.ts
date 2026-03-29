@@ -56,7 +56,19 @@ export async function loginFuncionario(
     }
 }
 
-// ── Validadores de Sessão ──────────────────────────────────────────────────
+// ── Validadores de Sessão ──────────────────────────────────────────────────────────
+
+/**
+ * ESTRATÉGIA HÍBRIDA DE SESSÃO:
+ *
+ * Cliente  → JWT Stateless. Claims (`nome`, `anonimizado`) estão no payload.
+ *             Sem roundtrip ao banco. Risco aceitável pois TTL é curto (4h)
+ *             e a anoniimização de clientes é um evento raro/administrativo.
+ *
+ * Funcionário/Admin → Stateful (Query ao Prisma). Revogação imediata de acesso
+ *             ao desativar um usuário com privilégios. A latam de uma findUnique
+ *             por PK é de poucos ms e o risco de segurança supera a micro-otimização.
+ */
 export async function verificarSessaoCliente(): Promise<SessaoClienteResult> {
     try {
         const cookieStore = await cookies()
@@ -66,21 +78,24 @@ export async function verificarSessaoCliente(): Promise<SessaoClienteResult> {
 
         const { payload } = await jwtVerify(token, JWT_SECRET)
 
-        if (payload.role !== 'CLIENTE' || !payload.sub) return { logado: false }
+        // Valida claims obrigatórias estruturalmente
+        if (payload.role !== 'CLIENTE' || !payload.sub || typeof payload.nome !== 'string') {
+            return { logado: false }
+        }
 
-        const cliente = await prisma.cliente.findUnique({
-            where: { id: payload.sub },
-            select: { nome: true, anonimizado: true }
-        })
+        // Verifica revogação via claim no payload (sem roundtrip ao banco)
+        if (payload.anonimizado === true) return { logado: false }
 
-        if (!cliente || cliente.anonimizado) return { logado: false }
-
-        return { logado: true, id: payload.sub, nome: cliente.nome }
+        return { logado: true, id: payload.sub, nome: payload.nome }
     } catch {
         return { logado: false }
     }
 }
 
+/**
+ * Stateful — mantemos a query ao banco para revogação imediata.
+ * Um funcionário desativado perde acesso no próximo request, sem dependência de TTL.
+ */
 export async function verificarSessaoFuncionario(): Promise<SessaoFuncionarioResult> {
     try {
         const cookieStore = await cookies()

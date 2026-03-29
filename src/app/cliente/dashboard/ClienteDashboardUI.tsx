@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { CalendarOff, LogOut, Trash2, Home } from 'lucide-react'
+import { CalendarOff, LogOut, Trash2, Home, Star, CheckCircle2 } from 'lucide-react'
 import { logoutCliente } from '@/app/actions/auth'
 import { excluirContaCliente } from '@/app/actions/cliente'
 import { criarAvaliacao } from '@/app/actions/avaliacao'
@@ -16,8 +16,9 @@ interface ClienteDashboardUIProps {
     totalGasto: number
 }
 
+// Extendemos a interface base para garantir que o TypeScript saiba que a avaliação pode vir do backend
 type HistoricoItemComAvaliacao = HistoricoAgendamentoItem & {
-    avaliacao?: unknown
+    avaliacao?: { id: string; nota: number } | null
 }
 
 const STATUS_BADGE = {
@@ -48,7 +49,8 @@ export default function ClienteDashboardUI({
     const [avaliandoId, setAvaliandoId] = useState<string | null>(null)
     const [nota, setNota] = useState<number>(5)
     const [comentario, setComentario] = useState('')
-    const [avaliadosLocalmente, setAvaliadosLocalmente] = useState<string[]>([])
+    // Este estado armazena as avaliações feitas na sessão atual (antes do refresh da página)
+    const [avaliadosLocalmente, setAvaliadosLocalmente] = useState<Set<string>>(new Set())
     const [loadingAvaliacao, setLoadingAvaliacao] = useState(false)
 
     const handleLogout = async () => {
@@ -86,8 +88,8 @@ export default function ClienteDashboardUI({
         const res = await criarAvaliacao(avaliandoId, nota, comentario)
 
         if (res.sucesso) {
-            alert('Muito obrigado pelo seu feedback!')
-            setAvaliadosLocalmente([...avaliadosLocalmente, avaliandoId])
+            // Adiciona o ID ao Set para bloquear o botão imediatamente na UI
+            setAvaliadosLocalmente(prev => new Set(prev).add(avaliandoId))
             setAvaliandoId(null)
             setNota(5)
             setComentario('')
@@ -239,7 +241,9 @@ export default function ClienteDashboardUI({
                         <div className="space-y-4">
                             {concluidos.map(ag => {
                                 const itemComAvaliacao = ag as HistoricoItemComAvaliacao;
-                                const jaAvaliado = itemComAvaliacao.avaliacao != null || avaliadosLocalmente.includes(ag.id);
+
+                                // Bloqueia se já tiver 'avaliacao' vindo do backend OU se o ID estiver no Set local
+                                const jaAvaliado = itemComAvaliacao.avaliacao != null || avaliadosLocalmente.has(ag.id);
 
                                 return (
                                     <div key={ag.id} className="bg-white border border-[rgba(197,168,124,0.15)] p-5 md:p-6 shadow-sm hover:border-[rgba(197,168,124,0.3)] transition-colors duration-300 flex flex-col md:flex-row gap-5 items-start md:items-center">
@@ -278,13 +282,13 @@ export default function ClienteDashboardUI({
                                                         onClick={() => setAvaliandoId(ag.id)}
                                                         className="px-4 py-2 border border-caramelo text-caramelo text-[0.65rem] font-bold uppercase tracking-[0.1em] hover:bg-caramelo hover:text-white transition-colors flex items-center gap-1.5"
                                                     >
-                                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>
+                                                        <Star className="w-3.5 h-3.5" />
                                                         Avaliar Atendimento
                                                     </button>
                                                 ) : (
-                                                    <span className="text-[0.65rem] font-medium uppercase tracking-[0.1em] text-[rgba(197,168,124,0.7)] flex items-center gap-1">
-                                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
-                                                        Avaliado
+                                                    <span className="text-[0.65rem] font-bold uppercase tracking-[0.1em] text-green-700/80 flex items-center gap-1.5 px-3 py-2 bg-green-50/50 rounded-md">
+                                                        <CheckCircle2 className="w-4 h-4 text-green-600/80" />
+                                                        Atendimento Avaliado
                                                     </span>
                                                 )}
                                             </div>

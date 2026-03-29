@@ -1,15 +1,16 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import Link from 'next/link'
 import dynamic from 'next/dynamic'
 import { obterResumoFinanceiro, atualizarComissaoFuncionario, obterDadosGraficosFinanceiros } from '@/app/actions/financeiro'
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import type { FinanceiroResumo, FuncionarioResumo } from '@/types/domain'
 import * as XLSX from 'xlsx'
 import { Loader2 } from 'lucide-react'
-// Importação do componente UI que criamos antes!
 import { MetricCard } from '@/components/admin/metric-card'
+
+// Correção: Removido as chaves de { AdminHeader }
+import AdminHeader from '@/components/admin/AdminHeader'
 
 const BotaoExportarPDF = dynamic(() => import('@/components/BotaoExportarPDF'), {
     ssr: false,
@@ -162,50 +163,37 @@ export default function PainelFinanceiroPage() {
         const equipaData = dados.equipe.map(p => ({
             'Profissional': p.nome,
             'Taxa de Comissão (%)': p.comissao,
+            'Total Recebido (R$)': p.totalComissaoRecebida,
             'Acesso Visível à Comanda': p.podeVerComissao ? 'Sim' : 'Não'
         }))
         const wsEquipa = XLSX.utils.json_to_sheet(equipaData)
 
+        const historicoData = dados.historico.map(h => ({
+            'Data': new Date(h.data).toLocaleDateString('pt-BR'),
+            'Cliente': h.clienteNome,
+            'Profissional': h.profissionalNome,
+            'Faturamento (R$)': h.valorBruto,
+            'Comissão Recebida (R$)': h.valorComissao
+        }))
+        const wsHistorico = XLSX.utils.json_to_sheet(historicoData)
+
         const wb = XLSX.utils.book_new()
         XLSX.utils.book_append_sheet(wb, wsResumo, 'Resumo Financeiro')
         XLSX.utils.book_append_sheet(wb, wsEquipa, 'Equipe de Profissionais')
+        XLSX.utils.book_append_sheet(wb, wsHistorico, 'Histórico de Atendimentos')
 
         XLSX.writeFile(wb, `Relatorio_Financeiro_${periodoAtual}.xlsx`)
     }
 
     return (
         <div className="min-h-screen bg-background p-4 md:p-8 font-sans">
-            <header className="mb-8 flex flex-col md:flex-row md:justify-between md:items-end gap-4 max-w-7xl mx-auto px-4 md:px-0">
-                <div>
-                    <h1 className="text-3xl md:text-4xl font-black text-foreground tracking-tight">Visão Financeira</h1>
-                    <p className="text-muted-foreground mt-2 text-sm md:text-base">Análise de métricas, lucros e evolução do seu salão.</p>
-                </div>
-            </header>
+            <AdminHeader
+                titulo="Visão Financeira"
+                subtitulo="Análise de métricas, lucros e evolução do seu salão."
+                abaAtiva="Financeiro"
+            />
 
             <div className="max-w-7xl mx-auto px-4 md:px-0">
-                <nav className="flex flex-wrap gap-2 md:gap-3 mb-10 p-1 md:p-1.5 bg-muted/60 backdrop-blur rounded-2xl w-fit">
-                    {[
-                        { href: '/admin/dashboard', label: 'Equipe' },
-                        { href: '/admin/financeiro', label: 'Financeiro', ativo: true },
-                        { href: '/admin/estoque', label: 'Estoque' },
-                        { href: '/admin/servicos', label: 'Serviços' },
-                        { href: '/admin/agendamentos', label: 'Agendamentos' },
-                        { href: '/admin/clientes', label: 'Clientes' },
-                    ].map(({ href, label, ativo }) => (
-                        <Link
-                            key={href}
-                            href={href}
-                            className={
-                                ativo
-                                    ? 'bg-card text-primary px-5 py-2 md:py-2.5 rounded-xl shadow-sm font-bold text-[13px] md:text-sm tracking-wide'
-                                    : 'text-muted-foreground px-5 py-2 md:py-2.5 rounded-xl font-semibold text-[13px] md:text-sm tracking-wide hover:bg-card/50 hover:text-foreground transition-all'
-                            }
-                        >
-                            {label}
-                        </Link>
-                    ))}
-                </nav>
-
                 {/* BARRA DE FILTROS E EXPORTAÇÃO */}
                 <div className="flex flex-col xl:flex-row items-start xl:items-center justify-between mb-8 gap-4">
                     <div className="flex flex-col sm:flex-row sm:items-center gap-4 w-full xl:w-auto">
@@ -295,7 +283,6 @@ export default function PainelFinanceiroPage() {
                                                 return [`R$ ${numericValue.toFixed(2)}`, 'Faturamento'] as [string, string]
                                             }}
                                         />
-                                        {/* Atualizada para as cores hex do caramelo/marrom */}
                                         <Line type="monotone" dataKey="Faturamento (R$)" stroke="#8B5A2B" strokeWidth={3} dot={{ r: 4, fill: '#8B5A2B', strokeWidth: 2, stroke: '#fff' }} activeDot={{ r: 6 }} />
                                     </LineChart>
                                 </ResponsiveContainer>
@@ -337,13 +324,14 @@ export default function PainelFinanceiroPage() {
                                 <tr className="bg-muted/10">
                                     <th className="p-5 text-xs font-bold text-muted-foreground uppercase tracking-widest border-b border-border">Profissional</th>
                                     <th className="p-5 text-xs font-bold text-center text-muted-foreground uppercase tracking-widest border-b border-border">Taxa (%)</th>
+                                    <th className="p-5 text-xs font-bold text-center text-muted-foreground uppercase tracking-widest border-b border-border">Recebido (R$)</th>
                                     <th className="p-5 text-xs font-bold text-center text-muted-foreground uppercase tracking-widest border-b border-border">Acesso Visível?</th>
                                     <th className="p-5 text-xs font-bold text-right text-muted-foreground uppercase tracking-widest border-b border-border">Ações</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {!dados || dados.equipe.length === 0 ? (
-                                    <tr><td colSpan={4} className="p-8 text-center text-muted-foreground italic">Nenhum profissional registado com faturamento no período.</td></tr>
+                                    <tr><td colSpan={5} className="p-8 text-center text-muted-foreground italic">Nenhum profissional registado com faturamento no período.</td></tr>
                                 ) : (
                                     dados.equipe.map((p) => {
                                         const estado = editState[p.id]
@@ -363,6 +351,9 @@ export default function PainelFinanceiroPage() {
                                                         />
                                                         <span className="bg-muted px-2 py-1.5 text-muted-foreground font-bold border-l border-border">%</span>
                                                     </div>
+                                                </td>
+                                                <td className="p-4 text-center">
+                                                    <div className="font-bold text-primary">R$ {p.totalComissaoRecebida?.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0,00'}</div>
                                                 </td>
                                                 <td className="p-4 text-center">
                                                     <label className="relative inline-flex items-center cursor-pointer">

@@ -18,6 +18,7 @@ import type { Cliente } from '@/types/domain'
 import { AlertCircle, Loader2, X, Search } from 'lucide-react'
 import AdminHeader from '@/components/admin/AdminHeader'
 import { ClienteRow } from '@/components/admin/cliente-row'
+import { ModalAgendamento } from '@/components/ModalAgendamento'
 
 type ClienteListaItem = Cliente & { _count: { agendamentos: number } }
 
@@ -126,6 +127,7 @@ export default function GestaoClientesAdminPage() {
 
     // Modal: Agendamento rápido
     const [modalAgendarOpen, setModalAgendarOpen] = useState(false)
+    const [modalCalendarioOpen, setModalCalendarioOpen] = useState(false) // Novo state para o calendário visual
     const [clienteAgendando, setClienteAgendando] = useState<{ id: string; nome: string } | null>(null)
     const [novaReserva, setNovaReserva] = useState({ funcionarioId: '', dataHora: '', servicoId: '' })
     const [loadingAgendar, setLoadingAgendar] = useState(false)
@@ -218,6 +220,7 @@ export default function GestaoClientesAdminPage() {
         setClienteAgendando({ id: clienteId, nome: clienteNome })
         setNovaReserva({ funcionarioId: '', dataHora: '', servicoId: '' })
         setErroAgendar('')
+        setModalCalendarioOpen(false)
         setModalAgendarOpen(true)
     }
 
@@ -694,7 +697,7 @@ export default function GestaoClientesAdminPage() {
                                 <select
                                     required
                                     value={novaReserva.funcionarioId}
-                                    onChange={(e) => setNovaReserva({ ...novaReserva, funcionarioId: e.target.value })}
+                                    onChange={(e) => setNovaReserva({ ...novaReserva, funcionarioId: e.target.value, dataHora: '' })}
                                     className="w-full border border-border bg-card rounded-lg px-4 py-2.5 outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 transition-colors"
                                 >
                                     <option value="">Selecione o profissional...</option>
@@ -706,22 +709,45 @@ export default function GestaoClientesAdminPage() {
                                 <select
                                     required
                                     value={novaReserva.servicoId}
-                                    onChange={(e) => setNovaReserva({ ...novaReserva, servicoId: e.target.value })}
+                                    onChange={(e) => setNovaReserva({ ...novaReserva, servicoId: e.target.value, dataHora: '' })}
                                     className="w-full border border-border bg-card rounded-lg px-4 py-2.5 outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 transition-colors"
                                 >
                                     <option value="">Selecione o serviço...</option>
                                     {servicosList.map(s => <option key={s.id} value={s.id}>{s.nome}</option>)}
                                 </select>
                             </div>
+
+                            {/* O INPUT GENÉRICO FOI SUBSTITUÍDO PELO COMPONENTE VISUAL */}
                             <div>
                                 <label className="block text-sm font-semibold text-foreground mb-2">Data e Hora *</label>
-                                <input
-                                    required
-                                    type="datetime-local"
-                                    value={novaReserva.dataHora}
-                                    onChange={(e) => setNovaReserva({ ...novaReserva, dataHora: e.target.value })}
-                                    className="w-full border border-border rounded-lg px-4 py-2.5 outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 transition-colors dark-input"
-                                />
+                                {novaReserva.dataHora ? (
+                                    <div className="flex items-center justify-between border border-border rounded-lg px-4 py-2.5 bg-muted/30">
+                                        <span className="text-sm font-medium text-foreground">
+                                            {new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(novaReserva.dataHora))}
+                                        </span>
+                                        <button
+                                            type="button"
+                                            onClick={() => setModalCalendarioOpen(true)}
+                                            className="text-primary text-xs font-bold hover:underline"
+                                        >
+                                            Alterar
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            if (!novaReserva.funcionarioId || !novaReserva.servicoId) {
+                                                setErroAgendar("Por favor, selecione o profissional e o serviço primeiro para ver a disponibilidade.");
+                                                return;
+                                            }
+                                            setModalCalendarioOpen(true);
+                                        }}
+                                        className="w-full border border-border rounded-lg px-4 py-2.5 text-left text-muted-foreground bg-card hover:bg-muted/50 transition-colors"
+                                    >
+                                        Clique para selecionar data e horário...
+                                    </button>
+                                )}
                             </div>
 
                             <div className="flex justify-end gap-3 mt-8 pt-4 border-t border-border">
@@ -734,7 +760,7 @@ export default function GestaoClientesAdminPage() {
                                 </button>
                                 <button
                                     type="submit"
-                                    disabled={loadingAgendar}
+                                    disabled={loadingAgendar || !novaReserva.dataHora}
                                     className="px-6 py-2.5 bg-primary hover:bg-primary/90 text-primary-foreground font-bold rounded-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50 text-sm"
                                 >
                                     {loadingAgendar ? (
@@ -750,6 +776,26 @@ export default function GestaoClientesAdminPage() {
                         </form>
                     </div>
                 </div>
+            )}
+
+            {/* ── MODAL: CALENDÁRIO VISUAL (SOBREPOSTO AO DE CIMA) ── */}
+            {modalCalendarioOpen && (
+                <ModalAgendamento
+                    isOpen={modalCalendarioOpen}
+                    onClose={() => setModalCalendarioOpen(false)}
+                    profissionalId={novaReserva.funcionarioId}
+                    servicosSelecionados={
+                        servicosList
+                            .filter(s => s.id === novaReserva.servicoId)
+                            .map(s => ({ id: s.id, nome: s.nome, tempoMinutos: null }))
+                    }
+                    onConfirmar={(dataIso, hora) => {
+                        // Combina o ISO da data selecionada com o horário retornado pelo componente
+                        const baseDate = dataIso.includes('T') ? dataIso.split('T')[0] : dataIso;
+                        setNovaReserva(prev => ({ ...prev, dataHora: `${baseDate}T${hora}` }));
+                        setModalCalendarioOpen(false);
+                    }}
+                />
             )}
 
             {/* ── MODAL: HISTÓRICO DO CLIENTE ── */}

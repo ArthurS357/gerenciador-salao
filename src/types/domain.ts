@@ -17,7 +17,9 @@ export interface Funcionario {
     ativo: boolean
 }
 
-export type FuncionarioResumo = Pick<Funcionario, 'id' | 'nome' | 'comissao' | 'podeVerComissao'>
+export type FuncionarioResumo = Pick<Funcionario, 'id' | 'nome' | 'comissao' | 'podeVerComissao'> & {
+    totalComissaoRecebida: number
+}
 
 export interface Cliente {
     id: string
@@ -120,12 +122,22 @@ export type ActionResult<T = void> =
     | ({ sucesso: true } & (T extends void ? object : T))
     | { sucesso: false; erro: string }
 
+export interface AgendamentoHistoricoFinanceiro {
+    id: string
+    data: string
+    clienteNome: string
+    profissionalNome: string
+    valorBruto: number
+    valorComissao: number
+}
+
 export interface FinanceiroResumo {
     faturamentoBruto: number
     custoProdutos: number
     totalComissoes: number
     lucroLiquido: number
     equipe: FuncionarioResumo[]
+    historico: AgendamentoHistoricoFinanceiro[]
 }
 
 export interface FechamentoComanda {

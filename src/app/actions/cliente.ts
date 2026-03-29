@@ -17,6 +17,7 @@ export type HistoricoAgendamentoItem = {
     funcionario: { nome: string }
     servicos: { servico: { nome: string } }[]
     produtos: { produto: { nome: string } }[]
+    avaliacao?: { id: string; nota: number } | null // <-- ADICIONADO PARA CONTROLAR A UI
 }
 
 export type HistoricoClienteData = {
@@ -232,7 +233,8 @@ export async function obterHistoricoCliente(clienteId: string): Promise<ActionRe
                 id: true, dataHoraInicio: true, valorBruto: true, concluido: true,
                 funcionario: { select: { nome: true } },
                 servicos: { select: { servico: { select: { nome: true } } } },
-                produtos: { select: { produto: { select: { nome: true } } } }
+                produtos: { select: { produto: { select: { nome: true } } } },
+                avaliacao: { select: { id: true, nota: true } } // <-- BUSCA AVALIAÇÃO PARA BLOQUEAR O BOTÃO
             }
         })
 

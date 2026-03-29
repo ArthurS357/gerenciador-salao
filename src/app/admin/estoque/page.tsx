@@ -189,7 +189,7 @@ export default function PainelEstoquePage() {
                 {/* ── MÉTRICAS ── */}
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-10">
                     <MetricCard
-                        label="Total de Produtos"
+                        label="Total de Produtos Variados"
                         value={produtos.length.toString()}
                         subText="produtos ativos"
                         loading={carregando}

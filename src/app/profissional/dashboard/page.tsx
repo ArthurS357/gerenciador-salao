@@ -1,16 +1,70 @@
-'use client'
-
 import Link from 'next/link'
+import { verificarSessaoFuncionario } from '@/app/actions/auth'
+import { listarAgendaProfissional } from '@/app/actions/agendamento'
+import { ProxAtendimentoCard } from '@/components/profissional/prox-atendimento-card'
+import { formatInTimeZone } from 'date-fns-tz'
 
-export default function ProfissionalDashboardPage() {
+export default async function ProfissionalDashboardPage() {
+    const sessao = await verificarSessaoFuncionario();
+    let proximoAgendamento = null;
+    let minutosParaInicio = 0;
+    let saudacaoNome = '';
+
+    // Se o profissional estiver logado, o TypeScript reconhece a propriedade 'nome' com segurança
+    if (sessao.logado && sessao.id) {
+        saudacaoNome = sessao.nome ? `, ${sessao.nome.split(' ')[0]}` : '';
+
+        const res = await listarAgendaProfissional(sessao.id);
+
+        if (res.sucesso && 'agendamentos' in res) {
+            const agora = new Date();
+            const fuso = 'America/Sao_Paulo';
+
+            // Filtra agendamentos não concluídos e que iniciam a partir de agora
+            const pendentes = res.agendamentos.filter(ag => {
+                const dataAg = new Date(ag.dataHoraInicio);
+                return !ag.concluido && dataAg >= agora;
+            }).sort((a, b) => new Date(a.dataHoraInicio).getTime() - new Date(b.dataHoraInicio).getTime());
+
+            if (pendentes.length > 0) {
+                const prox = pendentes[0];
+                const dataInicio = new Date(prox.dataHoraInicio);
+                const diaProx = formatInTimeZone(dataInicio, fuso, 'yyyy-MM-dd');
+                const diaAgora = formatInTimeZone(agora, fuso, 'yyyy-MM-dd');
+
+                // Só exibe se o próximo agendamento for hoje
+                if (diaProx === diaAgora) {
+                    minutosParaInicio = Math.floor((dataInicio.getTime() - agora.getTime()) / 60000);
+                    proximoAgendamento = prox;
+                }
+            }
+        }
+    }
+
     return (
         <div className="min-h-screen bg-[#fdfbf7] font-sans pb-12 flex flex-col items-center justify-center p-4">
             <div className="max-w-3xl w-full animate-in fade-in zoom-in-95 duration-500">
-                
+
                 <header className="mb-10 text-center">
                     <h1 className="text-3xl md:text-4xl font-black text-marrom-medio tracking-tight">Portal do Profissional</h1>
-                    <p className="text-gray-500 mt-3 text-sm md:text-base">Bem-vindo(a) de volta! O que deseja fazer hoje?</p>
+                    <p className="text-gray-500 mt-3 text-sm md:text-base">
+                        Bem-vindo(a) de volta{saudacaoNome}! O que deseja fazer hoje?
+                    </p>
                 </header>
+
+                {/* Exibe o Card apenas se houver agendamentos pendentes para hoje */}
+                {proximoAgendamento && (
+                    <div className="mb-10 max-w-md mx-auto">
+                        <ProxAtendimentoCard
+                            agendamentoId={proximoAgendamento.id}
+                            cliente={proximoAgendamento.cliente.nome}
+                            telefone={proximoAgendamento.cliente.telefone}
+                            servicos={proximoAgendamento.servicos.map(s => s.servico.nome)}
+                            minutosParaInicio={minutosParaInicio}
+                            dataHoraInicio={proximoAgendamento.dataHoraInicio}
+                        />
+                    </div>
+                )}
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 mb-10">
                     {/* Cartão da Agenda */}

@@ -1,198 +1,162 @@
-import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { jwtVerify } from 'jose';
 import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
-// Importamos o tipo real retornado pela função
 import { listarAgendaProfissional, type AgendaProfissionalItem } from '@/app/actions/agendamento';
-import BotaoCancelarAgendamento from '@/components/BotaoCancelarAgendamento';
+import { verificarSessaoFuncionario } from '@/app/actions/auth';
+import { formatInTimeZone } from 'date-fns-tz';
+import { ptBR } from 'date-fns/locale';
 
-const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || 'chave_secreta_desenvolvimento');
+// Ícones
+import { CalendarDays, LayoutDashboard, Home, Plus, Clock, CheckCircle2 } from 'lucide-react';
+
+// Componentes isolados
+import { AgendamentoPendenteCard } from '@/components/profissional/agendamento-pendente-card';
+import { AgendamentoConcluidoCard } from '@/components/profissional/agendamento-concluido-card';
+
+const FUSO_HORARIO = 'America/Sao_Paulo';
 
 export default async function AgendaProfissionalPage() {
-    // 1. Verificação rigorosa de Autenticação e Role
-    const cookieStore = await cookies();
-    const token = cookieStore.get('funcionario_session')?.value;
+    const sessao = await verificarSessaoFuncionario();
 
-    if (!token) redirect('/login-profissional');
-
-    let funcionarioId = '';
-    let funcionarioRole = '';
-    try {
-        const { payload } = await jwtVerify(token, JWT_SECRET);
-        if (payload.role !== 'PROFISSIONAL' && payload.role !== 'ADMIN') {
-            redirect('/login-profissional');
-        }
-        funcionarioId = payload.sub as string;
-        funcionarioRole = payload.role as string;
-    } catch {
+    if (!sessao.logado || !sessao.id) {
         redirect('/login-profissional');
     }
 
-    // 2. Consulta as permissões em tempo real no banco de dados
     const usuarioLogado = await prisma.funcionario.findUnique({
-        where: { id: funcionarioId },
+        where: { id: sessao.id },
         select: { podeAgendar: true, podeVerHistorico: true, podeCancelar: true }
     });
 
-    const permissaoAgendar = funcionarioRole === 'ADMIN' || usuarioLogado?.podeAgendar === true;
-    const permissaoHistorico = funcionarioRole === 'ADMIN' || usuarioLogado?.podeVerHistorico === true;
-    const permissaoCancelar = funcionarioRole === 'ADMIN' || usuarioLogado?.podeCancelar === true;
+    const permissaoAgendar = sessao.role === 'ADMIN' || usuarioLogado?.podeAgendar === true;
+    const permissaoHistorico = sessao.role === 'ADMIN' || usuarioLogado?.podeVerHistorico === true;
+    const permissaoCancelar = sessao.role === 'ADMIN' || usuarioLogado?.podeCancelar === true;
 
-    // 3. Resgata a agenda do profissional logado
-    const res = await listarAgendaProfissional(funcionarioId);
+    const res = await listarAgendaProfissional(sessao.id);
 
-    // Usamos o tipo importado para garantir compatibilidade total
-    const agendamentos: AgendaProfissionalItem[] = res.sucesso && res.agendamentos ? res.agendamentos : [];
+    const agendamentos: AgendaProfissionalItem[] = (res.sucesso && 'agendamentos' in res)
+        ? res.agendamentos
+        : [];
 
-    // Filtramos para separar o que está pendente do que já foi concluído
     const pendentes = agendamentos.filter((a) => !a.concluido);
     const concluidos = agendamentos.filter((a) => a.concluido);
 
-    const formatarHora = (dataHora: Date) => {
-        return new Intl.DateTimeFormat('pt-PT', { hour: '2-digit', minute: '2-digit' }).format(new Date(dataHora));
-    };
-
-    const formatarData = (dataHora: Date) => {
-        return new Intl.DateTimeFormat('pt-PT', { day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(dataHora));
-    };
-
     return (
-        <div className="min-h-screen bg-[#fdfbf7] p-6 md:p-12 font-sans pt-32">
-            <div className="max-w-5xl mx-auto space-y-8">
+        <div className="min-h-screen bg-background p-4 sm:p-6 md:p-12 font-sans pt-24 md:pt-32">
+            <div className="max-w-6xl mx-auto space-y-8">
 
-                {/* Botões de Navegação Global */}
-                <div className="flex gap-4">
-                    <Link href="/" className="text-sm font-bold text-gray-500 hover:text-marrom-medio flex items-center gap-1.5 transition-colors">
-                        <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></svg>
-                        Página Inicial
+                {/* Navegação Global (Breadcrumbs) */}
+                <nav className="flex gap-3 px-2">
+                    <Link href="/" className="text-sm font-bold text-muted-foreground hover:text-primary flex items-center gap-2 transition-colors">
+                        <Home className="w-4 h-4" />
+                        <span className="hidden sm:inline">Início</span>
                     </Link>
-                    <span className="text-gray-300">|</span>
-                    <Link href="/profissional/dashboard" className="text-sm font-bold text-gray-500 hover:text-marrom-medio flex items-center gap-1.5 transition-colors">
-                        <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /></svg>
-                        Meu Painel
+                    <span className="text-border">/</span>
+                    <Link href="/profissional/dashboard" className="text-sm font-bold text-muted-foreground hover:text-primary flex items-center gap-2 transition-colors">
+                        <LayoutDashboard className="w-4 h-4" />
+                        Painel
                     </Link>
-                </div>
+                </nav>
 
-                {/* Cabeçalho */}
-                <div className="bg-white p-8 rounded-2xl shadow-sm border border-[#e5d9c5] flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                    <div>
-                        <h1 className="text-3xl font-bold text-marrom-medio">A Minha Agenda</h1>
-                        <p className="text-gray-600 mt-1 text-sm tracking-wide">Faça a gestão dos seus atendimentos de forma simples.</p>
+                {/* Cabeçalho Hero */}
+                <header className="bg-card p-6 md:p-10 rounded-3xl shadow-sm border border-border flex flex-col md:flex-row justify-between items-start md:items-center gap-6 relative overflow-hidden">
+                    {/* Efeito Glow de fundo */}
+                    <div className="absolute right-0 top-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none"></div>
+
+                    <div className="relative z-10">
+                        <div className="flex items-center gap-3 mb-2">
+                            <div className="p-2.5 bg-primary/10 rounded-xl">
+                                <CalendarDays className="w-6 h-6 text-primary" />
+                            </div>
+                            <h1 className="text-3xl md:text-4xl font-black text-foreground tracking-tight">Minha Agenda</h1>
+                        </div>
+                        <p className="text-muted-foreground text-sm md:text-base max-w-md ml-1">Gerencie seus horários e acompanhe o faturamento em tempo real.</p>
                     </div>
 
-                    <div className="flex items-center gap-4 w-full md:w-auto">
-                        <div className="hidden md:block px-4 py-2.5 bg-marrom-claro/10 text-marrom-claro rounded-lg font-semibold border border-marrom-claro/20">
-                            {new Intl.DateTimeFormat('pt-PT', { weekday: 'long', day: '2-digit', month: 'long' }).format(new Date())}
+                    <div className="relative z-10 flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
+                        <div className="w-full sm:w-auto px-5 py-3 bg-muted/50 text-foreground rounded-xl font-bold border border-border text-center text-sm capitalize shadow-sm">
+                            {formatInTimeZone(new Date(), FUSO_HORARIO, "EEEE, dd 'de' MMM", { locale: ptBR })}
                         </div>
 
                         {permissaoAgendar && (
-                            <button className="w-full md:w-auto px-6 py-2.5 bg-marrom-claro text-white font-bold rounded-lg hover:bg-[#704620] shadow-sm transition-colors border border-marrom-medio">
-                                + Nova Reserva
+                            <button className="w-full sm:w-auto px-6 py-3 bg-primary text-primary-foreground font-bold rounded-xl hover:bg-primary/90 shadow-sm transition-all flex items-center justify-center gap-2 text-sm active:scale-95">
+                                <Plus className="w-4 h-4" />
+                                Nova Reserva
                             </button>
                         )}
                     </div>
-                </div>
+                </header>
 
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
 
-                    {/* COLUNA PRINCIPAL: Próximos Atendimentos */}
-                    <div className="lg:col-span-2 space-y-6">
-                        <div className="flex items-center gap-3 mb-4">
-                            <div className="w-2 h-8 bg-marrom-claro rounded-full"></div>
-                            <h2 className="text-xl font-bold text-marrom-medio">Próximos Atendimentos</h2>
+                    {/* COLUNA PRINCIPAL: Pendentes */}
+                    <div className="lg:col-span-8 space-y-6">
+                        <div className="flex items-center gap-3 mb-2 px-2">
+                            <Clock className="w-5 h-5 text-primary" />
+                            <h2 className="text-xl font-bold text-foreground">Próximos Atendimentos</h2>
+                            <span className="bg-primary/10 text-primary text-xs font-bold px-2.5 py-1 rounded-full">
+                                {pendentes.length}
+                            </span>
                         </div>
 
                         {pendentes.length === 0 ? (
-                            <div className="text-center py-16 bg-white rounded-2xl border border-dashed border-[#e5d9c5] text-gray-500 font-medium">
-                                Não há agendamentos pendentes. Bom descanso!
+                            <div className="flex flex-col items-center justify-center text-center p-12 bg-card rounded-3xl border border-dashed border-border text-muted-foreground font-medium">
+                                <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4">
+                                    <CheckCircle2 className="w-8 h-8 text-muted-foreground/50" />
+                                </div>
+                                <p className="text-foreground font-bold text-lg mb-1">Tudo limpo por aqui!</p>
+                                <p className="text-sm">Não há agendamentos pendentes. Bom descanso!</p>
                             </div>
                         ) : (
                             <div className="space-y-4">
                                 {pendentes.map((agendamento) => (
-                                    <div key={agendamento.id} className="bg-white border border-[#e5d9c5] rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow flex flex-col md:flex-row gap-6 items-start md:items-center">
-
-                                        {/* Bloco de Hora */}
-                                        <div className="flex flex-col items-center justify-center min-w-[100px] py-4 bg-orange-50 rounded-xl border border-orange-100">
-                                            <span className="text-2xl font-black text-marrom-medio leading-none">
-                                                {formatarHora(agendamento.dataHoraInicio)}
-                                            </span>
-                                            <span className="text-xs font-semibold text-marrom-claro mt-1 uppercase tracking-wider">
-                                                {formatarData(agendamento.dataHoraInicio)}
-                                            </span>
-                                        </div>
-
-                                        {/* Detalhes do Cliente e Serviços */}
-                                        <div className="flex-1 w-full">
-                                            <h3 className="text-lg font-bold text-gray-800">{agendamento.cliente.nome}</h3>
-                                            <p className="text-sm text-gray-500 mb-3 font-medium flex items-center gap-2">
-                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
-                                                {agendamento.cliente.telefone}
-                                            </p>
-                                            <div className="flex flex-wrap gap-2">
-                                                {/* CORREÇÃO: Removido 'item.servico.id' pois o tipo diz que não existe.
-                                                    Usamos o 'index' como chave para o React. */}
-                                                {agendamento.servicos.map((item, index) => (
-                                                    <span key={index} className="text-[0.65rem] font-bold uppercase tracking-wider bg-gray-100 text-gray-600 px-2.5 py-1 rounded">
-                                                        {item.servico.nome}
-                                                    </span>
-                                                ))}
-                                            </div>
-                                        </div>
-
-                                        {/* Ação: Abrir Comanda e Cancelar (se permitido) */}
-                                        <div className="w-full md:w-auto flex flex-col gap-2">
-                                            <Link
-                                                href={`/profissional/comanda/${agendamento.id}`}
-                                                className="block w-full md:w-auto text-center px-6 py-3 bg-marrom-medio text-white font-bold rounded-xl hover:bg-[#3e2b22] transition-colors shadow-sm"
-                                            >
-                                                Abrir Comanda
-                                            </Link>
-
-                                            {permissaoCancelar && (
-                                                <BotaoCancelarAgendamento id={agendamento.id} />
-                                            )}
-                                        </div>
-                                    </div>
+                                    <AgendamentoPendenteCard
+                                        key={agendamento.id}
+                                        id={agendamento.id}
+                                        clienteNome={agendamento.cliente.nome}
+                                        clienteTelefone={agendamento.cliente.telefone}
+                                        servicos={agendamento.servicos.map(s => s.servico.nome)}
+                                        dataHoraInicio={agendamento.dataHoraInicio}
+                                        permissaoCancelar={permissaoCancelar}
+                                    />
                                 ))}
                             </div>
                         )}
                     </div>
 
-                    {/* COLUNA LATERAL: Serviços Concluídos Hoje */}
-                    <div className="space-y-6">
-                        <div className="flex items-center gap-3 mb-4">
-                            <div className="w-2 h-8 bg-green-600 rounded-full"></div>
-                            <h2 className="text-xl font-bold text-marrom-medio">Concluídos</h2>
+                    {/* COLUNA LATERAL: Concluídos */}
+                    <div className="lg:col-span-4 space-y-6">
+                        <div className="flex items-center gap-3 mb-2 px-2">
+                            <CheckCircle2 className="w-5 h-5 text-green-600" />
+                            <h2 className="text-xl font-bold text-foreground">Finalizados</h2>
                         </div>
 
                         {permissaoHistorico ? (
-                            <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
+                            <div className="bg-card border border-border rounded-3xl p-6 shadow-sm">
                                 {concluidos.length === 0 ? (
-                                    <p className="text-sm text-gray-500 text-center py-4">Nenhum atendimento finalizado ainda.</p>
+                                    <div className="text-center py-10">
+                                        <p className="text-sm text-muted-foreground">Nenhum atendimento finalizado hoje.</p>
+                                    </div>
                                 ) : (
-                                    <div className="space-y-4">
+                                    <div className="space-y-2">
                                         {concluidos.map((agendamento) => (
-                                            <div key={agendamento.id} className="flex justify-between items-center border-b border-gray-100 pb-4 last:border-0 last:pb-0">
-                                                <div>
-                                                    <p className="font-bold text-gray-800 text-sm">{formatarHora(agendamento.dataHoraInicio)}</p>
-                                                    <p className="text-xs text-gray-500 truncate max-w-[120px]">{agendamento.cliente.nome}</p>
-                                                </div>
-                                                <div className="text-right">
-                                                    <p className="font-black text-green-700 text-sm">€ {agendamento.valorBruto.toFixed(2)}</p>
-                                                    <p className="text-[0.6rem] font-bold uppercase tracking-wider text-green-500">Faturado</p>
-                                                </div>
-                                            </div>
+                                            <AgendamentoConcluidoCard
+                                                key={agendamento.id}
+                                                clienteNome={agendamento.cliente.nome}
+                                                valorBruto={agendamento.valorBruto}
+                                                dataHoraInicio={agendamento.dataHoraInicio}
+                                            />
                                         ))}
                                     </div>
                                 )}
                             </div>
                         ) : (
-                            <div className="bg-gray-50 border border-gray-200 rounded-2xl p-8 shadow-sm flex flex-col items-center justify-center text-center">
-                                <svg className="w-10 h-10 text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
-                                </svg>
-                                <p className="text-sm text-gray-600 font-medium">O seu acesso ao histórico de faturamento está restrito pelas configurações da gerência.</p>
+                            <div className="bg-card border border-border rounded-3xl p-8 shadow-sm flex flex-col items-center justify-center text-center">
+                                <div className="p-3 bg-muted rounded-full mb-3">
+                                    <svg className="w-6 h-6 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+                                    </svg>
+                                </div>
+                                <p className="text-sm text-muted-foreground font-medium">O seu acesso ao histórico de faturamento está restrito pela gerência.</p>
                             </div>
                         )}
                     </div>

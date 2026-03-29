@@ -1,17 +1,34 @@
-// src/components/profissional/prox-atendimento-card.tsx
+'use client'
+
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Phone } from "lucide-react";
+import Link from "next/link";
+import { formatInTimeZone } from 'date-fns-tz';
 
 interface AtendimentoProps {
+    agendamentoId: string;
     cliente: string;
     telefone: string;
     servicos: string[];
     minutosParaInicio: number;
+    dataHoraInicio?: Date | string;
 }
 
-export function ProxAtendimentoCard({ cliente, telefone, servicos, minutosParaInicio }: AtendimentoProps) {
+export function ProxAtendimentoCard({
+    agendamentoId,
+    cliente,
+    telefone,
+    servicos,
+    minutosParaInicio,
+    dataHoraInicio
+}: AtendimentoProps) {
     const isUrgente = minutosParaInicio <= 15;
+
+    // Extrai o dia e mês dinâmicos do agendamento (fallback para hoje caso não venha)
+    const dataAlvo = dataHoraInicio ? new Date(dataHoraInicio) : new Date();
+    const dia = formatInTimeZone(dataAlvo, 'America/Sao_Paulo', 'dd');
+    const mes = formatInTimeZone(dataAlvo, 'America/Sao_Paulo', 'MMM');
 
     return (
         <div className={cn(
@@ -48,14 +65,17 @@ export function ProxAtendimentoCard({ cliente, telefone, servicos, minutosParaIn
                     "flex h-14 w-14 flex-col items-center justify-center rounded-xl",
                     isUrgente ? "bg-caramelo/10 text-caramelo" : "bg-creme-escuro text-marrom-medio"
                 )}>
-                    <span className="font-serif text-xl leading-none">14</span>
-                    <span className="text-[9px] font-bold uppercase">Jan</span>
+                    <span className="font-serif text-xl leading-none">{dia}</span>
+                    <span className="text-[9px] font-bold uppercase">{mes}</span>
                 </div>
 
                 <div className="flex-1">
                     <h3 className="font-semibold text-lg leading-tight">{cliente}</h3>
                     <p className={cn("text-xs font-mono mt-1", isUrgente ? "text-white/50" : "text-texto-suave")}>
                         {telefone}
+                    </p>
+                    <p className={cn("text-xs mt-1 font-medium", isUrgente ? "text-white/70" : "text-texto-suave")}>
+                        {servicos.join(", ")}
                     </p>
                 </div>
             </div>
@@ -74,12 +94,13 @@ export function ProxAtendimentoCard({ cliente, telefone, servicos, minutosParaIn
                 </Button>
 
                 <Button
+                    asChild
                     className={cn(
                         "h-11 flex-1 rounded-xl font-bold uppercase tracking-widest text-[11px]",
                         isUrgente ? "bg-caramelo text-marrom-profundo hover:bg-caramelo/90" : "bg-marrom-medio text-white"
                     )}
                 >
-                    Abrir Comanda
+                    <Link href={`/profissional/comanda/${agendamentoId}`}>Abrir Comanda</Link>
                 </Button>
             </div>
         </div>

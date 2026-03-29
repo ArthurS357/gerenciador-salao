@@ -142,17 +142,21 @@ export async function obterResumoFinanceiro(
             }
         }
 
-        // Select explícito: busca apenas os 5 campos financeiros congelados.
-        // Sem joins em funcionario ou produtos — sem risco de dados mutáveis.
         const agendamentos = await prisma.agendamento.findMany({
             where: whereClause,
             select: {
+                id: true,
+                dataHoraInicio: true,
                 valorBruto: true,
                 taxas: true,
                 custoInsumos: true,
                 custoRevenda: true,
                 valorComissao: true,
+                funcionarioId: true,
+                cliente: { select: { nome: true } },
+                funcionario: { select: { nome: true } }
             },
+            orderBy: { dataHoraInicio: 'desc' }
         })
 
         let faturamentoBruto = 0
@@ -160,12 +164,26 @@ export async function obterResumoFinanceiro(
         let totalComissoes = 0
         let totalTaxas = 0
 
+        const comissaoPorProfissional: Record<string, number> = {}
+        const historico = []
+
         // Agregação O(N) pura — sem recálculo de regras de negócio
         for (const ag of agendamentos) {
             faturamentoBruto += ag.valorBruto
             totalTaxas += ag.taxas
             custoProdutos += ag.custoInsumos + ag.custoRevenda
             totalComissoes += ag.valorComissao
+
+            comissaoPorProfissional[ag.funcionarioId] = (comissaoPorProfissional[ag.funcionarioId] || 0) + ag.valorComissao
+
+            historico.push({
+                id: ag.id,
+                data: ag.dataHoraInicio.toISOString(),
+                clienteNome: ag.cliente?.nome || 'Cliente não identificado',
+                profissionalNome: ag.funcionario?.nome || 'Profissional não identificado',
+                valorBruto: ag.valorBruto,
+                valorComissao: ag.valorComissao
+            })
         }
 
         const lucroLiquido = faturamentoBruto - custoProdutos - totalComissoes - totalTaxas
@@ -175,13 +193,19 @@ export async function obterResumoFinanceiro(
             select: { id: true, nome: true, comissao: true, podeVerComissao: true },
         })
 
+        const equipeComValores = equipe.map(p => ({
+            ...p,
+            totalComissaoRecebida: comissaoPorProfissional[p.id] || 0
+        }))
+
         return {
             sucesso: true,
             faturamentoBruto,
             custoProdutos,
             totalComissoes,
             lucroLiquido,
-            equipe: equipe as FuncionarioResumo[],
+            equipe: equipeComValores as FuncionarioResumo[],
+            historico
         }
     } catch (error) {
         console.error('Erro no módulo financeiro:', error)

@@ -36,6 +36,7 @@ export default function BotaoExportarPDF({ dados, periodoAtual, isLoadingMetrics
             doc.text(`Período de Análise: ${getNomePeriodo()}`, 14, 30)
             doc.text(`Data de Emissão: ${new Date().toLocaleDateString('pt-BR')}`, 14, 36)
 
+            // 1. Tabela de Resumo Global
             autoTable(doc, {
                 startY: 45,
                 head: [['Métrica Financeira', 'Valor (R$)']],
@@ -51,12 +52,36 @@ export default function BotaoExportarPDF({ dados, periodoAtual, isLoadingMetrics
             })
 
             // CORREÇÃO: Conversão segura (cast) para aceder à propriedade do autotable sem usar 'any'
-            const docWithAutoTable = doc as unknown as { lastAutoTable: { finalY: number } }
+            const docWithAutoTable1 = doc as unknown as { lastAutoTable: { finalY: number } }
 
+            // 2. Tabela da Equipe / Profissionais com a coluna "Total Recebido"
             autoTable(doc, {
-                startY: docWithAutoTable.lastAutoTable.finalY + 15,
-                head: [['Profissional', 'Comissão (%)', 'Acesso Visível']],
-                body: dados.equipe.map(p => [p.nome, `${p.comissao}%`, p.podeVerComissao ? 'Sim' : 'Não']),
+                startY: docWithAutoTable1.lastAutoTable.finalY + 15,
+                head: [['Profissional', 'Comissão (%)', 'Total Recebido (R$)', 'Acesso Visível']],
+                body: dados.equipe.map(p => [
+                    p.nome,
+                    `${p.comissao}%`,
+                    p.totalComissaoRecebida?.toFixed(2) || '0.00',
+                    p.podeVerComissao ? 'Sim' : 'Não'
+                ]),
+                theme: 'striped',
+                headStyles: { fillColor: [139, 90, 43] },
+                styles: { fontSize: 10 }
+            })
+
+            const docWithAutoTable2 = doc as unknown as { lastAutoTable: { finalY: number } }
+
+            // 3. Tabela de Histórico de Atendimentos
+            autoTable(doc, {
+                startY: docWithAutoTable2.lastAutoTable.finalY + 15,
+                head: [['Data', 'Cliente', 'Profissional', 'Faturamento (R$)', 'Comissão (R$)']],
+                body: dados.historico.map(h => [
+                    new Date(h.data).toLocaleDateString('pt-BR'),
+                    h.clienteNome,
+                    h.profissionalNome,
+                    h.valorBruto.toFixed(2),
+                    h.valorComissao.toFixed(2)
+                ]),
                 theme: 'striped',
                 headStyles: { fillColor: [139, 90, 43] },
                 styles: { fontSize: 10 }
