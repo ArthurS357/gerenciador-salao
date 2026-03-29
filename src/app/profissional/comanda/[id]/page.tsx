@@ -3,8 +3,7 @@ import { notFound, redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
 import { jwtVerify } from 'jose';
 import PainelComanda from '@/components/PainelComanda';
-
-const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || 'chave_secreta_desenvolvimento');
+import { JWT_SECRET } from '@/lib/jwt'
 
 interface PageProps {
     params: Promise<{ id: string }>;

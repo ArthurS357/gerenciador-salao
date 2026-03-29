@@ -8,15 +8,15 @@ const REDIRECT_CLIENTE = '/login'
 // ── FUNÇÃO AUXILIAR ───────────────────────────────────────────────────────
 function getJwtSecret() {
     const secret = process.env.JWT_SECRET
-
     if (!secret) {
         if (process.env.NODE_ENV === 'production') {
-            throw new Error('FALHA CRÍTICA: Variável JWT_SECRET não configurada no ficheiro .env!')
+            throw new Error('[LmLu] FATAL: JWT_SECRET não configurado no servidor de produção.')
         }
-        console.warn('Aviso: Variável JWT_SECRET ausente no .env. A utilizar fallback de desenvolvimento.')
+        console.warn('[LmLu] JWT_SECRET ausente — usando chave fraca só para desenvolvimento.')
+        // Mesma chave do src/lib/jwt.ts para consistência entre Middleware e App
+        return new TextEncoder().encode('dev-only-lmlu-jwt-secret-not-for-prod-2026')
     }
-
-    return new TextEncoder().encode(secret ?? 'chave_secreta_desenvolvimento')
+    return new TextEncoder().encode(secret)
 }
 
 // ── SISTEMA DE RATE LIMITING (In-Memory com Cooldown) ──────────────────────

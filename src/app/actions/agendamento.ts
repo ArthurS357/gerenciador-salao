@@ -7,6 +7,29 @@ import { ptBR } from 'date-fns/locale'
 import { verificarRateLimit } from '@/lib/rateLimit'
 import { after } from 'next/server'
 import { verificarSessaoCliente, verificarSessaoFuncionario } from '@/app/actions/auth'
+import { z } from 'zod'
+
+// ── Schemas de Validação Runtime (Zod) ───────────────────────────────────────
+// Protege contra inputs malformados em endpoints POST públicos (Server Actions)
+const schemaCriarAgendamento = z.object({
+    clienteId: z
+        .string()
+        .min(1, 'clienteId é obrigatório e não pode ser vazio.'),
+    funcionarioId: z
+        .string()
+        .min(1, 'Selecione um profissional válido.'),
+    dataHoraInicio: z
+        // coerce.date() é vital em Server Actions para converter strings ISO em objetos Date
+        .coerce.date()
+        .refine(
+            (d) => d > new Date(Date.now() - 5 * 60_000),
+            'Não é possível agendar em horários passados.'
+        ),
+    servicosIds: z
+        .array(z.string().min(1, 'ID de serviço inválido.'))
+        .min(1, 'Selecione pelo menos um serviço.')
+        .max(10, 'Máximo de 10 serviços por agendamento.'),
+})
 
 // ── Constantes de Domínio ────────────────────────────────────────────────────
 const FUSO_HORARIO = 'America/Sao_Paulo'
@@ -145,7 +168,23 @@ export async function criarAgendamentoMultiplo(
         if (sessaoCli.id !== clienteId) return { sucesso: false, erro: 'Operação não permitida (Violação de Identidade).' }
     }
 
-    if (!verificarRateLimit(clienteId)) {
+    // ── Validação Zod (Runtime Type Safety) ──────────────────────────────────────
+    // Server Actions são endpoints POST públicos — validar tipos em runtime é obrigatório
+    const validacao = schemaCriarAgendamento.safeParse({
+        clienteId,
+        funcionarioId,
+        dataHoraInicio,
+        servicosIds,
+    })
+
+    if (!validacao.success) {
+        return {
+            sucesso: false,
+            erro: validacao.error.issues[0]?.message ?? 'Dados de entrada inválidos.',
+        }
+    }
+
+    if (!(await verificarRateLimit(clienteId))) {
         return {
             sucesso: false,
             erro: 'Muitas tentativas de agendamento em um curto período. Aguarde um minuto e tente novamente.'

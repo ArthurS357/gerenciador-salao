@@ -1,6 +1,6 @@
 # ✂️ Gerenciador de Salão - Studio LmLu Matiello
 
-Sistema completo de gestão para salões de beleza, focado em automatização de agendamentos, controlo financeiro imutável e conformidade com a LGPD.
+Sistema completo de gestão para salões de beleza, focado em automatização de agendamentos, controle financeiro imutável e conformidade com a LGPD.
 
 ## 🚀 Tecnologias
 
@@ -38,7 +38,7 @@ Este projeto foi construído com uma stack moderna focada em performance e segur
 
 O projeto utiliza um modelo relacional robusto para garantir a integridade dos dados:
 
-- **Snapshot Financeiro:** Ao concluir um agendamento, o sistema congela valores de comissão e custos (`comissaoSnap`, `custoRevenda`, etc.) para garantir que relatórios históricos nunca mudem, mesmo que os preços actuais sejam alterados.
+- **Snapshot Financeiro:** Ao concluir um agendamento, o sistema congela valores de comissão e custos (`comissaoSnap`, `custoRevenda`, etc.) para garantir que relatórios históricos nunca mudem, mesmo que os preços atuais sejam alterados.
 - **Anti-Double-Booking:** Índices compostos no banco de dados evitam choques de horários para o mesmo profissional.
 
 ## 📦 Como Instalar e Rodar
