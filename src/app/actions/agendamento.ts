@@ -10,6 +10,7 @@ import { after } from 'next/server'
 import { verificarSessaoCliente, verificarSessaoFuncionario } from '@/app/actions/auth'
 import { ActionResult } from '@/types/domain'
 import { schemaCriarAgendamento, schemaEditarAgendamento } from '@/lib/schemas'
+import { cache } from 'react' // Importação crítica para performance
 
 // ── Constantes de Domínio ────────────────────────────────────────────────────
 const FUSO_HORARIO = 'America/Sao_Paulo'
@@ -78,7 +79,6 @@ export type FuncionarioComExpedienteItem = {
 
 // ── FUNÇÕES AUXILIARES E DE ABSTRAÇÃO (DRY) ───────────────────────────────────
 
-// Correção: Protege contra 0 sendo interpretado como falsy se configurado no .env
 const getTempoBuffer = (): number => {
     const rawBuffer = process.env.TEMPO_BUFFER_MINUTOS;
     return rawBuffer !== undefined ? Number(rawBuffer) : 5;
@@ -88,15 +88,17 @@ const validarDataRetroativa = (data: Date): boolean => {
     return data >= new Date(Date.now() - TOLERANCIA_ATRASO_MS);
 }
 
-// Otimização: Evita a criação de múltiplas strings com date-fns para extração numérica
+// Otimização: Uso de date-fns-tz puro, sem instanciar Date objects com strings locale dependentes
 const extrairMinutosLocal = (dataHora: Date): number => {
-    const dateLocal = new Date(dataHora.toLocaleString('en-US', { timeZone: FUSO_HORARIO }));
-    return dateLocal.getHours() * 60 + dateLocal.getMinutes();
+    const horas = Number(formatInTimeZone(dataHora, FUSO_HORARIO, 'H'))
+    const minutos = Number(formatInTimeZone(dataHora, FUSO_HORARIO, 'm'))
+    return horas * 60 + minutos
 }
 
 const obterDiaSemanaLocal = (dataHora: Date): number => {
-    const dateLocal = new Date(dataHora.toLocaleString('en-US', { timeZone: FUSO_HORARIO }));
-    return dateLocal.getDay();
+    // O token 'i' retorna 1 (Segunda) a 7 (Domingo). Ajustamos para o padrão JS (0 a 6).
+    const diaISO = Number(formatInTimeZone(dataHora, FUSO_HORARIO, 'i'))
+    return diaISO === 7 ? 0 : diaISO
 }
 
 // ── FUNÇÃO AUXILIAR: Validador de Expediente Seguro (Timezone Proof) ──────────
@@ -153,7 +155,7 @@ export async function criarAgendamentoMultiplo(
     clienteId: string,
     funcionarioId: string,
     dataHoraInicio: Date,
-    servicosIds: string[]
+    servicosIdsRaw: string[]
 ): Promise<ActionResult<{ agendamentoId: string }>> {
     const [sessaoCli, sessaoFunc] = await Promise.all([
         verificarSessaoCliente(),
@@ -169,7 +171,7 @@ export async function criarAgendamentoMultiplo(
         clienteId,
         funcionarioId,
         dataHoraInicio,
-        servicosIds,
+        servicosIds: servicosIdsRaw,
     })
 
     if (!validacao.success) {
@@ -179,11 +181,10 @@ export async function criarAgendamentoMultiplo(
         }
     }
 
+    const servicosIds = Array.from(new Set(validacao.data.servicosIds))
+
     if (!(await verificarRateLimit(clienteId))) {
-        return {
-            sucesso: false,
-            erro: 'Muitas tentativas de agendamento em um curto período. Aguarde um minuto e tente novamente.'
-        }
+        return { sucesso: false, erro: 'Muitas tentativas de agendamento em um curto período. Aguarde um minuto e tente novamente.' }
     }
 
     try {
@@ -194,19 +195,31 @@ export async function criarAgendamentoMultiplo(
             return { sucesso: false, erro: 'Selecione pelo menos um serviço.' }
         }
 
-        const [cliente, servicos] = await Promise.all([
+        // Correção de Regra de Negócio: Garantir que o profissional realiza os serviços solicitados
+        const [cliente, profissionalAlvo] = await Promise.all([
             prisma.cliente.findUnique({
                 where: { id: clienteId },
                 select: { nome: true, telefone: true }
             }),
-            prisma.servico.findMany({
-                where: { id: { in: Array.from(new Set(servicosIds)) } },
-            }),
+            prisma.funcionario.findUnique({
+                where: { id: funcionarioId },
+                include: { servicos: { where: { id: { in: servicosIds } } } }
+            })
         ])
 
         if (!cliente || !cliente.telefone) {
             return { sucesso: false, erro: 'Cliente não encontrado ou sem telefone cadastrado.' };
         }
+
+        if (!profissionalAlvo) {
+            return { sucesso: false, erro: 'Profissional não encontrado.' };
+        }
+
+        if (profissionalAlvo.servicos.length !== servicosIds.length) {
+            return { sucesso: false, erro: 'O profissional selecionado não oferece um ou mais dos serviços escolhidos.' };
+        }
+
+        const servicos = profissionalAlvo.servicos
 
         const telefoneValido = await verificarNumeroExisteNoWhatsApp(cliente.telefone);
         if (!telefoneValido) {
@@ -218,11 +231,7 @@ export async function criarAgendamentoMultiplo(
 
         const itensParaCriar: { servicoId: string; precoCobrado: number | null }[] = []
 
-        for (const reqId of servicosIds) {
-            const s = servicos.find(serv => serv.id === reqId)
-            if (!s) {
-                return { sucesso: false, erro: 'Um ou mais serviços são inválidos.' }
-            }
+        for (const s of servicos) {
             valorBruto += s.preco ?? 0
             tempoTotalMinutos += s.tempoMinutos ?? TEMPO_SERVICO_FALLBACK_MINUTOS
             itensParaCriar.push({ servicoId: s.id, precoCobrado: s.preco })
@@ -236,7 +245,6 @@ export async function criarAgendamentoMultiplo(
             return { sucesso: false, erro: erroExpediente }
         }
 
-        // Correção Crítica: Transação definida como Serializable para garantir Lock na verificação de choques
         const resultadoTransacao = await prisma.$transaction(async (tx) => {
             const conflito = await tx.agendamento.findFirst({
                 where: {
@@ -287,9 +295,7 @@ export async function criarAgendamentoMultiplo(
             { locale: ptBR }
         );
 
-        const nomesServicos = itensParaCriar.map(item => {
-            return servicos.find(s => s.id === item.servicoId)?.nome || 'Serviço'
-        }).join(', ');
+        const nomesServicos = servicos.map(s => s.nome).join(', ');
 
         const mensagemConfirmacao =
             `Olá ${cliente.nome.split(' ')[0]}! 🌟 Sua reserva no Studio LmLu Matiello foi confirmada!\n\n📅 *Data:* ${dataFormatada}\n💅 *Serviço(s):* ${nomesServicos}\n👨‍🎨 *Profissional:* ${novoAgendamento!.funcionario.nome}\n\nPara cancelar ou reagendar, por favor acesse o painel no nosso site. Estamos ansiosos para te receber!`;
@@ -369,15 +375,14 @@ export async function cancelarAgendamentoPendente(id: string): Promise<ActionRes
         }, {} as Record<string, number>);
 
         await prisma.$transaction(async (tx) => {
-            // Otimização: Executa o restore do estoque paralelamente de forma segura dentro da transação
-            const promessasUpdate = Object.entries(produtosParaRestaurar).map(([produtoId, quantidade]) =>
-                tx.produto.update({
+            // Correção de Concorrência: Execução sequencial previne deadlocks dentro do Prisma Pool
+            // quando ocorrem transações interativas com múltiplas queries.
+            for (const [produtoId, quantidade] of Object.entries(produtosParaRestaurar)) {
+                await tx.produto.update({
                     where: { id: produtoId },
                     data: { estoque: { increment: quantidade } }
-                })
-            );
-
-            await Promise.all(promessasUpdate);
+                });
+            }
 
             await tx.agendamento.update({ where: { id }, data: { canceladoEm: new Date() } })
 
@@ -468,7 +473,6 @@ export async function editarAgendamentoPendente(
             return { sucesso: false, erro: erroExpediente }
         }
 
-        // Correção Crítica: Isolamento forte adicionado na edição também
         const resultadoTransacao = await prisma.$transaction(async (tx) => {
             const conflito = await tx.agendamento.findFirst({
                 where: {
@@ -508,7 +512,8 @@ export async function editarAgendamentoPendente(
     }
 }
 
-export async function listarEquipaComExpediente(): Promise<ActionResult<{ equipa: FuncionarioComExpedienteItem[] }>> {
+// React Cache: Previne N+1 Queries e exaustão do banco em acessos massivos ao frontend público
+export const listarEquipaComExpediente = cache(async (): Promise<ActionResult<{ equipa: FuncionarioComExpedienteItem[] }>> => {
     try {
         const equipa = await prisma.funcionario.findMany({
             where: { ativo: true, role: 'PROFISSIONAL' },
@@ -532,4 +537,4 @@ export async function listarEquipaComExpediente(): Promise<ActionResult<{ equipa
         console.error('Erro ao listar equipa com expediente:', error)
         return { sucesso: false, erro: 'Falha ao carregar a equipa.' }
     }
-}
+})

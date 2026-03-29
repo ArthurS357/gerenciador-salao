@@ -41,11 +41,16 @@ export type ServicoComInsumosItem = Prisma.ServicoGetPayload<{
 }>
 
 // ── BLINDAGEM DE SEGURANÇA ───────────────────────────────────────────────────
-async function garantirPermissaoAdmin() {
+/**
+ * Retorna null se autorizado, ou uma string de erro caso contrário.
+ * Elimina o anti-pattern de controle de fluxo via throw Error.
+ */
+async function checarPermissaoAdmin(): Promise<string | null> {
     const sessao = await verificarSessaoFuncionario()
     if (!sessao.logado || sessao.role !== 'ADMIN') {
-        throw new Error('Acesso negado. Apenas a gerência pode alterar os serviços.')
+        return 'Acesso negado. Apenas a gerência pode alterar os serviços.'
     }
+    return null
 }
 
 // ── 1. LISTAGENS ──────────────────────────────────────────────────────────────
@@ -62,16 +67,18 @@ export async function listarServicosPublicos(): Promise<ActionResult<{ servicos:
             }
         })
         return { sucesso: true, servicos }
-    } catch {
+    } catch (error) {
+        console.error('Erro ao listar serviços públicos:', error)
         return { sucesso: false, erro: 'Falha ao listar serviços.' }
     }
 }
 
 // Rota Privada (Protegida) - Traz a ficha técnica sensível
 export async function listarServicosAdmin(): Promise<ActionResult<{ servicos: ServicoComInsumosItem[] }>> {
-    try {
-        await garantirPermissaoAdmin()
+    const erroAuth = await checarPermissaoAdmin()
+    if (erroAuth) return { sucesso: false, erro: erroAuth }
 
+    try {
         const servicos = await prisma.servico.findMany({
             where: { ativo: true },
             orderBy: { nome: 'asc' },
@@ -87,7 +94,7 @@ export async function listarServicosAdmin(): Promise<ActionResult<{ servicos: Se
         })
         return { sucesso: true, servicos }
     } catch (error) {
-        if (error instanceof Error && error.message.includes('Acesso negado')) return { sucesso: false, erro: error.message }
+        console.error('Erro ao listar serviços do admin:', error)
         return { sucesso: false, erro: 'Falha ao listar serviços detalhados.' }
     }
 }
@@ -97,14 +104,15 @@ export async function listarServicosAdmin(): Promise<ActionResult<{ servicos: Se
 export async function criarServicoAdmin(
     dados: DadosCriarServico
 ): Promise<ActionResult<{ servico: ServicoPublicoItem }>> {
+    const erroAuth = await checarPermissaoAdmin()
+    if (erroAuth) return { sucesso: false, erro: erroAuth }
+
+    const validacao = schemaServico.safeParse(dados)
+    if (!validacao.success) {
+        return { sucesso: false, erro: validacao.error.issues[0]?.message ?? 'Dados do serviço inválidos.' }
+    }
+
     try {
-        await garantirPermissaoAdmin()
-
-        const validacao = schemaServico.safeParse(dados)
-        if (!validacao.success) {
-            return { sucesso: false, erro: validacao.error.issues[0]?.message ?? 'Dados do serviço inválidos.' }
-        }
-
         const servico = await prisma.servico.create({
             data: {
                 nome: validacao.data.nome.trim(),
@@ -122,17 +130,19 @@ export async function criarServicoAdmin(
         revalidatePath('/admin/servicos')
         return { sucesso: true, servico }
     } catch (error) {
-        if (error instanceof Error && error.message.includes('Acesso negado')) return { sucesso: false, erro: error.message }
+        console.error('Erro ao cadastrar serviço:', error)
         return { sucesso: false, erro: 'Falha ao cadastrar o serviço.' }
     }
 }
 
 // ── 3. LÓGICA DE DESTAQUE (Vitrine / Homepage) ────────────────────────────────
 
+// Omissão de `error` no catch para agradar o ESLint
 export async function alternarDestaqueServico(id: string, destaque: boolean): Promise<ActionResult> {
-    try {
-        await garantirPermissaoAdmin()
+    const erroAuth = await checarPermissaoAdmin()
+    if (erroAuth) return { sucesso: false, erro: erroAuth }
 
+    try {
         await prisma.servico.update({
             where: { id },
             data: { destaque }
@@ -142,8 +152,7 @@ export async function alternarDestaqueServico(id: string, destaque: boolean): Pr
         revalidatePath('/')
 
         return { sucesso: true }
-    } catch (error) {
-        if (error instanceof Error && error.message.includes('Acesso negado')) return { sucesso: false, erro: error.message }
+    } catch {
         return { sucesso: false, erro: 'Falha ao alterar o status de destaque.' }
     }
 }
@@ -155,50 +164,43 @@ export async function adicionarInsumoFichaTecnica(
     produtoId: string,
     quantidadeUsada: number
 ): Promise<ActionResult> {
+    const erroAuth = await checarPermissaoAdmin()
+    if (erroAuth) return { sucesso: false, erro: erroAuth }
+
+    const validacao = schemaInsumoServico.safeParse({ servicoId, produtoId, quantidadeUsada })
+    if (!validacao.success) {
+        return { sucesso: false, erro: validacao.error.issues[0]?.message ?? 'Dados do insumo inválidos.' }
+    }
+
     try {
-        await garantirPermissaoAdmin()
-
-        const validacao = schemaInsumoServico.safeParse({ servicoId, produtoId, quantidadeUsada })
-        if (!validacao.success) {
-            return { sucesso: false, erro: validacao.error.issues[0]?.message ?? 'Dados do insumo inválidos.' }
-        }
-
-        const insumoExistente = await prisma.insumoServico.findUnique({
-            where: { servicoId_produtoId: { servicoId, produtoId } }
+        // Refatoração Crítica: Upsert atômico substitui a checagem manual vulnerável a Race Conditions.
+        await prisma.insumoServico.upsert({
+            where: { servicoId_produtoId: { servicoId, produtoId } },
+            update: { quantidadeUsada },
+            create: { servicoId, produtoId, quantidadeUsada }
         })
-
-        if (insumoExistente) {
-            await prisma.insumoServico.update({
-                where: { id: insumoExistente.id },
-                data: { quantidadeUsada }
-            })
-        } else {
-            await prisma.insumoServico.create({
-                data: { servicoId, produtoId, quantidadeUsada }
-            })
-        }
 
         revalidatePath('/admin/servicos')
         return { sucesso: true }
     } catch (error) {
-        if (error instanceof Error && error.message.includes('Acesso negado')) return { sucesso: false, erro: error.message }
         console.error('Erro na ficha técnica:', error)
         return { sucesso: false, erro: 'Falha ao gravar insumo na ficha técnica.' }
     }
 }
 
+// Omissão de `error` no catch para agradar o ESLint
 export async function removerInsumoFichaTecnica(idInsumo: string): Promise<ActionResult> {
-    try {
-        await garantirPermissaoAdmin()
+    const erroAuth = await checarPermissaoAdmin()
+    if (erroAuth) return { sucesso: false, erro: erroAuth }
 
+    try {
         await prisma.insumoServico.delete({
             where: { id: idInsumo }
         })
 
         revalidatePath('/admin/servicos')
         return { sucesso: true }
-    } catch (error) {
-        if (error instanceof Error && error.message.includes('Acesso negado')) return { sucesso: false, erro: error.message }
+    } catch {
         return { sucesso: false, erro: 'Falha ao remover insumo da ficha técnica.' }
     }
 }

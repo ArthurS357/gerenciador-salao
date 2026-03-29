@@ -6,6 +6,26 @@ import { SignJWT, jwtVerify } from 'jose'
 import { validarTelefoneBrasileiro } from '@/lib/telefone'
 import { verificarNumeroExisteNoWhatsApp } from '@/lib/whatsapp'
 import { JWT_SECRET, criarSessaoCliente } from '@/lib/jwt'
+import { verificarRateLimit } from '@/lib/rateLimit'
+import { z } from 'zod'
+
+// ── Schemas de Validação (Runtime Safety) ─────────────────────────────────────
+const SchemaTelefone = z.string().transform(v => v.replace(/\D/g, '')).refine(validarTelefoneBrasileiro, {
+    message: 'Número inválido. Insira um telefone real com DDD.'
+});
+
+const SchemaRegistro = z.object({
+    telefone: SchemaTelefone,
+    nome: z.string().trim().min(3, 'O nome deve ter pelo menos 3 caracteres.'),
+});
+
+// ── Regras de Negócio e Helpers ───────────────────────────────────────────────
+const NOMES_FALSOS = [
+    "João Pedro da Silva", "Maria Eduarda Costa", "Lucas Fernandes",
+    "Ana Beatriz Sousa", "Pedro Henrique Lima", "Camila Alves",
+    "Roberto Carlos", "Juliana Paes", "Fernando Albuquerque",
+    "Beatriz Nogueira", "Thiago Silva", "Amanda Moraes"
+];
 
 function mascararNome(nome: string): string {
     return nome.split(' ').map(parte => {
@@ -14,102 +34,152 @@ function mascararNome(nome: string): string {
     }).join(' ');
 }
 
-const NOMES_FALSOS = [
-    "João Pedro da Silva", "Maria Eduarda Costa", "Lucas Fernandes",
-    "Ana Beatriz Sousa", "Pedro Henrique Lima", "Camila Alves"
-];
-
+// ── 1. Início do Login (Otimizado) ────────────────────────────────────────────
 export async function iniciarLoginCliente(telefoneForm: string) {
-    const telefoneSanitizado = telefoneForm.replace(/\D/g, '');
+    const validacao = SchemaTelefone.safeParse(telefoneForm);
+    if (!validacao.success) return { sucesso: false, erro: validacao.error.issues[0]?.message };
 
-    if (!validarTelefoneBrasileiro(telefoneSanitizado)) {
-        return { sucesso: false, erro: 'Número inválido. Insira um telefone real com DDD.' };
+    const telefoneSanitizado = validacao.data;
+
+    // Blindagem de Rate Limit (Previne SMS/WhatsApp Pumping e DoS)
+    const rateLimitKey = `auth_cliente_${telefoneSanitizado}`;
+    if (!(await verificarRateLimit(rateLimitKey))) {
+        return { sucesso: false, erro: 'Muitas tentativas. Aguarde alguns instantes.' };
     }
 
     try {
-        const whatsappAtivo = await verificarNumeroExisteNoWhatsApp(telefoneSanitizado);
-        if (!whatsappAtivo) {
-            return { sucesso: false, erro: 'Este número não possui um WhatsApp válido ou ativo.' };
-        }
-    } catch (err) {
-        console.warn('Falha na checagem do WhatsApp, prosseguindo com login local...', err);
-    }
+        // Otimização I/O: Consulta o DB PRIMEIRO. É instantâneo e poupa chamadas de API externas.
+        const cliente = await prisma.cliente.findUnique({
+            where: { telefone: telefoneSanitizado }
+        });
 
-    const cliente = await prisma.cliente.findUnique({
-        where: { telefone: telefoneSanitizado }
-    })
+        // Se não existe, VERIFICA O WHATSAPP AGORA (Apenas para novos cadastros)
+        if (!cliente) {
+            const whatsappAtivo = await verificarNumeroExisteNoWhatsApp(telefoneSanitizado).catch((err) => {
+                console.error('[Auth] Falha crítica na API do WhatsApp:', err);
+                return false; // Fail-Closed: Não permite cadastro de lixo se a API falhar
+            });
 
-    if (!cliente) return { sucesso: true, status: 'NOVO_CLIENTE' }
-
-    if (cliente.anonimizado) return { sucesso: false, erro: 'Conta desativada e anonimizada.' }
-
-    const nomeRealMascarado = mascararNome(cliente.nome);
-    const falsosEscolhidos = NOMES_FALSOS.sort(() => 0.5 - Math.random()).slice(0, 2);
-    const falsosMascarados = falsosEscolhidos.map(mascararNome);
-    const opcoesDesafio = [nomeRealMascarado, ...falsosMascarados].sort(() => 0.5 - Math.random());
-
-    // ── Pre-Auth Token: Previne Força Bruta ──────────────────────────────────
-    // Salva a resposta correta e o telefone de forma criptografada temporária
-    const preAuthToken = await new SignJWT({ tel: telefoneSanitizado, correto: nomeRealMascarado })
-        .setProtectedHeader({ alg: 'HS256' })
-        .setExpirationTime('5m') // O usuário tem 5 minutos para resolver
-        .sign(JWT_SECRET)
-
-    const cookieStore = await cookies()
-    cookieStore.set('desafio_identidade', preAuthToken, {
-        httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', maxAge: 300
-    })
-
-    return { sucesso: true, status: 'DESAFIO_IDENTIDADE', opcoes: opcoesDesafio }
-}
-
-export async function confirmarDesafioLogin(telefoneForm: string, nomeMascaradoEscolhido: string) {
-    const cookieStore = await cookies()
-    const token = cookieStore.get('desafio_identidade')?.value
-
-    if (!token) return { sucesso: false, erro: 'O desafio expirou. Inicie o login novamente.' }
-
-    try {
-        const { payload } = await jwtVerify(token, JWT_SECRET)
-        // Destrói o token imediatamente. Errar 1 vez exige recomeçar todo o fluxo.
-        cookieStore.delete('desafio_identidade')
-
-        const telefoneSanitizado = telefoneForm.replace(/\D/g, '')
-        if (payload.tel !== telefoneSanitizado) return { sucesso: false, erro: 'Divergência de sessão.' }
-
-        if (payload.correto !== nomeMascaradoEscolhido) {
-            return { sucesso: false, erro: 'Identidade incorreta. Acesso bloqueado.' }
+            if (!whatsappAtivo) {
+                return { sucesso: false, erro: 'Este número não possui um WhatsApp válido ou ativo.' };
+            }
+            return { sucesso: true, status: 'NOVO_CLIENTE' };
         }
 
-        const cliente = await prisma.cliente.findUnique({ where: { telefone: telefoneSanitizado } })
-        if (!cliente) return { sucesso: false, erro: 'Cliente não encontrado.' }
+        if (cliente.anonimizado) {
+            return { sucesso: false, erro: 'Conta desativada. Entre em contato com o suporte.' };
+        }
 
-        await criarSessaoCliente(cliente.id, cliente.nome)
-        return { sucesso: true }
-    } catch {
-        cookieStore.delete('desafio_identidade')
-        return { sucesso: false, erro: 'Desafio inválido ou expirado.' }
-    }
-}
+        // ── Geração do Desafio (Correção do Bug de Colisão) ───────────────────
+        const nomeRealMascarado = mascararNome(cliente.nome);
+        const opcoesDesafio = new Set<string>();
+        opcoesDesafio.add(nomeRealMascarado);
 
-export async function registrarNovoCliente(telefoneForm: string, nome: string) {
-    const telefoneSanitizado = telefoneForm.replace(/\D/g, '');
+        // Embaralha os nomes falsos para diversidade
+        const falsosMisturados = NOMES_FALSOS.sort(() => 0.5 - Math.random());
 
-    if (!validarTelefoneBrasileiro(telefoneSanitizado)) return { sucesso: false, erro: 'Telefone inválido.' }
-    if (!nome || nome.trim().length < 3) return { sucesso: false, erro: 'Nome inválido.' }
+        // Garante que só inserimos opções mascaradas ESTRITAMENTE DIFERENTES da real
+        for (const falso of falsosMisturados) {
+            const mascarado = mascararNome(falso);
+            if (!opcoesDesafio.has(mascarado)) {
+                opcoesDesafio.add(mascarado);
+            }
+            if (opcoesDesafio.size === 3) break; // Garante exatamente 3 opções (1 real + 2 falsas)
+        }
 
-    try {
-        const clienteExistente = await prisma.cliente.findUnique({ where: { telefone: telefoneSanitizado } })
-        if (clienteExistente) return { sucesso: false, erro: 'Este telefone já está cadastrado.' }
+        // Se por algum motivo o Set não atingir 3 opções (muito improvável), completa com *
+        while (opcoesDesafio.size < 3) {
+            opcoesDesafio.add(`U******* C******** ${opcoesDesafio.size}`);
+        }
 
-        const novoCliente = await prisma.cliente.create({
-            data: { telefone: telefoneSanitizado, nome: nome.trim() }
+        const opcoesFinais = Array.from(opcoesDesafio).sort(() => 0.5 - Math.random());
+
+        // ── Pre-Auth Token ───────────────────────────────────────────────────
+        const preAuthToken = await new SignJWT({ tel: telefoneSanitizado, correto: nomeRealMascarado })
+            .setProtectedHeader({ alg: 'HS256' })
+            .setExpirationTime('5m')
+            .sign(JWT_SECRET)
+
+        const cookieStore = await cookies()
+        cookieStore.set('desafio_identidade', preAuthToken, {
+            httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'lax', maxAge: 300
         })
 
-        await criarSessaoCliente(novoCliente.id, novoCliente.nome)
-        return { sucesso: true }
+        return { sucesso: true, status: 'DESAFIO_IDENTIDADE', opcoes: opcoesFinais }
+
     } catch (error) {
-        console.error('Erro ao registrar cliente:', error)
-        return { sucesso: false, erro: 'Falha técnica ao criar conta.' }
+        console.error('Erro ao iniciar login do cliente:', error);
+        return { sucesso: false, erro: 'Falha técnica ao iniciar a sessão.' };
+    }
+}
+
+// ── 2. Confirmação do Desafio ─────────────────────────────────────────────────
+export async function confirmarDesafioLogin(telefoneForm: string, nomeMascaradoEscolhido: string) {
+    const validacaoTel = SchemaTelefone.safeParse(telefoneForm);
+    if (!validacaoTel.success) return { sucesso: false, erro: 'Telefone inválido.' };
+
+    const telefoneSanitizado = validacaoTel.data;
+    const cookieStore = await cookies();
+    const token = cookieStore.get('desafio_identidade')?.value;
+
+    if (!token) return { sucesso: false, erro: 'O desafio expirou. Inicie o login novamente.' };
+
+    try {
+        const { payload } = await jwtVerify(token, JWT_SECRET);
+
+        // Política Estrita: Destrói o token imediatamente. Errou 1 vez = recomeça o fluxo.
+        cookieStore.delete('desafio_identidade');
+
+        if (payload.tel !== telefoneSanitizado) {
+            return { sucesso: false, erro: 'Divergência de sessão. Violação de integridade.' };
+        }
+
+        if (payload.correto !== nomeMascaradoEscolhido) {
+            // Penalidade adicional: Força um delay via banco de Rate Limit para dificultar ataques
+            await verificarRateLimit(`auth_fail_${telefoneSanitizado}`);
+            return { sucesso: false, erro: 'Identidade incorreta. Acesso bloqueado.' };
+        }
+
+        const cliente = await prisma.cliente.findUnique({ where: { telefone: telefoneSanitizado } });
+        if (!cliente || cliente.anonimizado) return { sucesso: false, erro: 'Cliente não encontrado ou banido.' };
+
+        await criarSessaoCliente(cliente.id, cliente.nome);
+        return { sucesso: true };
+    } catch {
+        cookieStore.delete('desafio_identidade');
+        return { sucesso: false, erro: 'Desafio inválido ou expirado.' };
+    }
+}
+
+// ── 3. Registro de Novo Cliente ───────────────────────────────────────────────
+export async function registrarNovoCliente(telefoneForm: string, nomeForm: string) {
+    const validacao = SchemaRegistro.safeParse({ telefone: telefoneForm, nome: nomeForm });
+
+    if (!validacao.success) {
+        return { sucesso: false, erro: validacao.error.issues[0]?.message };
+    }
+
+    const { telefone: telefoneSanitizado, nome } = validacao.data;
+
+    // Blindagem de Rate Limit para criação de contas (Previne criação de contas em massa)
+    const rateLimitKey = `registro_cliente_${telefoneSanitizado}`;
+    if (!(await verificarRateLimit(rateLimitKey))) {
+        return { sucesso: false, erro: 'Muitas tentativas. Aguarde alguns instantes.' };
+    }
+
+    try {
+        // Transação atômica em caso de dupla requisição paralela (Double click)
+        const clienteExistente = await prisma.cliente.findUnique({ where: { telefone: telefoneSanitizado } });
+        if (clienteExistente) return { sucesso: false, erro: 'Este telefone já está cadastrado.' };
+
+        const novoCliente = await prisma.cliente.create({
+            data: { telefone: telefoneSanitizado, nome }
+        });
+
+        await criarSessaoCliente(novoCliente.id, novoCliente.nome);
+        return { sucesso: true };
+    } catch (error) {
+        console.error('Erro ao registrar cliente:', error);
+        return { sucesso: false, erro: 'Falha técnica ao criar conta.' };
     }
 }

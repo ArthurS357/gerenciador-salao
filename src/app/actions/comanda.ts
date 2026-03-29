@@ -12,10 +12,12 @@ export async function listarProdutosDisponiveis() {
     const sessao = await verificarSessaoFuncionario();
     if (!sessao.logado) throw new Error('Acesso negado.');
 
+    // Otimização no DB: Traz apenas o que tem estoque positivo, 
+    // economizando processamento de array.filter em memória.
     return await prisma.produto.findMany({
-        where: { ativo: true },
+        where: { ativo: true, estoque: { gt: 0 } },
         orderBy: { nome: 'asc' }
-    }).then(produtos => produtos.filter(p => p.estoque >= p.tamanhoUnidade));
+    });
 }
 
 // ── 2. Adição de Produto à Comanda (Venda Direta) ─────────────────────────────
@@ -47,22 +49,26 @@ export async function adicionarProdutoNaComanda(
         await prisma.$transaction(async (tx) => {
             const produtoInfo = await tx.produto.findUnique({
                 where: { id: produtoId },
-                select: { precoVenda: true, tamanhoUnidade: true, estoque: true }
+                select: { precoVenda: true, tamanhoUnidade: true }
             });
 
             if (!produtoInfo) throw new Error('Produto não encontrado no catálogo.');
 
             const baixaAbsoluta = quantidadeFrascos * produtoInfo.tamanhoUnidade;
 
-            if (produtoInfo.estoque < baixaAbsoluta) {
-                throw new Error('Estoque insuficiente para a quantidade solicitada.');
-            }
-
-            // Etapa A: Reduz o estoque físico
-            await tx.produto.update({
-                where: { id: produtoId },
+            // Etapa A: Reduz o estoque físico com Lock Condicional (Optimistic Concurrency Control)
+            // Previne Race Conditions (estoque negativo) se 2 recepcionistas venderem o mesmo produto no mesmo milissegundo.
+            const atualizacaoEstoque = await tx.produto.updateMany({
+                where: {
+                    id: produtoId,
+                    estoque: { gte: baixaAbsoluta } // Condição de bloqueio: só atualiza se houver estoque
+                },
                 data: { estoque: { decrement: baixaAbsoluta } }
             });
+
+            if (atualizacaoEstoque.count === 0) {
+                throw new Error('Estoque insuficiente devido a movimentação simultânea.');
+            }
 
             // Etapa B: Insere o item na comanda
             await tx.itemProduto.create({
@@ -83,9 +89,8 @@ export async function adicionarProdutoNaComanda(
 
         revalidatePath(`/profissional/comanda/${agendamentoId}`);
         return { sucesso: true };
-        // Remoção do 'any' e aplicação do type guard seguro
     } catch (error) {
-        console.error("Erro ao adicionar produto:", error);
+        console.error("Erro Concorrência/Produto ao adicionar à comanda:", error);
         return {
             sucesso: false,
             erro: error instanceof Error ? error.message : 'Falha técnica ao adicionar produto à comanda.'
@@ -154,13 +159,15 @@ export async function finalizarComanda(
                 }
             }
 
-            // Executa a baixa de estoque dos insumos de uso interno
-            for (const [produtoId, quantidadeGasta] of consumoTotalInsumos.entries()) {
-                await tx.produto.update({
+            // Otimização de Performance: Despacha as promises de atualização do banco em paralelo.
+            // Impede que o loop segure a transação (e os locks do banco) por muito tempo.
+            const operacoesEstoque = Array.from(consumoTotalInsumos.entries()).map(([produtoId, quantidadeGasta]) =>
+                tx.produto.update({
                     where: { id: produtoId },
                     data: { estoque: { decrement: quantidadeGasta } }
-                });
-            }
+                })
+            );
+            await Promise.all(operacoesEstoque);
 
             // 2. Processamento Financeiro: Custo de Revenda
             let custoRevenda = 0;
@@ -206,7 +213,6 @@ export async function finalizarComanda(
         revalidatePath('/admin/financeiro');
 
         return { sucesso: true, financeiro: resultadoFechamento };
-        // Remoção do 'any' e aplicação do type guard seguro
     } catch (error) {
         console.error("Erro crítico ao faturar comanda:", error);
         return {

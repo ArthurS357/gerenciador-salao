@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
-import { v2 as cloudinary } from 'cloudinary';
+import { v2 as cloudinary, UploadApiResponse } from 'cloudinary';
 import { verificarSessaoFuncionario } from '@/app/actions/auth';
+import { Readable } from 'stream';
+import type { ReadableStream } from 'stream/web'; // Tipagem estrita para o Node.js
 
 // 1. Configuração de credenciais do Cloudinary
 cloudinary.config({
@@ -40,7 +42,7 @@ export async function POST(request: Request) {
             );
         }
 
-        // 6. Validação de tamanho (máx. 5 MB) — antes de alocar em memória
+        // 6. Validação de tamanho (máx. 5 MB)
         if (file.size > MAX_FILE_SIZE) {
             return NextResponse.json(
                 { error: 'O ficheiro excede o tamanho máximo de 5 MB.' },
@@ -48,25 +50,29 @@ export async function POST(request: Request) {
             );
         }
 
-        // 7. Converter o ficheiro File (Web API) para um Buffer (Node.js)
-        const bytes = await file.arrayBuffer();
-        const buffer = Buffer.from(bytes);
-
-        // 8. Enviar o Buffer para o Cloudinary através de uma Upload Stream
-        const uploadResult = await new Promise<{ secure_url: string }>((resolve, reject) => {
+        // 7. Streaming Real: Consome a stream do request diretamente para o Cloudinary
+        // sem sobrecarregar a memória RAM da Vercel (evitando o ArrayBuffer completo).
+        const uploadResult = await new Promise<UploadApiResponse>((resolve, reject) => {
             const uploadStream = cloudinary.uploader.upload_stream(
                 { folder: 'gerenciador-salao' },
                 (error, result) => {
-                    if (error) reject(error);
-                    else resolve(result as { secure_url: string });
+                    if (error || !result) {
+                        reject(error || new Error('Upload falhou sem erro explícito.'));
+                    } else {
+                        resolve(result);
+                    }
                 }
             );
 
-            // Finaliza a stream passando o buffer da imagem
-            uploadStream.end(buffer);
+            // Converte a Web API Stream do ficheiro para uma Node.js Stream
+            // Utilizamos o cast seguro de "stream/web" para resolver o erro de "any"
+            const nodeStream = Readable.fromWeb(file.stream() as ReadableStream);
+
+            // Faz o piping (redireciona o fluxo de dados contínuo) direto para o Cloudinary
+            nodeStream.pipe(uploadStream);
         });
 
-        // 9. Retornar a URL segura gerada pelo Cloudinary
+        // 8. Retornar a URL segura gerada pelo Cloudinary
         return NextResponse.json({ url: uploadResult.secure_url });
     } catch (error) {
         console.error('Erro no upload para o Cloudinary:', error);

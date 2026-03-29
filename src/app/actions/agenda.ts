@@ -1,7 +1,7 @@
 'use server';
 
 import { prisma } from '@/lib/prisma';
-import { formatInTimeZone, toZonedTime } from 'date-fns-tz';
+import { formatInTimeZone, toZonedTime, fromZonedTime } from 'date-fns-tz';
 
 const FUSO = 'America/Sao_Paulo';
 
@@ -28,23 +28,26 @@ export async function obterHorariosDisponiveis(
         select: { id: true, tempoMinutos: true }
     });
 
+    if (servicos.length !== servicoIds.length) return []; // Prevenção contra IDs fantasma
+
     const duracaoServico = servicos.reduce((acc, s) => acc + (s.tempoMinutos || 0), 0);
 
-    // 1. Correção: Inclusão da regra de buffer idêntica à de criação (Split-Brain evitado)
-    const TEMPO_BUFFER_MINUTOS = Number(process.env.TEMPO_BUFFER_MINUTOS) || 5;
+    const rawBuffer = process.env.TEMPO_BUFFER_MINUTOS;
+    const TEMPO_BUFFER_MINUTOS = rawBuffer !== undefined ? Number(rawBuffer) : 5;
     const tempoFinal = (duracaoServico > 0 ? duracaoServico : 30) + TEMPO_BUFFER_MINUTOS;
 
-    // 2. Correção: Parsing à prova de Fuso Horário (Timezone Safe)
-    // O sufixo -03:00 obriga o motor do Node a interpretar as bordas do dia exatamente na hora de Brasília
-    const inicioDoDiaUTC = new Date(`${dataString}T00:00:00-03:00`);
-    const fimDoDiaUTC = new Date(`${dataString}T23:59:59-03:00`);
+    // ── CORREÇÃO DE TIMEZONE (DST-Proof) ───────────────────────────────────────
+    // Converte a "meia-noite" do fuso local exato do dia solicitado para o UTC real,
+    // eliminando o bug de assumir que o fuso será eternamente -03:00.
+    const inicioDoDiaUTC = fromZonedTime(`${dataString}T00:00:00`, FUSO);
+    const fimDoDiaUTC = fromZonedTime(`${dataString}T23:59:59`, FUSO);
 
-    // Descobre o dia da semana manipulando a string local em ZonedTime para não retroagir dia no UTC
-    const dataAlvoZoned = toZonedTime(`${dataString}T12:00:00Z`, FUSO);
-    const diaSemana = dataAlvoZoned.getDay();
+    // Obtém o dia da semana a partir do UTC convertido, de forma segura
+    const diaSemana = toZonedTime(inicioDoDiaUTC, FUSO).getDay();
 
     let profissionaisRelevantes: string[] = [];
 
+    // ── CORREÇÃO DE REGRA DE NEGÓCIO (Fim da Onipotência) ─────────────────────
     if (funcionarioId) {
         const prof = await prisma.funcionario.findUnique({
             where: { id: funcionarioId, ativo: true },
@@ -52,24 +55,24 @@ export async function obterHorariosDisponiveis(
         });
 
         if (prof) {
-            const fazTodos = prof.servicos.length === 0 || servicos.every(sReq => prof.servicos.some(sProf => sProf.id === sReq.id));
+            // O profissional OBRIGATORIAMENTE deve ter os serviços no seu escopo (length > 0)
+            const fazTodos = prof.servicos.length > 0 && servicos.every(sReq => prof.servicos.some(sProf => sProf.id === sReq.id));
             if (fazTodos) profissionaisRelevantes.push(prof.id);
         }
     } else {
         const todosProfissionais = await prisma.funcionario.findMany({
-            where: { ativo: true },
+            where: { ativo: true, role: 'PROFISSIONAL' }, // Filtra apenas profissionais
             select: { id: true, servicos: { select: { id: true } } }
         });
 
         profissionaisRelevantes = todosProfissionais
-            .filter(prof => prof.servicos.length === 0 || servicos.every(sReq => prof.servicos.some(sProf => sProf.id === sReq.id)))
+            .filter(prof => prof.servicos.length > 0 && servicos.every(sReq => prof.servicos.some(sProf => sProf.id === sReq.id)))
             .map(p => p.id);
     }
 
     if (profissionaisRelevantes.length === 0) return [];
 
-    // 3. Correção de Performance: Morte das N+1 Queries
-    // Busca todos os expedientes e agendamentos com apenas duas requisições globais
+    // ── OTIMIZAÇÃO (Batched Queries Globais) ──────────────────────────────────
     const expedientesGlobais = await prisma.expediente.findMany({
         where: {
             funcionarioId: { in: profissionaisRelevantes },
@@ -83,9 +86,8 @@ export async function obterHorariosDisponiveis(
             funcionarioId: { in: profissionaisRelevantes },
             concluido: false,
             canceladoEm: null,
-            // Cobre eventos que começam antes ou terminam depois do dia, mas invadem a grade de hoje
-            dataHoraInicio: { lt: fimDoDiaUTC },
-            dataHoraFim: { gt: inicioDoDiaUTC }
+            dataHoraInicio: { lte: fimDoDiaUTC }, // Usado 'lte/gte' para cobrir exatamente as margens
+            dataHoraFim: { gte: inicioDoDiaUTC }
         },
         select: { funcionarioId: true, dataHoraInicio: true, dataHoraFim: true }
     });
@@ -103,16 +105,17 @@ export async function obterHorariosDisponiveis(
 
         const agendamentosProf = agendamentosGlobais.filter(ag => ag.funcionarioId === pId);
 
-        // Extração protegida via date-fns-tz
+        // ── CORREÇÃO DE PERFORMANCE (CPU Aritmética vs String Parser) ─────────
         const bloqueios = agendamentosProf.map(ag => {
-            const inicioH = Number(formatInTimeZone(ag.dataHoraInicio, FUSO, 'H'));
-            const inicioM = Number(formatInTimeZone(ag.dataHoraInicio, FUSO, 'm'));
-            const fimH = Number(formatInTimeZone(ag.dataHoraFim, FUSO, 'H'));
-            const fimM = Number(formatInTimeZone(ag.dataHoraFim, FUSO, 'm'));
+            const inicioSP = toZonedTime(ag.dataHoraInicio, FUSO);
+            const fimSP = toZonedTime(ag.dataHoraFim, FUSO);
 
-            // Corrige se o agendamento iniciou ontem à noite (trava desde o minuto 00:00)
-            const inicioMinutos = ag.dataHoraInicio < inicioDoDiaUTC ? 0 : (inicioH * 60 + inicioM);
-            const fimMinutos = ag.dataHoraFim > fimDoDiaUTC ? 1440 : (fimH * 60 + fimM);
+            const inicioMinutosRaw = (inicioSP.getHours() * 60) + inicioSP.getMinutes();
+            const fimMinutosRaw = (fimSP.getHours() * 60) + fimSP.getMinutes();
+
+            // Interseta blocos noturnos/madrugada que invadem o dia atual
+            const inicioMinutos = ag.dataHoraInicio <= inicioDoDiaUTC ? 0 : inicioMinutosRaw;
+            const fimMinutos = ag.dataHoraFim >= fimDoDiaUTC ? 1440 : fimMinutosRaw;
 
             return { inicio: inicioMinutos, fim: fimMinutos };
         });
@@ -127,7 +130,7 @@ export async function obterHorariosDisponiveis(
             const slotInicio = tempoAtual;
             const slotFim = tempoAtual + tempoFinal;
 
-            // 4. Correção: Bloqueio de horário no passado
+            // Bloqueia marcações no passado se o dia pesquisado for o dia atual
             if (isHoje && slotInicio <= agoraMinutos) {
                 tempoAtual += intervaloDeBusca;
                 continue;

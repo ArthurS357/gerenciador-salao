@@ -14,7 +14,7 @@ export type HistoricoAgendamentoItem = {
     funcionario: { nome: string }
     servicos: { servico: { nome: string } }[]
     produtos: { produto: { nome: string } }[]
-    avaliacao?: { id: string; nota: number } | null // <-- ADICIONADO PARA CONTROLAR A UI
+    avaliacao?: { id: string; nota: number } | null
 }
 
 export type HistoricoClienteData = {
@@ -49,16 +49,17 @@ type DadosCliente = {
     cpf?: string | null
 }
 
-// ── AUXILIARES DE SEGURANÇA ──────────────────────────────────────────────────
-async function garantirPermissaoAdmin() {
+// ── AUXILIARES DE SEGURANÇA (Guards Funcionais) ──────────────────────────────
+
+async function checarPermissaoAdmin(): Promise<string | null> {
     const sessao = await verificarSessaoFuncionario()
     if (!sessao.logado || sessao.role !== 'ADMIN') {
-        throw new Error('Acesso negado. Requer privilégios de administrador.')
+        return 'Acesso negado. Requer privilégios de administrador.'
     }
+    return null
 }
 
-// Garante que a ação só seja feita pelo próprio cliente dono da conta ou por um ADMIN
-async function garantirPermissaoDonoOuAdmin(clienteIdAlvo: string) {
+async function checarPermissaoDonoOuAdmin(clienteIdAlvo: string): Promise<string | null> {
     const sessaoCli = await verificarSessaoCliente()
     const sessaoFunc = await verificarSessaoFuncionario()
 
@@ -66,24 +67,25 @@ async function garantirPermissaoDonoOuAdmin(clienteIdAlvo: string) {
     const isAdmin = sessaoFunc.logado && sessaoFunc.role === 'ADMIN'
 
     if (!isDono && !isAdmin) {
-        throw new Error('Acesso negado. Você só pode visualizar ou alterar os seus próprios dados.')
+        return 'Acesso negado. Você só pode visualizar ou alterar os seus próprios dados.'
     }
+    return null
 }
 
 // ── CRIAR CLIENTE (Admin) ────────────────────────────────────────────────────
 
 export async function criarCliente(dados: DadosCliente): Promise<ActionResult<{ cliente: ClienteDados }>> {
+    const erroAuth = await checarPermissaoAdmin()
+    if (erroAuth) return { sucesso: false, erro: erroAuth }
+
+    const telefoneLimpo = dados.telefone.replace(/\D/g, '')
+
+    const validacao = schemaCliente.safeParse({ ...dados, telefone: telefoneLimpo })
+    if (!validacao.success) {
+        return { sucesso: false, erro: validacao.error.issues[0]?.message ?? 'Dados do cliente inválidos.' }
+    }
+
     try {
-        await garantirPermissaoAdmin()
-
-        const telefoneLimpo = dados.telefone.replace(/\D/g, '')
-        
-        // Validação Estrita via Zod
-        const validacao = schemaCliente.safeParse({ ...dados, telefone: telefoneLimpo })
-        if (!validacao.success) {
-            return { sucesso: false, erro: validacao.error.issues[0]?.message ?? 'Dados do cliente inválidos.' }
-        }
-
         const existente = await prisma.cliente.findUnique({ where: { telefone: telefoneLimpo } })
         if (existente) return { sucesso: false, erro: 'Já existe um cliente com este telefone.' }
 
@@ -107,7 +109,6 @@ export async function criarCliente(dados: DadosCliente): Promise<ActionResult<{ 
 
         return { sucesso: true, cliente }
     } catch (error) {
-        if (error instanceof Error && error.message.includes('Acesso negado')) return { sucesso: false, erro: error.message }
         console.error('Erro ao criar cliente:', error)
         return { sucesso: false, erro: 'Falha técnica ao criar o cliente.' }
     }
@@ -116,17 +117,17 @@ export async function criarCliente(dados: DadosCliente): Promise<ActionResult<{ 
 // ── EDITAR CLIENTE (Híbrido) ─────────────────────────────────────────────────
 
 export async function editarCliente(id: string, dados: DadosCliente): Promise<ActionResult> {
+    const erroAuth = await checarPermissaoDonoOuAdmin(id)
+    if (erroAuth) return { sucesso: false, erro: erroAuth }
+
+    const telefoneLimpo = dados.telefone.replace(/\D/g, '')
+
+    const validacao = schemaCliente.safeParse({ ...dados, telefone: telefoneLimpo })
+    if (!validacao.success) {
+        return { sucesso: false, erro: validacao.error.issues[0]?.message ?? 'Dados de edição inválidos.' }
+    }
+
     try {
-        await garantirPermissaoDonoOuAdmin(id)
-
-        const telefoneLimpo = dados.telefone.replace(/\D/g, '')
-        
-        // Validação Estrita via Zod
-        const validacao = schemaCliente.safeParse({ ...dados, telefone: telefoneLimpo })
-        if (!validacao.success) {
-            return { sucesso: false, erro: validacao.error.issues[0]?.message ?? 'Dados de edição inválidos.' }
-        }
-
         const telefoneExistente = await prisma.cliente.findFirst({
             where: { telefone: telefoneLimpo, NOT: { id } }
         })
@@ -152,7 +153,6 @@ export async function editarCliente(id: string, dados: DadosCliente): Promise<Ac
 
         return { sucesso: true }
     } catch (error) {
-        if (error instanceof Error && error.message.includes('Acesso negado')) return { sucesso: false, erro: error.message }
         console.error('Erro ao editar cliente:', error)
         return { sucesso: false, erro: 'Falha técnica ao atualizar o perfil.' }
     }
@@ -161,9 +161,10 @@ export async function editarCliente(id: string, dados: DadosCliente): Promise<Ac
 // ── EXCLUSÃO / LGPD (Híbrido) ────────────────────────────────────────────────
 
 export async function excluirContaCliente(clienteId: string): Promise<ActionResult> {
-    try {
-        await garantirPermissaoDonoOuAdmin(clienteId)
+    const erroAuth = await checarPermissaoDonoOuAdmin(clienteId)
+    if (erroAuth) return { sucesso: false, erro: erroAuth }
 
+    try {
         const cliente = await prisma.cliente.findUnique({ where: { id: clienteId } })
         if (!cliente) return { sucesso: false, erro: 'Cliente não encontrado.' }
 
@@ -188,7 +189,6 @@ export async function excluirContaCliente(clienteId: string): Promise<ActionResu
 
         return { sucesso: true }
     } catch (error) {
-        if (error instanceof Error && error.message.includes('Acesso negado')) return { sucesso: false, erro: error.message }
         console.error('Erro ao anonimizar cliente:', error)
         return { sucesso: false, erro: 'Falha técnica ao excluir os dados.' }
     }
@@ -200,11 +200,12 @@ export async function listarTodosClientes(
     pagina: number = 1,
     limite: number = 50
 ): Promise<ActionResult<{ clientes: ClienteResumo[]; total: number }>> {
+    const erroAuth = await checarPermissaoAdmin()
+    if (erroAuth) return { sucesso: false, erro: erroAuth }
+
+    const skip = (pagina - 1) * limite
+
     try {
-        await garantirPermissaoAdmin()
-
-        const skip = (pagina - 1) * limite
-
         const [clientes, total] = await Promise.all([
             prisma.cliente.findMany({
                 orderBy: { nome: 'asc' },
@@ -219,7 +220,7 @@ export async function listarTodosClientes(
         ])
         return { sucesso: true, clientes, total }
     } catch (error) {
-        if (error instanceof Error && error.message.includes('Acesso negado')) return { sucesso: false, erro: error.message }
+        console.error('Erro ao listar todos os clientes:', error)
         return { sucesso: false, erro: 'Falha ao listar clientes.' }
     }
 }
@@ -227,9 +228,10 @@ export async function listarTodosClientes(
 // ── HISTÓRICO INDIVIDUAL (Híbrido) ───────────────────────────────────────────
 
 export async function obterHistoricoCliente(clienteId: string): Promise<ActionResult<{ dados: HistoricoClienteData }>> {
-    try {
-        await garantirPermissaoDonoOuAdmin(clienteId)
+    const erroAuth = await checarPermissaoDonoOuAdmin(clienteId)
+    if (erroAuth) return { sucesso: false, erro: erroAuth }
 
+    try {
         const cliente = await prisma.cliente.findUnique({
             where: { id: clienteId },
             select: { nome: true, telefone: true, email: true, cpf: true, anonimizado: true }
@@ -245,7 +247,7 @@ export async function obterHistoricoCliente(clienteId: string): Promise<ActionRe
                 funcionario: { select: { nome: true } },
                 servicos: { select: { servico: { select: { nome: true } } } },
                 produtos: { select: { produto: { select: { nome: true } } } },
-                avaliacao: { select: { id: true, nota: true } } // <-- BUSCA AVALIAÇÃO PARA BLOQUEAR O BOTÃO
+                avaliacao: { select: { id: true, nota: true } }
             }
         })
 
@@ -262,23 +264,24 @@ export async function obterHistoricoCliente(clienteId: string): Promise<ActionRe
             }
         }
     } catch (error) {
-        if (error instanceof Error && error.message.includes('Acesso negado')) return { sucesso: false, erro: error.message }
         console.error('Erro ao obter histórico do cliente:', error)
         return { sucesso: false, erro: 'Falha técnica ao carregar o histórico.' }
     }
 }
 
 export async function anonimizarClienteLGPD(id: string): Promise<ActionResult> {
+    // Alias semântico para exclusão de conta via painel (mantido por compatibilidade de rotas)
     return excluirContaCliente(id);
 }
 
 export async function excluirClientePermanente(id: string): Promise<ActionResult> {
+    const erroAuth = await checarPermissaoAdmin()
+    if (erroAuth) return { sucesso: false, erro: erroAuth }
+
     try {
-        await garantirPermissaoAdmin()
         await prisma.cliente.delete({ where: { id } })
         return { sucesso: true }
-    } catch (error) {
-        if (error instanceof Error && error.message.includes('Acesso negado')) return { sucesso: false, erro: error.message }
-        return { sucesso: false, erro: 'Não é possível excluir clientes com histórico financeiro atrelado.' }
+    } catch {
+        return { sucesso: false, erro: 'Não é possível excluir clientes com histórico financeiro atrelado. Utilize a anonimização.' }
     }
 }

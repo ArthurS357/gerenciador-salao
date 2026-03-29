@@ -3,6 +3,9 @@
  *
  * Ideal para Serverless (Vercel) com custo zero.
  * Garante que o estado seja compartilhado entre todas as instâncias das Serverless Functions.
+ *
+ * NOTA SÊNIOR: Para tráfego de altíssima escala, considere migrar este Rate Limit
+ * para Redis (ex: Vercel KV ou Upstash) no futuro, poupando conexões do banco relacional.
  */
 
 import { prisma } from '@/lib/prisma'
@@ -17,66 +20,61 @@ export async function verificarRateLimit(identificador: string): Promise<boolean
     const agora = new Date();
 
     try {
-        const registro = await prisma.rateLimit.findUnique({
-            where: { identificador }
+        // Envolve as operações numa transação para reduzir a janela de Race Condition
+        const registro = await prisma.$transaction(async (tx) => {
+            const row = await tx.rateLimit.findUnique({
+                where: { identificador }
+            });
+
+            // 1. Primeira vez do usuário, cria o registro e libera.
+            if (!row) {
+                return await tx.rateLimit.create({
+                    data: { identificador, count: 1, windowStart: agora }
+                });
+            }
+
+            // 2. Verifica se o usuário está no período de castigo.
+            if (row.blockedUntil && agora < row.blockedUntil) {
+                return row; // Permanece bloqueado, devolve a linha intacta
+            }
+
+            // 3. Verifica se a janela de 1 minuto já expirou (Reseta o contador).
+            if (agora.getTime() - row.windowStart.getTime() > JANELA_MS) {
+                return await tx.rateLimit.update({
+                    where: { identificador },
+                    data: { count: 1, windowStart: agora, blockedUntil: null }
+                });
+            }
+
+            // 4. Operação atômica do banco ao invés de count + 1 em JavaScript.
+            // Isto impede que múltiplas requisições no mesmo milissegundo leiam
+            // o mesmo "count" antigo da memória e façam o bypass do Rate Limit.
+            const updatedRow = await tx.rateLimit.update({
+                where: { identificador },
+                data: { count: { increment: 1 } }
+            });
+
+            // 5. Abuso detectado: Aplica o bloqueio se o limite foi ultrapassado.
+            if (updatedRow.count > MAX_REQ) {
+                await tx.rateLimit.update({
+                    where: { identificador },
+                    data: { blockedUntil: new Date(agora.getTime() + BLOQUEIO_MS) }
+                });
+                console.warn(`[RateLimit] Abuso detectado. Identificador bloqueado no banco: ${identificador.substring(0, 8)}...`);
+            }
+
+            return updatedRow;
         });
 
-        // 1. Primeira vez do usuário, cria o registro e libera.
-        if (!registro) {
-            await prisma.rateLimit.create({
-                data: {
-                    identificador,
-                    count: 1,
-                    windowStart: agora,
-                }
-            });
-            return true;
-        }
-
-        // 2. Verifica se o usuário está no período de castigo.
+        // Verificação final baseada no retorno da transação
         if (registro.blockedUntil && agora < registro.blockedUntil) {
             return false;
         }
 
-        // 3. Verifica se a janela de 1 minuto já expirou (Reseta o contador).
-        if (agora.getTime() - registro.windowStart.getTime() > JANELA_MS) {
-            await prisma.rateLimit.update({
-                where: { identificador },
-                data: {
-                    count: 1,
-                    windowStart: agora,
-                    blockedUntil: null,
-                }
-            });
-            return true;
-        }
-
-        // 4. Se a janela não expirou, incrementa a requisição.
-        const novaContagem = registro.count + 1;
-
-        if (novaContagem > MAX_REQ) {
-            // Abuso detectado: Aplica o bloqueio.
-            await prisma.rateLimit.update({
-                where: { identificador },
-                data: {
-                    count: novaContagem,
-                    blockedUntil: new Date(agora.getTime() + BLOQUEIO_MS)
-                }
-            });
-            console.warn(`[RateLimit] Abuso detectado. Identificador bloqueado no banco: ${identificador.substring(0, 8)}...`);
-            return false;
-        }
-
-        // Atualiza apenas a contagem caso não tenha passado o limite.
-        await prisma.rateLimit.update({
-            where: { identificador },
-            data: { count: novaContagem }
-        });
-
-        return true;
+        return registro.count <= MAX_REQ;
 
     } catch (error) {
-        console.error('[RateLimit Error] Falha ao conectar no Prisma:', error);
+        console.error('[RateLimit Error] Falha DB:', error);
         // Fail-Open: Se o banco falhar momentaneamente, permite a requisição
         // para não prejudicar um cliente legítimo por conta de instabilidade de infraestrutura.
         return true;

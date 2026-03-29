@@ -2,6 +2,7 @@
 
 import { prisma } from '@/lib/prisma'
 import { ActionResult } from '@/types/domain'
+import { cache } from 'react'
 
 export type ProfissionalPublico = {
     id: string
@@ -11,9 +12,11 @@ export type ProfissionalPublico = {
 
 /**
  * Busca a lista de profissionais ativos para exibição pública.
- * Implementa 'select' restritivo para evitar vazamento de PII (Personally Identifiable Information).
+ * - Implementa 'select' restritivo para evitar vazamento de PII.
+ * - Envolvido em React cache() para deduplicação da query no ciclo de vida da requisição,
+ * protegendo o banco de dados em caso de tráfego massivo.
  */
-export async function buscarProfissionais(): Promise<ActionResult<{ profissionais: ProfissionalPublico[] }>> {
+export const buscarProfissionais = cache(async (): Promise<ActionResult<{ profissionais: ProfissionalPublico[] }>> => {
     try {
         const profissionais = await prisma.funcionario.findMany({
             where: {
@@ -41,4 +44,4 @@ export async function buscarProfissionais(): Promise<ActionResult<{ profissionai
             erro: 'Não foi possível carregar a lista de profissionais no momento.'
         };
     }
-}
+})

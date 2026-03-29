@@ -7,6 +7,7 @@ import { verificarSessaoFuncionario } from '@/app/actions/auth'
 import { Prisma } from '@prisma/client'
 import { ActionResult } from '@/types/domain'
 import { schemaExpediente, schemaAlterarSenha } from '@/lib/schemas'
+import { z } from 'zod'
 
 const TZ = 'America/Sao_Paulo'
 
@@ -37,6 +38,9 @@ export type ExpedientePayload = {
     id?: string
     funcionarioId?: string
 }
+
+// ── Schemas de Validação de Array ─────────────────────────────────────────────
+const SchemaLoteExpediente = z.array(schemaExpediente)
 
 // ── 1. Painel Principal ───────────────────────────────────────────────────────
 export async function obterDadosPainelProfissional(): Promise<ActionResult<{
@@ -77,6 +81,7 @@ export async function obterDadosPainelProfissional(): Promise<ActionResult<{
         if (funcionario.podeVerComissao) {
             const inicioMes = new Date(formatInTimeZone(agora, TZ, "yyyy-MM-01'T'00:00:00xxx"))
 
+            // Delegação matemática de agregação para o banco de dados (Alta Performance)
             const agregacao = await prisma.agendamento.aggregate({
                 where: {
                     funcionarioId: sessao.id,
@@ -99,7 +104,7 @@ export async function obterDadosPainelProfissional(): Promise<ActionResult<{
             agendamentosHoje // Tipagem garantida pelo Prisma, sem 'as unknown'
         }
     } catch (error) {
-        console.error('Erro ao carregar painel:', error)
+        console.error('Erro ao carregar painel do profissional:', error)
         return { sucesso: false, erro: 'Falha técnica ao carregar dados.' }
     }
 }
@@ -139,25 +144,28 @@ export async function obterPerfilEExpediente(): Promise<ActionResult<{
 
         return { sucesso: true, fotoUrl: funcionario.fotoUrl, expedientes }
     } catch {
-        return { sucesso: false, erro: 'Erro ao carregar perfil.' }
+        return { sucesso: false, erro: 'Erro técnico ao carregar perfil.' }
     }
 }
 
 // ── 3. Persistência ───────────────────────────────────────────────────────────
 export async function salvarPerfilEExpediente(
     fotoUrl: string | null,
-    expedientes: Array<{ diaSemana: number; horaInicio: string; horaFim: string; ativo: boolean }>
+    expedientesRaw: Array<{ diaSemana: number; horaInicio: string; horaFim: string; ativo: boolean }>
 ): Promise<ActionResult> {
     try {
         const sessao = await verificarSessaoFuncionario()
         if (!sessao.logado) return { sucesso: false, erro: 'Não autorizado.' }
 
-        // Validação Estrita de Entrada (Zod)
-        for (const exp of expedientes) {
-            const v = schemaExpediente.safeParse(exp)
-            if (!v.success) return { sucesso: false, erro: `Dados de expediente inválidos para o dia ${exp.diaSemana}.` }
+        // Validação estrita em lote do Array (substitui o loop manual e deixa mais legível)
+        const validacao = SchemaLoteExpediente.safeParse(expedientesRaw)
+        if (!validacao.success) {
+            return { sucesso: false, erro: 'Dados de expediente em formato inválido.' }
         }
 
+        const expedientes = validacao.data
+
+        // Transação interativa sequencial (segura para o pool de conexões do Prisma)
         await prisma.$transaction(async (tx) => {
             if (fotoUrl !== undefined) {
                 await tx.funcionario.update({
@@ -166,8 +174,10 @@ export async function salvarPerfilEExpediente(
                 })
             }
 
-            const upserts = expedientes.map(exp =>
-                tx.expediente.upsert({
+            // Uso do for..of obriga o Node a aguardar cada query antes da próxima, 
+            // evitando Deadlocks e exaustão do Pool no caso de 7 upserts disparados ao mesmo tempo.
+            for (const exp of expedientes) {
+                await tx.expediente.upsert({
                     where: { funcionarioId_diaSemana: { funcionarioId: sessao.id, diaSemana: exp.diaSemana } },
                     update: { horaInicio: exp.horaInicio, horaFim: exp.horaFim, ativo: exp.ativo },
                     create: {
@@ -178,14 +188,13 @@ export async function salvarPerfilEExpediente(
                         ativo: exp.ativo
                     }
                 })
-            )
-            await Promise.all(upserts)
+            }
         })
 
         return { sucesso: true }
     } catch (error) {
-        console.error('Erro ao salvar escala:', error)
-        return { sucesso: false, erro: 'Falha ao salvar o horário de trabalho.' }
+        console.error('Erro ao salvar perfil e escala:', error)
+        return { sucesso: false, erro: 'Falha técnica ao salvar o horário de trabalho.' }
     }
 }
 
@@ -195,11 +204,11 @@ export async function alterarSenhaProfissional(novaSenha: string): Promise<Actio
         const sessao = await verificarSessaoFuncionario()
         if (!sessao.logado) return { sucesso: false, erro: 'Acesso negado.' }
 
-        // Validação via Zod (Substitui regex manual)
+        // Validação via Zod garantindo comprimento mínimo ou formato estrito
         const v = schemaAlterarSenha.safeParse({ novaSenha })
         if (!v.success) return { sucesso: false, erro: v.error.issues[0]?.message ?? 'Senha inválida.' }
 
-        const senhaHash = await hash(novaSenha, 12)
+        const senhaHash = await hash(v.data.novaSenha, 12)
         await prisma.funcionario.update({
             where: { id: sessao.id },
             data: { senhaHash }
@@ -207,7 +216,7 @@ export async function alterarSenhaProfissional(novaSenha: string): Promise<Actio
 
         return { sucesso: true }
     } catch (error) {
-        console.error('Erro ao alterar senha:', error)
-        return { sucesso: false, erro: 'Falha ao comunicar com o servidor.' }
+        console.error('Erro ao alterar senha do profissional:', error)
+        return { sucesso: false, erro: 'Falha ao comunicar com o banco de dados.' }
     }
 }

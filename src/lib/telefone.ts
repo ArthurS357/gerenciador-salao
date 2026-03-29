@@ -1,71 +1,68 @@
-import { isValidPhoneNumber } from 'libphonenumber-js';
+import { isValidPhoneNumber, parsePhoneNumberFromString } from 'libphonenumber-js'
 
-export function validarNumeroBrasileiro(telefone: string): boolean {
-    try {
-        // Remove qualquer caractere que não seja número
-        const apenasNumeros = telefone.replace(/\D/g, '');
+const DIGITOS_REPETIDOS = /^(\d)\1+$/
 
-        // 1. Bloqueia sequências de números repetidos (ex: 11111111111, 00000000000)
-        if (/^(\d)\1+$/.test(apenasNumeros)) {
-            return false;
-        }
+/**
+ * Lista de DDDs válidos no Brasil (ANATEL)
+ * Evita cadastros de números inexistentes como (00), (10), (20), etc.
+ */
+const DDDS_VALIDOS = new Set([
+    '11', '12', '13', '14', '15', '16', '17', '18', '19',
+    '21', '22', '24', '27', '28',
+    '31', '32', '33', '34', '35', '37', '38',
+    '41', '42', '43', '44', '45', '46', '47', '48', '49',
+    '51', '53', '54', '55',
+    '61', '62', '63', '64', '65', '66', '67', '68', '69',
+    '71', '73', '74', '75', '77', '79',
+    '81', '82', '83', '84', '85', '86', '87', '88', '89',
+    '91', '92', '93', '94', '95', '96', '97', '98', '99'
+]);
 
-        // 2. Exige o tamanho exato de um celular no Brasil com DDD (11 dígitos)
-        if (apenasNumeros.length !== 11) {
-            return false;
-        }
-
-        // 3. O primeiro número após o DDD (nono dígito) deve ser obrigatoriamente '9'
-        if (apenasNumeros.substring(2, 3) !== '9') {
-            return false;
-        }
-
-        // 4. Adiciona o DDI e passa pela validação oficial do Google
-        const numeroComDDI = `+55${apenasNumeros}`;
-        return isValidPhoneNumber(numeroComDDI, 'BR');
-    } catch {
-        return false;
-    }
+function normalizarTelefone(telefone: string): string {
+    return telefone.replace(/\D/g, '')
 }
 
+/**
+ * Valida se o número é um CELULAR brasileiro válido.
+ * Verifica: DDD real, nono dígito, repetições e metadados da biblioteca.
+ */
+export function validarNumeroBrasileiro(telefone: string): boolean {
+    const digitos = normalizarTelefone(telefone)
+
+    // 1. Verificações básicas de integridade
+    if (digitos.length !== 11) return false
+    if (DIGITOS_REPETIDOS.test(digitos)) return false
+
+    // 2. Validação de DDD Geográfico
+    const ddd = digitos.substring(0, 2)
+    if (!DDDS_VALIDOS.has(ddd)) return false
+
+    // 3. Validação profunda via metadados (Mobile/Celular)
+    const phoneNumber = parsePhoneNumberFromString(`+55${digitos}`, 'BR')
+    return !!phoneNumber && phoneNumber.isValid() && phoneNumber.getType() === 'MOBILE'
+}
+
+/**
+ * Valida qualquer telefone brasileiro (Fixo ou Celular) com DDD.
+ * Útil para cadastros mais permissivos.
+ */
 export function validarTelefoneBrasileiro(telefoneRaw: string): boolean {
-    // Passo 1: Removemos qualquer caractere que não seja número (parênteses, traços, etc)
-    const telefone = telefoneRaw.replace(/\D/g, '');
+    const digitos = normalizarTelefone(telefoneRaw)
 
-    // Passo 2: Verificamos o tamanho básico (10 para fixo, 11 para celular)
-    if (telefone.length < 10 || telefone.length > 11) {
-        return false;
-    }
+    if (digitos.length < 10 || digitos.length > 11) return false
+    if (DIGITOS_REPETIDOS.test(digitos)) return false
 
-    // Passo 3: Bloqueamos sequências idênticas (ex: 11111111111, 2222222222)
-    if (/^(\d)\1+$/.test(telefone)) {
-        return false;
-    }
+    const ddd = digitos.substring(0, 2)
+    if (!DDDS_VALIDOS.has(ddd)) return false
 
-    // Passo 4: Validamos se o DDD existe (de 11 a 99)
-    const ddd = parseInt(telefone.substring(0, 2));
-    if (ddd < 11 || ddd > 99) {
-        return false;
-    }
+    // Confia na biblioteca para validar a estrutura final do número
+    return isValidPhoneNumber(`+55${digitos}`, 'BR')
+}
 
-    // Passo 5: Isolamos o primeiro dígito após o DDD (o 3º dígito da string)
-    const terceiroDigito = telefone.charAt(2);
-
-    // Passo 6: Aplicamos o bloqueio estrutural da Anatel
-    if (telefone.length === 10) {
-        // Se for 10 dígitos, é tratado como FIXO. 
-        // Telefones fixos obrigatoriamente começam com 2, 3, 4 ou 5.
-        if (!['2', '3', '4', '5'].includes(terceiroDigito)) {
-            return false; // Bloqueia números como 1188887777
-        }
-    } else if (telefone.length === 11) {
-        // Se for 11 dígitos, é tratado como CELULAR.
-        // Celulares obrigatoriamente começam com o dígito 9.
-        if (terceiroDigito !== '9') {
-            return false; // Bloqueia celulares com formato incorreto
-        }
-    }
-
-    // Se passou por todas as barreiras, o número tem uma estrutura real e válida.
-    return true;
+/**
+ * Helper para formatar o número antes de salvar no banco de dados.
+ * Remove máscaras e garante o formato limpo.
+ */
+export function sanitizarParaBanco(telefone: string): string {
+    return normalizarTelefone(telefone)
 }

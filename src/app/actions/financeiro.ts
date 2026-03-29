@@ -3,97 +3,87 @@
 import { prisma } from '@/lib/prisma'
 import { Prisma } from '@prisma/client'
 import { formatInTimeZone } from 'date-fns-tz'
+import { subDays, startOfDay } from 'date-fns'
 import { FinanceiroResumo, FuncionarioResumo, FechamentoComanda, ActionResult } from '@/types/domain'
 import { verificarSessaoFuncionario } from '@/app/actions/auth'
 import { schemaAtualizarComissao } from '@/lib/schemas'
+import { z } from 'zod'
 
 // ── Fuso horário canônico ─────────────────────────────────────────────────────
 const TZ = 'America/Sao_Paulo'
 
+// ── Schemas de Validação Estrita (Runtime Safety) ─────────────────────────────
+const SchemaFechamento = z.object({
+    agendamentoId: z.string().min(1, 'ID do agendamento inválido.'),
+    taxaAdquirentePercentual: z.number().min(0).max(100).default(3),
+    custoInsumos: z.number().min(0, 'Custo de insumos não pode ser negativo.'),
+})
+
+const SchemaEstorno = z.object({
+    agendamentoId: z.string().min(1, 'ID inválido.'),
+    motivo: z.string().trim().min(5, 'É obrigatório informar um motivo válido.'),
+})
+
 // ── 1. Fechamento de Comanda ──────────────────────────────────────────────────
-/**
- * Única fonte de verdade para o cálculo financeiro de uma comanda.
- *
- * Congela os valores no banco no momento do fechamento (snapshot imutável).
- * Após esta operação, nenhum recálculo dinâmico é feito — alterações futuras
- * em comissões ou preços de custo não afetarão este registro.
- *
- * @param agendamentoId   — ID da comanda a fechar
- * @param taxaAdquirente  — % de taxa do adquirente de cartão (default: 3%)
- * @param custoInsumos    — Valor de insumos validado/editado pelo operador no front-end
- */
 export async function calcularFechamentoComanda(
     agendamentoId: string,
     taxaAdquirentePercentual: number = 3,
     custoInsumos: number
 ): Promise<ActionResult<{ financeiro: FechamentoComanda }>> {
     try {
-        // ── Blindagem de Autenticação ────────────────────────────────────────
         const sessao = await verificarSessaoFuncionario()
         if (!sessao.logado) {
             return { sucesso: false, erro: 'Sessão expirada ou acesso negado.' }
         }
 
+        const validacao = SchemaFechamento.safeParse({ agendamentoId, taxaAdquirentePercentual, custoInsumos })
+        if (!validacao.success) {
+            return { sucesso: false, erro: validacao.error.issues[0]?.message ?? 'Dados inválidos.' }
+        }
+
+        const input = validacao.data
+
         const agendamento = await prisma.agendamento.findUnique({
-            where: { id: agendamentoId },
+            where: { id: input.agendamentoId },
             include: {
                 funcionario: { select: { comissao: true } },
-                produtos: {
-                    include: {
-                        produto: { select: { precoCusto: true } },
-                    },
-                },
+                produtos: { include: { produto: { select: { precoCusto: true } } } },
             },
         })
 
-        if (!agendamento) {
-            return { sucesso: false, erro: 'Agendamento não encontrado no banco de dados.' }
-        }
-        if (agendamento.concluido) {
-            return { sucesso: false, erro: 'Esta comanda já foi fechada.' }
+        if (!agendamento) return { sucesso: false, erro: 'Agendamento não encontrado.' }
+        if (agendamento.concluido) return { sucesso: false, erro: 'Esta comanda já foi fechada.' }
+
+        // ── Blindagem IDOR: Apenas o dono ou um ADMIN podem fechar a comanda
+        if (sessao.role !== 'ADMIN' && sessao.id !== agendamento.funcionarioId) {
+            return { sucesso: false, erro: 'Acesso negado. Não pode fechar comandas de outro profissional.' }
         }
 
         const valorBruto = agendamento.valorBruto
-        // Congela o percentual de comissão vigente neste momento
         const comissaoSnap = agendamento.funcionario.comissao
 
-        // ── Cálculo do custo de revenda (produtos físicos vendidos) ──────────
-        // precoCusto é congelado agora; futuras alterações de custo não retroagem.
         let custoRevenda = 0
         for (const item of agendamento.produtos) {
-            // Fallback: 50% do preço cobrado caso o custo não esteja cadastrado
             const custoUnitario = item.produto?.precoCusto ?? (item.precoCobrado * 0.5)
             custoRevenda += custoUnitario * item.quantidade
         }
 
-        // ── Regra de negócio unificada ───────────────────────────────────────
-        // Uma única fonte de verdade — elimina a discrepância entre resumo e fechamento.
-        const valorTaxaCartao = valorBruto * (taxaAdquirentePercentual / 100)
-        const deducoesTotais = valorTaxaCartao + custoInsumos + custoRevenda
+        const valorTaxaCartao = valorBruto * (input.taxaAdquirentePercentual / 100)
+        const deducoesTotais = valorTaxaCartao + input.custoInsumos + custoRevenda
 
-        // Separação intencional de duas bases de cálculo:
-        // 1. baseLiquidaComissao: protege o profissional — comissão nunca pode ser negativa.
-        //    Se os custos superarem o faturamento, o profissional recebe R$ 0, não deve dinheiro.
         const baseLiquidaComissao = Math.max(0, valorBruto - deducoesTotais)
         const valorComissao = baseLiquidaComissao * (comissaoSnap / 100)
-
-        // 2. lucroSalao: DEVE refletir prejuízos reais — sem Math.max().
-        //    Ex: faturamento R$ 50, custos R$ 70 → lucroSalao = -R$ 20.
-        //    Exibir R$ 0,00 aqui mascararia o prejuízo e invalidaria o gestão de caixa.
         const lucroSalao = valorBruto - deducoesTotais - valorComissao
 
-        // ── Snapshot financeiro imutável ─────────────────────────────────────
-        // Todos os campos são gravados uma única vez. A coluna `concluido = true`
-        // age como "selo" que impede futuros recálculos.
         await prisma.agendamento.update({
-            where: { id: agendamentoId },
+            where: { id: input.agendamentoId },
             data: {
                 concluido: true,
-                taxas: valorTaxaCartao,       // só a taxa do adquirente
-                custoInsumos,                 // insumos validados pelo operador
-                custoRevenda,                 // custo de produtos congelado
-                valorComissao,                // repasse ao profissional congelado
-                comissaoSnap,                 // % utilizada — para auditoria futura
+                taxas: valorTaxaCartao,
+                custoInsumos: input.custoInsumos,
+                custoRevenda,
+                valorComissao,
+                comissaoSnap,
             },
         })
 
@@ -102,9 +92,9 @@ export async function calcularFechamentoComanda(
             financeiro: {
                 bruto: valorBruto,
                 deducoes: deducoesTotais,
-                baseReal: valorBruto - deducoesTotais, // valor real sem floor — front-end vê se "estourou"
+                baseReal: valorBruto - deducoesTotais,
                 comissao: valorComissao,
-                lucroSalao,                            // negativo = prejuízo visível no painel
+                lucroSalao,
             },
         }
     } catch (error) {
@@ -114,83 +104,73 @@ export async function calcularFechamentoComanda(
 }
 
 // ── 2. Resumo Financeiro ──────────────────────────────────────────────────────
-/**
- * Agrega o histórico financeiro somando campos já persistidos.
- * NÃO recalcula nenhum valor — integridade histórica garantida.
- */
 export async function obterResumoFinanceiro(
     filtro?: { dataInicio: Date; dataFim: Date }
 ): Promise<ActionResult<FinanceiroResumo>> {
     try {
-        // ── Blindagem de Leitura (Apenas ADMIN) ──────────────────────────────
         const sessao = await verificarSessaoFuncionario()
         if (!sessao.logado || sessao.role !== 'ADMIN') {
             return { sucesso: false, erro: 'Acesso negado. Relatórios financeiros são restritos à diretoria.' }
         }
 
         const whereClause: Prisma.AgendamentoWhereInput = { concluido: true }
-
         if (filtro) {
-            whereClause.dataHoraInicio = {
-                gte: filtro.dataInicio,
-                lte: filtro.dataFim,
-            }
+            whereClause.dataHoraInicio = { gte: filtro.dataInicio, lte: filtro.dataFim }
         }
 
-        const agendamentos = await prisma.agendamento.findMany({
+        // Delegação de Agregação Matemática para o Banco de Dados (Previne Out Of Memory)
+        const agregacaoAgendamentos = prisma.agendamento.aggregate({
+            where: whereClause,
+            _sum: { valorBruto: true, taxas: true, custoInsumos: true, custoRevenda: true, valorComissao: true }
+        })
+
+        const comissoesPorProfissional = prisma.agendamento.groupBy({
+            by: ['funcionarioId'],
+            where: whereClause,
+            _sum: { valorComissao: true }
+        })
+
+        // O histórico limita-se aos últimos 100 registos para exibição na UI sem travar o navegador
+        const historicoRecente = prisma.agendamento.findMany({
             where: whereClause,
             select: {
-                id: true,
-                dataHoraInicio: true,
-                valorBruto: true,
-                taxas: true,
-                custoInsumos: true,
-                custoRevenda: true,
-                valorComissao: true,
-                funcionarioId: true,
-                cliente: { select: { nome: true } },
-                funcionario: { select: { nome: true } }
+                id: true, dataHoraInicio: true, valorBruto: true, valorComissao: true,
+                cliente: { select: { nome: true } }, funcionario: { select: { nome: true } }
             },
-            orderBy: { dataHoraInicio: 'desc' }
+            orderBy: { dataHoraInicio: 'desc' },
+            take: 100
         })
 
-        let faturamentoBruto = 0
-        let custoProdutos = 0
-        let totalComissoes = 0
-        let totalTaxas = 0
-
-        const comissaoPorProfissional: Record<string, number> = {}
-        const historico = []
-
-        // Agregação O(N) pura — sem recálculo de regras de negócio
-        for (const ag of agendamentos) {
-            faturamentoBruto += ag.valorBruto
-            totalTaxas += ag.taxas
-            custoProdutos += ag.custoInsumos + ag.custoRevenda
-            totalComissoes += ag.valorComissao
-
-            comissaoPorProfissional[ag.funcionarioId] = (comissaoPorProfissional[ag.funcionarioId] || 0) + ag.valorComissao
-
-            historico.push({
-                id: ag.id,
-                data: ag.dataHoraInicio.toISOString(),
-                clienteNome: ag.cliente?.nome || 'Cliente não identificado',
-                profissionalNome: ag.funcionario?.nome || 'Profissional não identificado',
-                valorBruto: ag.valorBruto,
-                valorComissao: ag.valorComissao
+        const [agregacao, distribuicaoComissoes, agendamentos, equipe] = await Promise.all([
+            agregacaoAgendamentos,
+            comissoesPorProfissional,
+            historicoRecente,
+            prisma.funcionario.findMany({
+                where: { role: 'PROFISSIONAL', ativo: true },
+                select: { id: true, nome: true, comissao: true, podeVerComissao: true },
             })
-        }
+        ])
 
+        const faturamentoBruto = agregacao._sum.valorBruto || 0
+        const totalTaxas = agregacao._sum.taxas || 0
+        const custoProdutos = (agregacao._sum.custoInsumos || 0) + (agregacao._sum.custoRevenda || 0)
+        const totalComissoes = agregacao._sum.valorComissao || 0
         const lucroLiquido = faturamentoBruto - custoProdutos - totalComissoes - totalTaxas
 
-        const equipe = await prisma.funcionario.findMany({
-            where: { role: 'PROFISSIONAL', ativo: true },
-            select: { id: true, nome: true, comissao: true, podeVerComissao: true },
-        })
+        const mapaComissoes = new Map(distribuicaoComissoes.map(d => [d.funcionarioId, d._sum.valorComissao || 0]))
 
         const equipeComValores = equipe.map(p => ({
             ...p,
-            totalComissaoRecebida: comissaoPorProfissional[p.id] || 0
+            totalComissaoRecebida: mapaComissoes.get(p.id) || 0
+        }))
+
+        const historico = agendamentos.map(ag => ({
+            id: ag.id,
+            data: ag.dataHoraInicio.toISOString(),
+            clienteNome: ag.cliente?.nome || 'Não identificado',
+            profissionalNome: ag.funcionario?.nome || 'Não identificado',
+            valorBruto: ag.valorBruto,
+            valorComissao: ag.valorComissao
         }))
 
         return {
@@ -209,30 +189,23 @@ export async function obterResumoFinanceiro(
 }
 
 // ── 3. Atualização de Comissão ────────────────────────────────────────────────
-/**
- * Atualiza as configurações de comissão de um profissional.
- * Afeta apenas agendamentos FUTUROS — histórico não é impactado (imutável).
- */
 export async function atualizarComissaoFuncionario(
     id: string,
     comissao: number,
     podeVerComissao: boolean
 ): Promise<ActionResult> {
     try {
-        // ── Blindagem RBAC (Apenas ADMIN) ────────────────────────────────────
         const sessao = await verificarSessaoFuncionario()
         if (!sessao.logado || sessao.role !== 'ADMIN') {
-            return { sucesso: false, erro: 'Acesso negado. Apenas administradores podem alterar comissões.' }
+            return { sucesso: false, erro: 'Acesso negado.' }
         }
 
         const validacao = schemaAtualizarComissao.safeParse({ id, comissao, podeVerComissao })
-        if (!validacao.success) {
-            return { sucesso: false, erro: validacao.error.issues[0]?.message ?? 'Dados inválidos.' }
-        }
+        if (!validacao.success) return { sucesso: false, erro: validacao.error.issues[0]?.message ?? 'Dados inválidos.' }
 
         await prisma.funcionario.update({
             where: { id },
-            data: { comissao, podeVerComissao },
+            data: { comissao: validacao.data.comissao, podeVerComissao: validacao.data.podeVerComissao },
         })
         return { sucesso: true }
     } catch (error) {
@@ -242,51 +215,34 @@ export async function atualizarComissaoFuncionario(
 }
 
 // ── 4. Dados para Gráficos ────────────────────────────────────────────────────
-/**
- * Retorna faturamento e atendimentos dos últimos N dias.
- *
- * Fuso horário: America/Sao_Paulo — agrupamento por data local correta,
- * sem risco de drift de dia em ambientes Serverless (que rodam em UTC).
- */
 export async function obterDadosGraficosFinanceiros(dias: number = 7) {
     try {
-        // ── Blindagem de Leitura (Apenas ADMIN) ──────────────────────────────
         const sessao = await verificarSessaoFuncionario()
         if (!sessao.logado || sessao.role !== 'ADMIN') {
-            return { sucesso: false, erro: 'Acesso negado. Relatórios financeiros são restritos à diretoria.' }
+            return { sucesso: false, erro: 'Acesso restrito.' }
         }
 
-        // Calcula o início do período no fuso brasileiro para filtrar o banco
+        // Proteção contra ataques de negação de serviço (DoS) via loop excessivo
+        const qtdDias = z.number().min(1).max(90).catch(7).parse(dias)
+
         const agora = new Date()
-        const inicioStr = formatInTimeZone(
-            new Date(agora.getTime() - (dias - 1) * 86_400_000),
-            TZ,
-            "yyyy-MM-dd'T'00:00:00xxx"
-        )
-        const dataLimite = new Date(inicioStr)
+        const dataLimite = startOfDay(subDays(agora, qtdDias - 1))
 
         const agendamentos = await prisma.agendamento.findMany({
             where: { dataHoraInicio: { gte: dataLimite }, concluido: true },
             select: { dataHoraInicio: true, valorBruto: true },
         })
 
-        // Monta o mapa de dias com chaves no formato brasileiro (fuso correto)
         const mapaDias = new Map<string, { faturamento: number; atendimentos: number }>()
 
-        for (let i = dias - 1; i >= 0; i--) {
-            const dia = new Date(agora.getTime() - i * 86_400_000)
-            // Formato da chave: "28 mar." — derivado do horário de Brasília
-            const chave = formatInTimeZone(dia, TZ, 'dd MMM', { locale: undefined })
-                .replace('.', '')
-                .toLowerCase()
+        for (let i = qtdDias - 1; i >= 0; i--) {
+            const diaAlvo = subDays(agora, i)
+            const chave = formatInTimeZone(diaAlvo, TZ, 'dd MMM', { locale: undefined }).replace('.', '').toLowerCase()
             mapaDias.set(chave, { faturamento: 0, atendimentos: 0 })
         }
 
-        // Preenche com dados reais, agrupando pela data local de Brasília
         for (const ag of agendamentos) {
-            const chave = formatInTimeZone(ag.dataHoraInicio, TZ, 'dd MMM', { locale: undefined })
-                .replace('.', '')
-                .toLowerCase()
+            const chave = formatInTimeZone(ag.dataHoraInicio, TZ, 'dd MMM', { locale: undefined }).replace('.', '').toLowerCase()
             const atual = mapaDias.get(chave)
             if (atual) {
                 mapaDias.set(chave, {
@@ -310,79 +266,43 @@ export async function obterDadosGraficosFinanceiros(dias: number = 7) {
 }
 
 // ── 5. Reabertura de Comanda (Estorno / Correção) ─────────────────────────────
-/**
- * Máquina de estados: transição inversa de `calcularFechamentoComanda`.
- *
- * RBAC: verificação de sessão feita DENTRO da Server Action — não confia
- * no front-end para restringir acesso, pois Server Actions são endpoints POST.
- *
- * OBRIGATÓRIO: zera todos os campos de snapshot antes de reabrir.
- * Sem isso, relatórios futuros somariam dados "fantasmas" de comandas
- * abertas (concluido=false mas valorComissao > 0).
- *
- * @param agendamentoId — ID da comanda a reabrir
- * @param motivo        — Justificativa obrigatória (registrada em Notificacao para auditoria)
- */
 export async function reabrirComanda(
     agendamentoId: string,
     motivo: string
 ): Promise<ActionResult> {
     try {
-        // ── Blindagem RBAC obrigatória (Apenas ADMIN) ────────────────────────
-        // Server Actions são endpoints POST públicos — não basta ocultar o botão no front-end.
-        // A verificação de role deve ocorrer aqui, antes de qualquer leitura do banco.
         const sessao = await verificarSessaoFuncionario()
         if (!sessao.logado || sessao.role !== 'ADMIN') {
             return { sucesso: false, erro: 'Acesso negado. Apenas administradores podem estornar comandas.' }
         }
 
-        if (!motivo?.trim()) {
-            return { sucesso: false, erro: 'É obrigatório informar o motivo da reabertura.' }
-        }
+        const validacao = SchemaEstorno.safeParse({ agendamentoId, motivo })
+        if (!validacao.success) return { sucesso: false, erro: validacao.error.issues[0]?.message ?? 'Dados inválidos.' }
+
+        const input = validacao.data
 
         const agendamento = await prisma.agendamento.findUnique({
-            where: { id: agendamentoId },
+            where: { id: input.agendamentoId },
             select: {
-                concluido: true,
-                canceladoEm: true,
-                valorBruto: true,
+                concluido: true, canceladoEm: true, valorBruto: true,
                 cliente: { select: { nome: true } },
             },
         })
 
-        if (!agendamento) {
-            return { sucesso: false, erro: 'Agendamento não encontrado.' }
-        }
-        if (agendamento.canceladoEm) {
-            return { sucesso: false, erro: 'Não é possível reabrir uma comanda cancelada.' }
-        }
-        if (!agendamento.concluido) {
-            return { sucesso: false, erro: 'A comanda já está aberta.' }
-        }
+        if (!agendamento) return { sucesso: false, erro: 'Agendamento não encontrado.' }
+        if (agendamento.canceladoEm) return { sucesso: false, erro: 'Não é possível reabrir uma comanda cancelada.' }
+        if (!agendamento.concluido) return { sucesso: false, erro: 'A comanda já está aberta.' }
 
-        // Transação atômica: reabrir + zerar snapshot + registrar auditoria
         await prisma.$transaction([
-            // Passo 1: Reverter status e zerar TODOS os campos de snapshot.
-            // Não zerá-los corromperia relatórios futuros com valores "fantasmas".
             prisma.agendamento.update({
-                where: { id: agendamentoId },
+                where: { id: input.agendamentoId },
                 data: {
-                    concluido: false,
-                    taxas: 0,
-                    custoInsumos: 0,
-                    custoRevenda: 0,
-                    valorComissao: 0,
-                    comissaoSnap: 0,
+                    concluido: false, taxas: 0, custoInsumos: 0, custoRevenda: 0, valorComissao: 0, comissaoSnap: 0,
                 },
             }),
-
-            // Passo 2: Auditoria com autoria — log financeiro sem autor é inválido para compliance
             prisma.notificacao.create({
                 data: {
-                    mensagem:
-                        `⚠️ Estorno Financeiro: A comanda de ${agendamento.cliente.nome} ` +
-                        `(R$ ${agendamento.valorBruto.toFixed(2)}) foi reaberta por ${sessao.nome}. ` +
-                        `Motivo: "${motivo.trim()}"`,
+                    mensagem: `⚠️ Estorno Financeiro: A comanda de ${agendamento.cliente.nome} (R$ ${agendamento.valorBruto.toFixed(2)}) foi reaberta por ${sessao.nome}. Motivo: "${input.motivo}"`,
                 },
             }),
         ])

@@ -1,7 +1,22 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';
 
-const globalForPrisma = global as unknown as { prisma: PrismaClient };
+// ── 1. Extensão de Tipo Global ───────────────────────────────────────────────
+declare global {
+    var prisma: PrismaClient | undefined;
+}
 
-export const prisma = globalForPrisma.prisma || new PrismaClient();
+// ── 2. Configuração de Telemetria ───────────────────────────────────────────
+// Tipamos explicitamente como Prisma.PrismaClientOptions para satisfazer o construtor.
+// Removemos o 'as const' dos arrays internos, pois o tipo LogLevel já é restrito.
+const prismaOptions: Prisma.PrismaClientOptions =
+    process.env.NODE_ENV === 'development'
+        ? { log: ['query', 'error', 'warn'] }
+        : { log: ['error'] };
 
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
+// ── 3. Inicialização do Singleton ────────────────────────────────────────────
+// O cast 'as any' ou 'as Prisma.PrismaClientOptions' não é mais necessário aqui
+export const prisma = global.prisma || new PrismaClient(prismaOptions);
+
+if (process.env.NODE_ENV !== 'production') {
+    global.prisma = prisma;
+}

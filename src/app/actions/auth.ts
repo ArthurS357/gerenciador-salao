@@ -6,6 +6,8 @@ import { prisma } from '@/lib/prisma'
 import { compare } from 'bcrypt'
 import { JWT_SECRET } from '@/lib/jwt'
 import { z } from 'zod'
+import { cache } from 'react' // Importação crítica para performance
+import { verificarRateLimit } from '@/lib/rateLimit'
 
 type LoginFuncionarioResult =
     | { success: true; role: string }
@@ -32,8 +34,16 @@ const SessaoFuncionarioSchema = z.object({
     sub: z.string().min(1),
 })
 
+const EXPIRACAO_SEGUNDOS = 60 * 60 * 24 // 1 dia
+
 export async function loginFuncionario(email: string, senhaPlana: string): Promise<LoginFuncionarioResult> {
     try {
+        // Blindagem contra Força Bruta
+        const rateLimitKey = `login_func_${email}`;
+        if (!(await verificarRateLimit(rateLimitKey))) {
+            return { success: false, error: 'Muitas tentativas. Aguarde 30 segundos.' }
+        }
+
         const funcionario = await prisma.funcionario.findUnique({ where: { email } })
 
         if (!funcionario || !funcionario.ativo) {
@@ -47,16 +57,16 @@ export async function loginFuncionario(email: string, senhaPlana: string): Promi
             .setProtectedHeader({ alg: 'HS256' })
             .setSubject(funcionario.id)
             .setIssuedAt()
-            .setExpirationTime('1d')
+            .setExpirationTime(`${EXPIRACAO_SEGUNDOS}s`)
             .sign(JWT_SECRET)
 
         const cookieStore = await cookies()
         cookieStore.set('funcionario_session', token, {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
-            maxAge: 60 * 60 * 24,
+            maxAge: EXPIRACAO_SEGUNDOS,
             path: '/',
-            sameSite: 'lax',
+            sameSite: 'lax', // Proteção contra CSRF
         })
 
         return { success: true, role: funcionario.role }
@@ -66,7 +76,8 @@ export async function loginFuncionario(email: string, senhaPlana: string): Promi
     }
 }
 
-export async function verificarSessaoCliente(): Promise<SessaoClienteResult> {
+// React Cache: Evita redundância de validação JWT e acesso ao banco no mesmo request lifecycle
+export const verificarSessaoCliente = cache(async (): Promise<SessaoClienteResult> => {
     try {
         const cookieStore = await cookies()
         const token = cookieStore.get('cliente_session')?.value
@@ -80,6 +91,16 @@ export async function verificarSessaoCliente(): Promise<SessaoClienteResult> {
             return { logado: false }
         }
 
+        // Correção de Segurança: Checa se o cliente ainda existe/não foi banido no DB
+        const clienteAtivo = await prisma.cliente.findUnique({
+            where: { id: validacao.data.sub },
+            select: { id: true, anonimizado: true }
+        })
+
+        if (!clienteAtivo || clienteAtivo.anonimizado) {
+            return { logado: false }
+        }
+
         return { logado: true, id: validacao.data.sub, nome: validacao.data.nome }
     } catch (error) {
         if (error instanceof Error && error.name !== 'JWTExpired') {
@@ -87,9 +108,10 @@ export async function verificarSessaoCliente(): Promise<SessaoClienteResult> {
         }
         return { logado: false }
     }
-}
+})
 
-export async function verificarSessaoFuncionario(): Promise<SessaoFuncionarioResult> {
+// React Cache: Transforma N+1 queries de validação de rota numa consulta O(1)
+export const verificarSessaoFuncionario = cache(async (): Promise<SessaoFuncionarioResult> => {
     try {
         const cookieStore = await cookies()
         const token = cookieStore.get('funcionario_session')?.value
@@ -117,7 +139,7 @@ export async function verificarSessaoFuncionario(): Promise<SessaoFuncionarioRes
         }
         return { logado: false }
     }
-}
+})
 
 export async function logoutFuncionario(): Promise<{ sucesso: true }> {
     const cookieStore = await cookies()

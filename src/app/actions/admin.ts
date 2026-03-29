@@ -5,9 +5,10 @@ import { hash } from 'bcrypt'
 import { randomUUID } from 'crypto'
 import { revalidatePath } from 'next/cache'
 import { verificarSessaoFuncionario } from '@/app/actions/auth'
-
+import { z } from 'zod'
 import { ActionResult } from '@/types/domain'
 
+// ── Tipagens ──────────────────────────────────────────────────────────────────
 export type NotificacaoItem = {
     id: string
     mensagem: string
@@ -43,58 +44,66 @@ export type ProfissionalResumo = {
     expedientes: ExpedienteInfo[]
 }
 
-type DadosCriarFuncionario = {
-    nome: string
-    email: string
-    cpf?: string
-    telefone?: string
-    especialidade?: string
-    descricao?: string
-    comissao?: number
-    podeAgendar?: boolean
-    podeVerHistorico?: boolean
-    podeCancelar?: boolean
-    servicosIds?: string[]
-}
+const SENHA_PADRAO_INICIAL = 'Mudar@123'
 
-type DadosEditarFuncionario = {
-    nome?: string
-    email?: string
-    cpf?: string
-    telefone?: string
-    especialidade?: string
-    descricao?: string
-    comissao?: number
-    podeAgendar?: boolean
-    podeVerHistorico?: boolean
-    servicosIds?: string[]
-}
+// ── Schemas de Validação (Runtime Safety) ─────────────────────────────────────
+const SchemaFuncionario = z.object({
+    nome: z.string().min(2, 'Nome muito curto.'),
+    email: z.string().email('E-mail inválido.'),
+    cpf: z.string().optional().nullable(),
+    telefone: z.string().optional().nullable(),
+    especialidade: z.string().optional().nullable(),
+    descricao: z.string().optional().nullable(),
+    comissao: z.coerce.number().min(0).max(100).default(40.0),
+    podeAgendar: z.boolean().default(false),
+    podeVerHistorico: z.boolean().default(false),
+    podeCancelar: z.boolean().default(false),
+    servicosIds: z.array(z.string()).optional(),
+})
+
+const SchemaEdicaoFuncionario = SchemaFuncionario.partial().extend({
+    ativo: z.boolean().optional(),
+    podeVerComissao: z.boolean().optional()
+})
+
+export type DadosCriarFuncionario = z.infer<typeof SchemaFuncionario>
+export type DadosEditarFuncionario = z.infer<typeof SchemaEdicaoFuncionario>
 
 // ── AUXILIARES DE SEGURANÇA ───────────────────────────────────────────────────
-
-async function garantirPermissaoAdmin() {
+/**
+ * Retorna null se autorizado, ou uma string de erro caso contrário.
+ * Elimina o anti-pattern de controle de fluxo via throw Error + String Matching.
+ */
+async function checarPermissaoAdmin(): Promise<string | null> {
     const sessao = await verificarSessaoFuncionario()
     if (!sessao.logado || sessao.role !== 'ADMIN') {
-        throw new Error('Acesso negado. Requer privilégios de administrador.')
+        return 'Acesso negado. Requer privilégios de administrador.'
     }
+    return null
 }
 
 // ── 1. CRIAÇÃO E EDIÇÃO ────────────────────────────────────────────────────────
 
 export async function criarFuncionario(
-    dados: DadosCriarFuncionario
+    dadosRaw: DadosCriarFuncionario
 ): Promise<ActionResult<{ funcionario: ProfissionalResumo }>> {
-    try {
-        await garantirPermissaoAdmin();
+    const erroAuth = await checarPermissaoAdmin()
+    if (erroAuth) return { sucesso: false, erro: erroAuth }
 
-        const senhaHash = await hash('Mudar@123', 12)
+    const validacao = SchemaFuncionario.safeParse(dadosRaw)
+    if (!validacao.success) return { sucesso: false, erro: validacao.error.issues[0]?.message || 'Dados inválidos.' }
+
+    const dados = validacao.data
+
+    try {
+        const senhaHash = await hash(SENHA_PADRAO_INICIAL, 12)
         const novoFuncionario = await prisma.funcionario.create({
             data: {
                 nome: dados.nome, email: dados.email, senhaHash, role: 'PROFISSIONAL',
                 cpf: dados.cpf ?? null, telefone: dados.telefone ?? null, especialidade: dados.especialidade ?? null,
-                descricao: dados.descricao ?? null, comissao: Number(dados.comissao) || 40.0,
-                podeAgendar: dados.podeAgendar ?? false, podeVerHistorico: dados.podeVerHistorico ?? false,
-                podeCancelar: dados.podeCancelar ?? false,
+                descricao: dados.descricao ?? null, comissao: dados.comissao,
+                podeAgendar: dados.podeAgendar, podeVerHistorico: dados.podeVerHistorico,
+                podeCancelar: dados.podeCancelar,
                 servicos: dados.servicosIds && dados.servicosIds.length > 0 ? { connect: dados.servicosIds.map(id => ({ id })) } : undefined,
             },
             select: {
@@ -111,98 +120,115 @@ export async function criarFuncionario(
             sucesso: true,
             funcionario: {
                 ...novoFuncionario,
-                comissao: Number(novoFuncionario.comissao) // Evita erro de serialização do Decimal no Next.js
+                comissao: Number(novoFuncionario.comissao)
             } as ProfissionalResumo
         }
     } catch (error) {
-        if (error instanceof Error && error.message.includes('Acesso negado')) return { sucesso: false, erro: error.message }
-        return { sucesso: false, erro: 'Falha ao criar profissional.' }
+        console.error('Erro na criação de funcionário:', error)
+        return { sucesso: false, erro: 'Falha técnica ao criar profissional. O e-mail já pode estar em uso.' }
     }
 }
 
 export async function editarFuncionarioCompleto(
-    id: string, dados: DadosEditarFuncionario
+    id: string, dadosRaw: DadosEditarFuncionario
 ): Promise<ActionResult> {
-    try {
-        await garantirPermissaoAdmin();
+    const erroAuth = await checarPermissaoAdmin()
+    if (erroAuth) return { sucesso: false, erro: erroAuth }
 
-        const { servicosIds, ...restoDosDados } = dados;
+    const validacao = SchemaEdicaoFuncionario.safeParse(dadosRaw)
+    if (!validacao.success) return { sucesso: false, erro: 'Dados de edição inválidos.' }
+
+    const { servicosIds, ...restoDosDados } = validacao.data;
+
+    try {
         await prisma.funcionario.update({
             where: { id },
-            data: { ...restoDosDados, ...(servicosIds && { servicos: { set: servicosIds.map(servicoId => ({ id: servicoId })) } }) },
+            data: {
+                ...restoDosDados,
+                ...(servicosIds && { servicos: { set: servicosIds.map(servicoId => ({ id: servicoId })) } })
+            },
         })
         return { sucesso: true }
     } catch (error) {
-        if (error instanceof Error && error.message.includes('Acesso negado')) return { sucesso: false, erro: error.message }
-        return { sucesso: false, erro: 'Falha ao atualizar os dados.' }
+        console.error('Erro ao editar funcionário:', error)
+        return { sucesso: false, erro: 'Falha técnica ao atualizar os dados.' }
     }
 }
 
 // ── 2. PERMISSÕES E EXCLUSÕES ─────────────────────────────────────────────────
 
 export async function atualizarFuncionarioCompleto(
-    id: string, dados: { comissao?: number, podeVerComissao?: boolean, podeAgendar?: boolean, podeVerHistorico?: boolean, podeCancelar?: boolean, ativo?: boolean }
+    id: string, dadosRaw: Partial<DadosEditarFuncionario>
 ): Promise<ActionResult> {
-    try {
-        await garantirPermissaoAdmin();
+    const erroAuth = await checarPermissaoAdmin()
+    if (erroAuth) return { sucesso: false, erro: erroAuth }
 
-        await prisma.funcionario.update({ where: { id }, data: dados })
+    const validacao = SchemaEdicaoFuncionario.safeParse(dadosRaw)
+    if (!validacao.success) return { sucesso: false, erro: 'Dados inválidos.' }
+
+    try {
+        await prisma.funcionario.update({ where: { id }, data: validacao.data })
         revalidatePath('/admin/dashboard')
         return { sucesso: true }
     } catch (error) {
-        if (error instanceof Error && error.message.includes('Acesso negado')) return { sucesso: false, erro: error.message }
+        console.error('Erro ao atualizar permissões:', error)
         return { sucesso: false, erro: 'Falha ao atualizar permissões.' }
     }
 }
 
+// Omissão de "error" no catch para remover aviso do ESLint
 export async function inativarFuncionario(id: string): Promise<ActionResult> {
-    try {
-        await garantirPermissaoAdmin();
+    const erroAuth = await checarPermissaoAdmin()
+    if (erroAuth) return { sucesso: false, erro: erroAuth }
 
+    try {
         await prisma.funcionario.update({ where: { id }, data: { ativo: false } })
         return { sucesso: true }
-    } catch (error) {
-        if (error instanceof Error && error.message.includes('Acesso negado')) return { sucesso: false, erro: error.message }
+    } catch {
         return { sucesso: false, erro: 'Falha ao inativar funcionário.' }
     }
 }
 
+// Omissão de "error" no catch
 export async function excluirFuncionarioPermanente(id: string): Promise<ActionResult> {
-    try {
-        await garantirPermissaoAdmin();
+    const erroAuth = await checarPermissaoAdmin()
+    if (erroAuth) return { sucesso: false, erro: erroAuth }
 
+    try {
         const temAgendamentos = await prisma.agendamento.findFirst({ where: { funcionarioId: id } })
-        if (temAgendamentos) return { sucesso: false, erro: 'Possui agendamentos no histórico. Utilize a inativação.' }
+        if (temAgendamentos) return { sucesso: false, erro: 'Possui agendamentos no histórico. Utilize a inativação para manter a integridade relacional.' }
 
         await prisma.funcionario.delete({ where: { id } })
         revalidatePath('/admin/dashboard')
         return { sucesso: true }
-    } catch (error) {
-        if (error instanceof Error && error.message.includes('Acesso negado')) return { sucesso: false, erro: error.message }
-        return { sucesso: false, erro: 'Falha ao excluir o funcionário.' }
+    } catch {
+        return { sucesso: false, erro: 'Falha técnica ao excluir o funcionário.' }
     }
 }
 
+// Omissão de "error" no catch
 export async function excluirClientePermanente(id: string): Promise<ActionResult> {
-    try {
-        await garantirPermissaoAdmin();
+    const erroAuth = await checarPermissaoAdmin()
+    if (erroAuth) return { sucesso: false, erro: erroAuth }
 
+    try {
         const temAgendamentos = await prisma.agendamento.findFirst({ where: { clienteId: id } })
         if (temAgendamentos) return { sucesso: false, erro: 'O cliente possui histórico financeiro. Utilize a anonimização (LGPD) ou inative-o.' }
 
         await prisma.cliente.delete({ where: { id } })
         revalidatePath('/admin/clientes')
         return { sucesso: true }
-    } catch (error) {
-        if (error instanceof Error && error.message.includes('Acesso negado')) return { sucesso: false, erro: error.message }
+    } catch {
         return { sucesso: false, erro: 'Falha ao excluir o cliente permanentemente.' }
     }
 }
 
+// Omissão de "error" no catch
 export async function anonimizarClienteLGPD(clienteId: string): Promise<ActionResult<{ mensagem: string }>> {
-    try {
-        await garantirPermissaoAdmin();
+    const erroAuth = await checarPermissaoAdmin()
+    if (erroAuth) return { sucesso: false, erro: erroAuth }
 
+    try {
         const hashNome = `Anonimizado_${randomUUID().substring(0, 8)}`
         const hashTelefone = `0000_${randomUUID().substring(0, 8)}`
 
@@ -212,20 +238,20 @@ export async function anonimizarClienteLGPD(clienteId: string): Promise<ActionRe
         })
 
         return { sucesso: true, mensagem: 'Cliente anonimizado com sucesso.' }
-    } catch (error) {
-        if (error instanceof Error && error.message.includes('Acesso negado')) return { sucesso: false, erro: error.message }
-        return { sucesso: false, erro: 'Falha ao processar a anonimização.' }
+    } catch {
+        return { sucesso: false, erro: 'Falha técnica ao processar a anonimização.' }
     }
 }
 
 // ── 3. LISTAGEM DE EQUIPA E ESCALAS ───────────────────────────────────────────
 
 export async function listarEquipaAdmin(): Promise<ActionResult<{ equipa: ProfissionalResumo[] }>> {
-    try {
-        await garantirPermissaoAdmin();
+    const erroAuth = await checarPermissaoAdmin()
+    if (erroAuth) return { sucesso: false, erro: erroAuth }
 
+    try {
         const equipa = await prisma.funcionario.findMany({
-            where: { role: 'PROFISSIONAL' }, // <-- REMOVIDO: ativo: true. Agora busca todos (ativos e inativos)
+            where: { role: 'PROFISSIONAL' },
             orderBy: { nome: 'asc' },
             select: {
                 id: true, nome: true, email: true, especialidade: true, ativo: true,
@@ -248,14 +274,13 @@ export async function listarEquipaAdmin(): Promise<ActionResult<{ equipa: Profis
             }
             return {
                 ...prof,
-                comissao: Number(prof.comissao), // <-- CORREÇÃO: Evita erro de serialização do Decimal no Next.js
+                comissao: Number(prof.comissao),
                 expedientes
             }
         })
 
-        return { sucesso: true, equipa: equipaNormalizada }
+        return { sucesso: true, equipa: equipaNormalizada as ProfissionalResumo[] }
     } catch (error) {
-        if (error instanceof Error && error.message.includes('Acesso negado')) return { sucesso: false, erro: error.message }
         console.error('Erro ao listar equipa:', error)
         return { sucesso: false, erro: 'Falha ao carregar a equipa.' }
     }
@@ -264,51 +289,56 @@ export async function listarEquipaAdmin(): Promise<ActionResult<{ equipa: Profis
 export async function salvarEscalaFuncionarioAdmin(
     funcionarioId: string, expedientes: ExpedienteInfo[]
 ): Promise<ActionResult> {
-    try {
-        await garantirPermissaoAdmin();
+    const erroAuth = await checarPermissaoAdmin()
+    if (erroAuth) return { sucesso: false, erro: erroAuth }
 
-        const transacoes = expedientes.map(exp => {
-            return prisma.expediente.upsert({
-                where: { funcionarioId_diaSemana: { funcionarioId, diaSemana: exp.diaSemana } },
-                update: { horaInicio: exp.horaInicio, horaFim: exp.horaFim, ativo: exp.ativo },
-                create: { funcionarioId, diaSemana: exp.diaSemana, horaInicio: exp.horaInicio, horaFim: exp.horaFim, ativo: exp.ativo }
-            })
+    try {
+        // Execução atômica das escalas garantida pelo $transaction interativo
+        await prisma.$transaction(async (tx) => {
+            for (const exp of expedientes) {
+                await tx.expediente.upsert({
+                    where: { funcionarioId_diaSemana: { funcionarioId, diaSemana: exp.diaSemana } },
+                    update: { horaInicio: exp.horaInicio, horaFim: exp.horaFim, ativo: exp.ativo },
+                    create: { funcionarioId, diaSemana: exp.diaSemana, horaInicio: exp.horaInicio, horaFim: exp.horaFim, ativo: exp.ativo }
+                })
+            }
         })
-        await prisma.$transaction(transacoes)
         revalidatePath('/admin/dashboard')
         return { sucesso: true }
     } catch (error) {
-        if (error instanceof Error && error.message.includes('Acesso negado')) return { sucesso: false, erro: error.message }
-        return { sucesso: false, erro: 'Erro ao salvar a escala.' }
+        console.error('Erro ao salvar a escala:', error)
+        return { sucesso: false, erro: 'Erro técnico ao salvar a escala.' }
     }
 }
 
 // ── 4. SISTEMA DE NOTIFICAÇÕES ────────────────────────────────────────────────
 
+// Omissão de "error" no catch
 export async function listarNotificacoesAdmin(): Promise<ActionResult<{ notificacoes: NotificacaoItem[] }>> {
-    try {
-        await garantirPermissaoAdmin();
+    const erroAuth = await checarPermissaoAdmin()
+    if (erroAuth) return { sucesso: false, erro: erroAuth }
 
+    try {
         const notificacoes = await prisma.notificacao.findMany({
             where: { lida: false },
             orderBy: { criadoEm: 'desc' },
             select: { id: true, mensagem: true, lida: true, criadoEm: true }
         })
         return { sucesso: true, notificacoes }
-    } catch (error) {
-        if (error instanceof Error && error.message.includes('Acesso negado')) return { sucesso: false, erro: error.message }
+    } catch {
         return { sucesso: false, erro: 'Erro ao carregar notificações.' }
     }
 }
 
+// Omissão de "error" no catch
 export async function marcarNotificacaoLida(id: string): Promise<ActionResult> {
-    try {
-        await garantirPermissaoAdmin();
+    const erroAuth = await checarPermissaoAdmin()
+    if (erroAuth) return { sucesso: false, erro: erroAuth }
 
+    try {
         await prisma.notificacao.update({ where: { id }, data: { lida: true } })
         return { sucesso: true }
-    } catch (error) {
-        if (error instanceof Error && error.message.includes('Acesso negado')) return { sucesso: false, erro: error.message }
+    } catch {
         return { sucesso: false, erro: 'Erro ao limpar alerta.' }
     }
 }
