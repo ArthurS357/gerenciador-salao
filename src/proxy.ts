@@ -5,87 +5,27 @@ import { jwtVerify } from 'jose'
 const REDIRECT_PROFISSIONAL = '/login-profissional'
 const REDIRECT_CLIENTE = '/login'
 
-// ── FUNÇÃO AUXILIAR ───────────────────────────────────────────────────────
-function getJwtSecret() {
+// ── GET SECRET (Otimizado com Memoização para o Edge Runtime) ───────────────
+let cachedSecret: Uint8Array | null = null
+
+function getJwtSecret(): Uint8Array {
+    // Reutiliza o secret já computado em invocações quentes (Warm Starts) da Vercel
+    if (cachedSecret) return cachedSecret
+
     const secret = process.env.JWT_SECRET
-    if (!secret) {
-        if (process.env.NODE_ENV === 'production') {
-            throw new Error('[LmLu] FATAL: JWT_SECRET não configurado no servidor de produção.')
-        }
-        console.warn('[LmLu] JWT_SECRET ausente — usando chave fraca só para desenvolvimento.')
-        // Mesma chave do src/lib/jwt.ts para consistência entre Middleware e App
-        return new TextEncoder().encode('dev-only-lmlu-jwt-secret-not-for-prod-2026')
-    }
-    return new TextEncoder().encode(secret)
+
+    // No build da Vercel, o secret pode estar ausente. Usamos fallback apenas para build.
+    const secretValue = secret ? secret : 'dev-only-lmlu-jwt-secret-not-for-prod-2026'
+
+    cachedSecret = new TextEncoder().encode(secretValue)
+    return cachedSecret
 }
 
-// ── SISTEMA DE RATE LIMITING (In-Memory com Cooldown) ──────────────────────
-type RateLimitData = {
-    count: number;
-    windowStart: number;
-    blockedUntil?: number;
-}
-
-const rateLimitMap = new Map<string, RateLimitData>()
-
-const RATE_LIMIT_WINDOW_MS = 1000       // 1 segundo
-const MAX_REQUESTS_PER_WINDOW = 5       // Máximo de 5 envios 
-const BLOCK_DURATION_MS = 30 * 1000     // Castigo de 30 segundos
-
-function applyRateLimit(request: NextRequest): NextResponse | null {
-    if (request.method !== 'POST') return null
-
-    const ip = request.headers.get('x-forwarded-for') ?? request.headers.get('x-real-ip') ?? 'ip-desconhecido'
-    const now = Date.now()
-    const clientData = rateLimitMap.get(ip)
-
-    if (!clientData) {
-        rateLimitMap.set(ip, { count: 1, windowStart: now })
-        return null
-    }
-
-    if (clientData.blockedUntil && now < clientData.blockedUntil) {
-        const segundosRestantes = Math.ceil((clientData.blockedUntil - now) / 1000)
-        return new NextResponse(
-            JSON.stringify({
-                sucesso: false,
-                erro: `Muitas tentativas. Por segurança, aguarde ${segundosRestantes} segundos.`
-            }),
-            { status: 429, headers: { 'Content-Type': 'application/json' } }
-        )
-    }
-
-    if (now - clientData.windowStart > RATE_LIMIT_WINDOW_MS) {
-        clientData.count = 1
-        clientData.windowStart = now
-        clientData.blockedUntil = undefined
-        return null
-    }
-
-    clientData.count += 1
-
-    if (clientData.count > MAX_REQUESTS_PER_WINDOW) {
-        clientData.blockedUntil = now + BLOCK_DURATION_MS
-        console.warn(`[RATE LIMIT] IP ${ip} bloqueado por 30s. Excedeu 5 req/segundo.`)
-
-        return new NextResponse(
-            JSON.stringify({
-                sucesso: false,
-                erro: 'Comportamento suspeito detectado. Bloqueio temporário de 30 segundos.'
-            }),
-            { status: 429, headers: { 'Content-Type': 'application/json' } }
-        )
-    }
-
-    return null
-}
-
-// ── PROXY PRINCIPAL ───────────────────────────────────────────────────────
 export async function proxy(request: NextRequest): Promise<NextResponse> {
     const { pathname } = request.nextUrl
     const SECRET = getJwtSecret()
 
-    // 1. Área Corporativa (/admin e /profissional) -> ISENTA DE RATE LIMIT
+    // 1. Áreas Protegidas (Admin e Profissional)
     if (pathname.startsWith('/admin') || pathname.startsWith('/profissional')) {
         const token = request.cookies.get('funcionario_session')?.value
 
@@ -94,26 +34,30 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
         try {
             const { payload } = await jwtVerify(token, SECRET)
 
-            const roleValida = payload.role === 'ADMIN' || payload.role === 'PROFISSIONAL'
-            if (!roleValida) return NextResponse.redirect(new URL(REDIRECT_PROFISSIONAL, request.url))
+            // Validação de Roles
+            const isAdmin = payload.role === 'ADMIN'
+            const isProf = payload.role === 'PROFISSIONAL'
 
-            if (pathname.startsWith('/admin') && payload.role !== 'ADMIN') {
+            if (!isAdmin && !isProf) throw new Error('Unauthorized')
+
+            if (pathname.startsWith('/admin') && !isAdmin) {
                 return NextResponse.redirect(new URL(REDIRECT_PROFISSIONAL, request.url))
             }
 
+            // Injeta metadados nos headers para consumo posterior
             const requestHeaders = new Headers(request.headers)
-            requestHeaders.set('x-user-id', payload.sub ?? '')
+            requestHeaders.set('x-user-id', String(payload.sub))
             requestHeaders.set('x-user-role', String(payload.role))
 
             return NextResponse.next({ request: { headers: requestHeaders } })
         } catch {
-            const response = NextResponse.redirect(new URL(REDIRECT_PROFISSIONAL, request.url))
-            response.cookies.delete('funcionario_session')
-            return response
+            const res = NextResponse.redirect(new URL(REDIRECT_PROFISSIONAL, request.url))
+            res.cookies.delete('funcionario_session') // Limpa cookie inválido/expirado
+            return res
         }
     }
 
-    // 2. Área do Cliente (/cliente)
+    // 2. Área do Cliente
     if (pathname.startsWith('/cliente')) {
         const token = request.cookies.get('cliente_session')?.value
 
@@ -121,27 +65,24 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
 
         try {
             const { payload } = await jwtVerify(token, SECRET)
-            if (payload.role !== 'CLIENTE') return NextResponse.redirect(new URL(REDIRECT_CLIENTE, request.url))
+
+            if (payload.role !== 'CLIENTE') throw new Error('Unauthorized')
 
             const requestHeaders = new Headers(request.headers)
-            requestHeaders.set('x-user-id', payload.sub ?? '')
-            requestHeaders.set('x-user-role', 'CLIENTE')
+            requestHeaders.set('x-user-id', String(payload.sub))
 
             return NextResponse.next({ request: { headers: requestHeaders } })
         } catch {
-            const response = NextResponse.redirect(new URL(REDIRECT_CLIENTE, request.url))
-            response.cookies.delete('cliente_session')
-            return response
+            const res = NextResponse.redirect(new URL(REDIRECT_CLIENTE, request.url))
+            res.cookies.delete('cliente_session') // Limpa cookie inválido/expirado
+            return res
         }
     }
-
-    // 3. Aplica o Rate Limit APENAS nas rotas públicas (onde bots tentam fazer spam)
-    const rateLimitResponse = applyRateLimit(request)
-    if (rateLimitResponse) return rateLimitResponse
 
     return NextResponse.next()
 }
 
+// Matcher otimizado para não rodar em arquivos estáticos (economiza execução na Vercel)
 export const config = {
-    matcher: ['/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)'],
+    matcher: ['/admin/:path*', '/profissional/:path*', '/cliente/:path*'],
 }

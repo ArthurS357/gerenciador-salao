@@ -7,30 +7,35 @@ import { validarTelefoneBrasileiro } from './telefone'
 function validarCPF(cpf: string): boolean {
     if (/^(\d)\1{10}$/.test(cpf)) return false
 
+    // Otimização: Substituído parseInt por Number para evitar overhead de parsing complexo
     const calcDigito = (base: string, fator: number): number => {
         let soma = 0
-        for (let i = 0; i < fator - 1; i++) soma += parseInt(base[i]) * (fator - i)
+        for (let i = 0; i < fator - 1; i++) soma += Number(base[i]) * (fator - i)
         const resto = (soma * 10) % 11
         return resto === 10 || resto === 11 ? 0 : resto
     }
 
     return (
-        calcDigito(cpf, 10) === parseInt(cpf[9]) &&
-        calcDigito(cpf, 11) === parseInt(cpf[10])
+        calcDigito(cpf, 10) === Number(cpf[9]) &&
+        calcDigito(cpf, 11) === Number(cpf[10])
     )
 }
+
+// Reutilização de regras temporais para manter o conceito DRY e segurança de tipos
+const dataHoraInicioSchema = z
+    .coerce.date()
+    .refine((d) => !isNaN(d.getTime()), 'Data e hora inválidas.') // Defesa contra 'Invalid Date'
+    .refine(
+        (d) => d > new Date(Date.now() - 5 * 60_000),
+        'Não é possível agendar em horários passados.'
+    )
 
 // ── SCHEMAS DE AGENDAMENTO ───────────────────────────────────────────────────
 
 export const schemaCriarAgendamento = z.object({
     clienteId: z.string().min(1, 'Cliente é obrigatório.'),
     funcionarioId: z.string().min(1, 'Selecione um profissional válido.'),
-    dataHoraInicio: z
-        .coerce.date()
-        .refine(
-            (d) => d > new Date(Date.now() - 5 * 60_000),
-            'Não é possível agendar em horários passados.'
-        ),
+    dataHoraInicio: dataHoraInicioSchema,
     servicosIds: z
         .array(z.string().min(1, 'ID de serviço inválido.'))
         .min(1, 'Selecione pelo menos um serviço.')
@@ -44,12 +49,7 @@ export const schemaCriarAgendamento = z.object({
 export const schemaEditarAgendamento = z.object({
     id: z.string().min(1, 'ID do agendamento é necessário.'),
     funcionarioId: z.string().min(1, 'ID do funcionário é necessário.'),
-    dataHoraInicio: z
-        .coerce.date()
-        .refine(
-            (d) => d > new Date(Date.now() - 5 * 60_000),
-            'Não é possível agendar em horários passados.'
-        ),
+    dataHoraInicio: dataHoraInicioSchema,
     servicosIds: z
         .array(z.string().min(1, 'ID de serviço inválido.'))
         .min(1, 'Selecione pelo menos um serviço.')

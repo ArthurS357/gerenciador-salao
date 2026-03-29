@@ -1,5 +1,7 @@
 export type Role = 'ADMIN' | 'PROFISSIONAL' | 'CLIENTE'
 
+// ── ENTIDADES BASE ───────────────────────────────────────────────────────────
+
 export interface Funcionario {
     id: string
     nome: string
@@ -15,10 +17,6 @@ export interface Funcionario {
     podeVerHistorico: boolean
     podeVerComissao: boolean
     ativo: boolean
-}
-
-export type FuncionarioResumo = Pick<Funcionario, 'id' | 'nome' | 'comissao' | 'podeVerComissao'> & {
-    totalComissaoRecebida: number
 }
 
 export interface Cliente {
@@ -44,27 +42,48 @@ export interface Produto {
     id: string
     nome: string
     descricao: string | null
-    precoCusto: number | null // Agora pode ser nulo segundo o Prisma
+    precoCusto: number | null
     precoVenda: number
     estoque: number
-
-    // Novos campos adicionados na modelagem de ficha técnica
     unidadeMedida: string
     tamanhoUnidade: number
-
-    // Opcional, pois pode não existir no banco de dados antigo
     estoqueMinimo?: number
-
     ativo: boolean
     createdAt?: Date
     updatedAt?: Date
 }
 
+export interface ItemPortfolio {
+    id: string
+    titulo: string
+    imagemUrl: string
+    valor: number | null
+    linkSocial: string | null
+    ativo: boolean
+    criadoEm: Date // Padronizado para Date
+}
+
+// ── DTOs RESUMIDOS (Para UI e Relacionamentos) ───────────────────────────────
+
+export type FuncionarioResumo = Pick<Funcionario, 'id' | 'nome' | 'comissao' | 'podeVerComissao'> & {
+    totalComissaoRecebida: number
+}
+
+export type FuncionarioSimples = Pick<Funcionario, 'nome'>
+
+export type ClienteResumo = Pick<Cliente, 'nome' | 'telefone' | 'anonimizado'>
+
+export type ServicoResumo = Pick<Servico, 'id' | 'nome' | 'preco'>
+
+export type ProdutoResumo = Pick<Produto, 'nome' | 'precoCusto' | 'precoVenda'>
+
+// ── ENTIDADES DE AGENDAMENTO E COMANDAS ──────────────────────────────────────
+
 export interface AgendamentoServico {
     id: string
     servicoId: string
     precoCobrado: number | null
-    servico: Pick<Servico, 'id' | 'nome' | 'preco'>
+    servico: ServicoResumo
 }
 
 export interface AgendamentoItemProduto {
@@ -72,7 +91,7 @@ export interface AgendamentoItemProduto {
     produtoId: string
     quantidade: number
     precoCobrado: number
-    produto: Pick<Produto, 'precoCusto' | 'nome' | 'precoVenda'>
+    produto: ProdutoResumo
 }
 
 export interface AgendamentoGlobal {
@@ -81,11 +100,11 @@ export interface AgendamentoGlobal {
     funcionarioId: string
     valorBruto: number
     taxas: number
-    dataHoraInicio: string
-    dataHoraFim: string
+    dataHoraInicio: Date // Padronizado para Date
+    dataHoraFim: Date    // Padronizado para Date
     concluido: boolean
-    cliente: Pick<Cliente, 'nome' | 'anonimizado' | 'telefone'>
-    funcionario: Pick<Funcionario, 'nome'>
+    cliente: ClienteResumo
+    funcionario: FuncionarioSimples
     servicos: AgendamentoServico[]
     produtos: AgendamentoItemProduto[]
 }
@@ -93,10 +112,10 @@ export interface AgendamentoGlobal {
 export interface AgendamentoProfissional {
     id: string
     valorBruto: number
-    dataHoraInicio: string
-    dataHoraFim: string
+    dataHoraInicio: Date // Padronizado para Date
+    dataHoraFim: Date    // Padronizado para Date
     concluido: boolean
-    cliente: Pick<Cliente, 'nome' | 'telefone'>
+    cliente: Omit<ClienteResumo, 'anonimizado'> // Usa o Resumo e remove os campos desnecessários
     servicos: AgendamentoServico[]
 }
 
@@ -105,26 +124,14 @@ export interface AgendamentoCliente {
     valorBruto: number
     dataHoraInicio: Date
     concluido: boolean
-    funcionario: Pick<Funcionario, 'nome'>
+    funcionario: FuncionarioSimples
 }
 
-export interface ItemPortfolioDb {
-    id: string
-    titulo: string
-    imagemUrl: string
-    valor: number | null
-    linkSocial: string | null
-    ativo: boolean
-    criadoEm: string
-}
-
-export type ActionResult<T = void> =
-    | (T extends void ? { sucesso: true } : { sucesso: true } & T)
-    | { sucesso: false; erro: string }
+// ── RELATÓRIOS E FINANCEIRO ──────────────────────────────────────────────────
 
 export interface AgendamentoHistoricoFinanceiro {
     id: string
-    data: string
+    data: Date // Padronizado para Date
     clienteNome: string
     profissionalNome: string
     valorBruto: number
@@ -147,3 +154,13 @@ export interface FechamentoComanda {
     comissao: number
     lucroSalao: number
 }
+
+// ── UTILITÁRIOS ──────────────────────────────────────────────────────────────
+
+/**
+ * Padrão de retorno para Server Actions e API Routes.
+ * O generics 'data' previne colisão de tipagem com propriedades nativas do objeto.
+ */
+export type ActionResult<T = void> =
+    | (T extends void ? { sucesso: true } : { sucesso: true; data: T })
+    | { sucesso: false; erro: string }

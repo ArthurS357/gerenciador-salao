@@ -4,7 +4,7 @@ import { SignJWT, jwtVerify } from 'jose'
 import { cookies } from 'next/headers'
 import { prisma } from '@/lib/prisma'
 import { compare } from 'bcrypt'
-import { JWT_SECRET } from '@/lib/jwt'
+import { getJwtSecret } from '@/lib/jwt' // Correção: Importando a função de Lazy Load
 import { z } from 'zod'
 import { cache } from 'react' // Importação crítica para performance
 import { verificarRateLimit } from '@/lib/rateLimit'
@@ -21,7 +21,7 @@ type SessaoFuncionarioResult =
     | { logado: true; id: string; nome: string; role: 'ADMIN' | 'PROFISSIONAL' }
     | { logado: false }
 
-// Schemas estritos para validação de JWT Payload
+// ── SCHEMAS ──────────────────────────────────────────────────────────────────
 const SessaoClienteSchema = z.object({
     role: z.literal('CLIENTE'),
     sub: z.string().min(1),
@@ -36,9 +36,11 @@ const SessaoFuncionarioSchema = z.object({
 
 const EXPIRACAO_SEGUNDOS = 60 * 60 * 24 // 1 dia
 
+// ── ACTIONS DE AUTENTICAÇÃO ──────────────────────────────────────────────────
+
 export async function loginFuncionario(email: string, senhaPlana: string): Promise<LoginFuncionarioResult> {
     try {
-        // Blindagem contra Força Bruta
+        // Blindagem contra Força Bruta Focada (Proteção por Conta)
         const rateLimitKey = `login_func_${email}`;
         if (!(await verificarRateLimit(rateLimitKey))) {
             return { success: false, error: 'Muitas tentativas. Aguarde 30 segundos.' }
@@ -58,7 +60,7 @@ export async function loginFuncionario(email: string, senhaPlana: string): Promi
             .setSubject(funcionario.id)
             .setIssuedAt()
             .setExpirationTime(`${EXPIRACAO_SEGUNDOS}s`)
-            .sign(JWT_SECRET)
+            .sign(getJwtSecret()) // Lazy load seguro do secret
 
         const cookieStore = await cookies()
         cookieStore.set('funcionario_session', token, {
@@ -84,14 +86,14 @@ export const verificarSessaoCliente = cache(async (): Promise<SessaoClienteResul
 
         if (!token) return { logado: false }
 
-        const { payload } = await jwtVerify(token, JWT_SECRET)
+        const { payload } = await jwtVerify(token, getJwtSecret())
         const validacao = SessaoClienteSchema.safeParse(payload)
 
         if (!validacao.success || validacao.data.anonimizado) {
             return { logado: false }
         }
 
-        // Correção de Segurança: Checa se o cliente ainda existe/não foi banido no DB
+        // Checa se o cliente ainda existe/não foi banido no DB (Aceitável dado o uso do cache)
         const clienteAtivo = await prisma.cliente.findUnique({
             where: { id: validacao.data.sub },
             select: { id: true, anonimizado: true }
@@ -118,7 +120,7 @@ export const verificarSessaoFuncionario = cache(async (): Promise<SessaoFunciona
 
         if (!token) return { logado: false }
 
-        const { payload } = await jwtVerify(token, JWT_SECRET)
+        const { payload } = await jwtVerify(token, getJwtSecret())
         const validacao = SessaoFuncionarioSchema.safeParse(payload)
 
         if (!validacao.success) return { logado: false }
