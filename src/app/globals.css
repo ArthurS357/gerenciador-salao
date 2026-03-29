@@ -1,14 +1,20 @@
 /*
- * REGRA CSS SPEC: @import deve preceder TODAS as regras.
- * O PostCSS expande @import "tailwindcss" para ~1400 linhas inline,
- * por isso as fontes do Google DEVEM vir ANTES.
+ * ── ORDEM DE IMPORTAÇÃO (CSS SPEC) ──────────────────────────────────────────
+ * 1. Fontes externas (Devem preceder todas as regras)
+ * 2. Framework (Tailwind v4 expande diretivas inline)
  */
 @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400;1,600&family=DM+Sans:wght@300;400;500;600&display=swap');
-
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+/*
+ ---break---
+ */
+@custom-variant dark (&:is(.dark *));
 
-/* ── Tailwind v4: tokens de design ────────────────────────────────────────── */
+/* ── CONFIGURAÇÃO DE TEMA (Tailwind v4 @theme) ────────────────────────────── */
 @theme {
+  /* Paleta de Cores de Luxo */
   --color-marrom-profundo: #2a1810;
   --color-marrom-medio: #5C4033;
   --color-marrom-claro: #8B5A2B;
@@ -18,12 +24,15 @@
   --color-bege-borda: #ddd0bc;
   --color-texto-suave: #9c8070;
 
-  --font-sans: "DM Sans", sans-serif;
-  --font-serif: "Cormorant Garamond", serif;
+  /* Tipografia */
+  --font-sans: "DM Sans", ui-sans-serif, system-ui;
+  --font-serif: "Cormorant Garamond", ui-serif, Georgia;
 
+  /* Animações Premium */
   --animate-floating-logo: floatingLogo 6s ease-in-out infinite;
   --animate-fade-in: fadeIn 0.25s ease;
   --animate-slide-up: slideUp 0.35s ease;
+  --animate-shimmer: shimmer 2s linear infinite;
 
   @keyframes floatingLogo {
 
@@ -60,45 +69,251 @@
       transform: translateY(0);
     }
   }
+
+  @keyframes shimmer {
+    0% {
+      background-position: 200% 0;
+    }
+
+    100% {
+      background-position: -200% 0;
+    }
+  }
 }
 
-/* ── Compatibilidade CSS Module (legado) ────────────────────────────────── */
-:root {
-  --marrom-profundo: var(--color-marrom-profundo);
-  --marrom-medio: var(--color-marrom-medio);
-  --marrom-claro: var(--color-marrom-claro);
-  --caramelo: var(--color-caramelo);
-  --creme: var(--color-creme);
-  --creme-escuro: var(--color-creme-escuro);
-  --bege-borda: var(--color-bege-borda);
-  --texto-suave: var(--color-texto-suave);
+/* ── VARIÁVEIS SHADCN/UI (HSL) ─────────────────────────────────────────────── */
+@layer base {
+  :root {
+    /* Cores em HSL para manipulação de opacidade pelo Tailwind */
+    --background: 40 33% 98%;
+    /* Creme (#f7f3ee) */
+    --foreground: 20 40% 12%;
+    /* Marrom Profundo (#2a1810) */
+
+    --card: 0 0% 100%;
+    --card-foreground: 20 40% 12%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 20 40% 12%;
+
+    --primary: 35 44% 45%;
+    /* Caramelo/Ouro Velho (#8B5A2B) */
+    --primary-foreground: 40 33% 98%;
+
+    --secondary: 35 30% 88%;
+    /* Bege Borda/Suave */
+    --secondary-foreground: 20 40% 12%;
+
+    --muted: 35 20% 94%;
+    --muted-foreground: 25 15% 45%;
+
+    --accent: 35 44% 45%;
+    --accent-foreground: 40 33% 98%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 35 20% 90%;
+    --input: 35 20% 90%;
+    --ring: 35 44% 45%;
+
+    --radius: 0.75rem;
+    /* Bordas arredondadas sênior */
+  }
+
+  .dark {
+    /* Opcional: Cores para modo noturno invertido */
+    --background: 20 40% 12%;
+    --foreground: 40 33% 98%;
+    /* ... demais variáveis invertidas se necessário ... */
+  }
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
 }
 
-/* ── Reset global ────────────────────────────────────────────────────────── */
-html {
-  scroll-behavior: smooth;
+/* ── RESET & ESTILOS GLOBAIS ─────────────────────────────────────────────── */
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-creme text-marrom-profundo font-sans;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Títulos em Serifa por padrão para elegância */
+  h1,
+  h2,
+  h3,
+  h4,
+  .font-serif {
+    font-family: var(--font-serif);
+  }
 }
 
-body {
-  font-family: var(--font-sans);
-  background-color: var(--color-creme);
-  color: var(--color-marrom-profundo);
-  overflow-x: hidden;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
+/* ── COMPONENTES CUSTOMIZADOS (Utility Classes) ─────────────────────────── */
+@layer utilities {
 
+  /* Shimmer Effect para Skeletons */
+  .skeleton-shimmer {
+    background: linear-gradient(90deg,
+        rgba(139, 90, 43, 0.05) 25%,
+        rgba(139, 90, 43, 0.12) 50%,
+        rgba(139, 90, 43, 0.05) 75%);
+    background-size: 200% 100%;
+    @apply animate-shimmer;
+  }
+
+  /* Custom Select para browsers legados */
+  .dark-select option {
+    @apply bg-marrom-profundo text-white;
+  }
+
+  /* Custom Datetime Picker Icon */
+  .dark-input[type='datetime-local']::-webkit-calendar-picker-indicator {
+    filter: invert(0.6) sepia(1) saturate(0.5) hue-rotate(340deg);
+    cursor: pointer;
+  }
+
+  /* Esconder Scrollbar mas manter funcionalidade */
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
 /*
- * ── Estilos não expressáveis em Tailwind ─────────────────────────────────
- * Pseudo-elementos e seletores de <option> não têm classes utilitárias.
- * Estas 6 linhas substituem ~15 linhas do CSS Module anterior.
+ ---break---
  */
-.dark-select option {
-  background-color: #2a1810;
-  color: white;
+@theme inline {
+  --font-heading: var(--font-sans);
+  --font-sans: var(--font-sans);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
 }
-
-.dark-input[type='datetime-local']::-webkit-calendar-picker-indicator {
-  filter: invert(0.6) sepia(1) saturate(0.5) hue-rotate(340deg);
-  cursor: pointer;
+/*
+ ---break---
+ */
+:root {
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --radius: 0.625rem;
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
+}
+/*
+ ---break---
+ */
+.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.922 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.556 0 0);
 }
