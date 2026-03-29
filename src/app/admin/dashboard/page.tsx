@@ -17,6 +17,7 @@ import {
 import { listarServicosAdmin } from '@/app/actions/servico'
 import AdminHeader from '@/components/admin/AdminHeader'
 import { ProfissionalRow } from '@/components/admin/profissional-row'
+import { Skeleton } from '@/components/ui/skeleton'
 import { UserPlus, Search, AlertCircle, X, Loader2 } from 'lucide-react'
 
 // ── Schemas Zod ──────────────────────────────────────────────────────────────
@@ -72,6 +73,7 @@ function Campo({ label, erro, children, required }: { label: string; erro?: stri
 }
 
 export default function TorreControleDashboard() {
+    const [isCarregando, setIsCarregando] = useState(true)
     const [equipa, setEquipa] = useState<ProfissionalResumo[]>([])
     const [servicosDisponiveis, setServicosDisponiveis] = useState<ServicoResumo[]>([])
     const [notificacoes, setNotificacoes] = useState<NotificacaoItem[]>([])
@@ -90,18 +92,20 @@ export default function TorreControleDashboard() {
 
     useEffect(() => {
         const init = async () => {
-            const [resEq, resSv, resNotif] = await Promise.all([listarEquipaAdmin(), listarServicosAdmin(), listarNotificacoesAdmin()])
-            // CORRIGIDO: 'equipa' com A, para bater com o retorno da Action
-            if (resEq.sucesso && 'equipa' in resEq) setEquipa(resEq.equipa as ProfissionalResumo[])
-            if (resSv.sucesso && 'servicos' in resSv) setServicosDisponiveis(resSv.servicos as ServicoResumo[])
-            if (resNotif.sucesso && 'notificacoes' in resNotif) setNotificacoes(resNotif.notificacoes as NotificacaoItem[])
+            try {
+                const [resEq, resSv, resNotif] = await Promise.all([listarEquipaAdmin(), listarServicosAdmin(), listarNotificacoesAdmin()])
+                if (resEq.sucesso && 'equipa' in resEq) setEquipa(resEq.equipa as ProfissionalResumo[])
+                if (resSv.sucesso && 'servicos' in resSv) setServicosDisponiveis(resSv.servicos as ServicoResumo[])
+                if (resNotif.sucesso && 'notificacoes' in resNotif) setNotificacoes(resNotif.notificacoes as NotificacaoItem[])
+            } finally {
+                setIsCarregando(false)
+            }
         }
         init()
     }, [])
 
     const recarregarDados = useCallback(async () => {
         const [resEq, resNotif] = await Promise.all([listarEquipaAdmin(), listarNotificacoesAdmin()])
-        // CORRIGIDO: 'equipa' com A
         if (resEq.sucesso && 'equipa' in resEq) setEquipa(resEq.equipa as ProfissionalResumo[])
         if (resNotif.sucesso && 'notificacoes' in resNotif) setNotificacoes(resNotif.notificacoes as NotificacaoItem[])
     }, [])
@@ -119,10 +123,21 @@ export default function TorreControleDashboard() {
     const onSubmitCadastro = async (data: FormCadastro) => {
         setIsSubmitting(true)
         exibirMensagem('A processar...', 'info', 0)
+
+        // ── CORREÇÃO DE TIPAGEM APLICADA AQUI ──
         const res = await criarFuncionario({
-            nome: data.nome, email: data.email, cpf: data.cpf ?? '', telefone: data.telefone ?? '',
-            especialidade: data.especialidade ?? '', comissao: 40, servicosIds: [], podeCancelar: false,
+            nome: data.nome,
+            email: data.email,
+            cpf: data.cpf ?? '',
+            telefone: data.telefone ?? '',
+            especialidade: data.especialidade ?? '',
+            comissao: 40,
+            servicosIds: [],
+            podeCancelar: false,
+            podeAgendar: false,      // Obrigatório na tipagem
+            podeVerHistorico: false, // Obrigatório na tipagem
         })
+
         if (res.sucesso) {
             setCredenciaisNovo({ email: data.email, senhaTemp: 'Mudar@123' })
             setIsModalOpen(false)
@@ -182,11 +197,8 @@ export default function TorreControleDashboard() {
         if (!confirm(`Deseja ${atual ? 'desativar' : 'reativar'} este profissional?`)) return;
         setLoadingAcao(true);
 
-        // CORREÇÃO: Removido o 'as any'. Se 'atualizarFuncionarioCompleto' não aceitar 'ativo', 
-        // você precisará criar uma action específica como 'alternarStatusFuncionario(id, !atual)'
-        // Por agora, assumimos que a action suporta ou ignorará o campo sem quebrar.
         // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-        // @ts-ignore - Bypass temporário seguro até a tipagem da Action ser atualizada no backend
+        // @ts-ignore
         const res = await atualizarFuncionarioCompleto(id, { ativo: !atual });
 
         if (res.sucesso) recarregarDados();
@@ -258,75 +270,103 @@ export default function TorreControleDashboard() {
                     </div>
                 )}
 
-                {/* ── MÉTRICAS ── */}
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-6">
-                    {[
-                        { label: 'Total da Equipe', valor: equipa.length, border: 'border-blue-400', bgGrad: 'from-blue-50', text: 'text-foreground' },
-                        { label: 'Em Atividade', valor: totalAtivos, border: 'border-emerald-400', bgGrad: 'from-emerald-50', text: 'text-emerald-700' },
-                        { label: 'Inativos', valor: totalInativos, border: 'border-destructive', bgGrad: 'from-destructive/10', text: 'text-destructive' },
-                    ].map(({ label, valor, border, bgGrad, text }) => (
-                        <div key={label} className={`relative bg-card p-6 rounded-2xl shadow-sm border border-t-[3px] border-x-border border-b-border ${border} overflow-hidden group`}>
-                            <div className={`absolute inset-0 bg-gradient-to-br ${bgGrad} to-transparent opacity-50`} />
-                            <div className="relative z-10">
-                                <p className="text-[11px] md:text-xs font-bold text-muted-foreground uppercase tracking-[0.15em]">{label}</p>
-                                <p className={`text-2xl md:text-3xl font-black mt-2 tracking-tight ${text}`}>{valor}</p>
+                {/* ── CONDICIONAL DE LOADING ── */}
+                {isCarregando ? (
+                    <div className="space-y-6 animate-in fade-in duration-500">
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-6">
+                            {Array.from({ length: 3 }).map((_, i) => (
+                                <Skeleton key={i} className="h-[120px] w-full rounded-2xl" />
+                            ))}
+                        </div>
+
+                        <Skeleton className="h-[46px] w-full rounded-xl" />
+
+                        <div className="bg-card rounded-2xl shadow-sm border border-border overflow-hidden p-6 space-y-6">
+                            {Array.from({ length: 4 }).map((_, i) => (
+                                <div key={i} className="flex items-center gap-4">
+                                    <Skeleton className="h-12 w-12 rounded-full" />
+                                    <div className="space-y-2 flex-1">
+                                        <Skeleton className="h-4 w-[150px]" />
+                                        <Skeleton className="h-3 w-[100px]" />
+                                    </div>
+                                    <Skeleton className="h-8 w-24 rounded-lg hidden sm:block" />
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                ) : (
+                    <>
+                        {/* ── MÉTRICAS ── */}
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-6">
+                            {[
+                                { label: 'Total da Equipe', valor: equipa.length, border: 'border-blue-400', bgGrad: 'from-blue-50', text: 'text-foreground' },
+                                { label: 'Em Atividade', valor: totalAtivos, border: 'border-emerald-400', bgGrad: 'from-emerald-50', text: 'text-emerald-700' },
+                                { label: 'Inativos', valor: totalInativos, border: 'border-destructive', bgGrad: 'from-destructive/10', text: 'text-destructive' },
+                            ].map(({ label, valor, border, bgGrad, text }) => (
+                                <div key={label} className={`relative bg-card p-6 rounded-2xl shadow-sm border border-t-[3px] border-x-border border-b-border ${border} overflow-hidden group`}>
+                                    <div className={`absolute inset-0 bg-gradient-to-br ${bgGrad} to-transparent opacity-50`} />
+                                    <div className="relative z-10">
+                                        <p className="text-[11px] md:text-xs font-bold text-muted-foreground uppercase tracking-[0.15em]">{label}</p>
+                                        <p className={`text-2xl md:text-3xl font-black mt-2 tracking-tight ${text}`}>{valor}</p>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* ── PESQUISA ── */}
+                        <div className="relative bg-card rounded-xl shadow-sm border border-border p-1">
+                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" />
+                            <input
+                                type="text"
+                                placeholder="Pesquisar por nome ou e-mail..."
+                                value={busca}
+                                onChange={e => setBusca(e.target.value)}
+                                className="w-full pl-11 pr-4 py-3 bg-transparent text-sm outline-none focus:ring-0 transition-all text-foreground"
+                            />
+                        </div>
+
+                        {/* ── TABELA ── */}
+                        <div className="bg-card rounded-2xl shadow-sm border border-border overflow-hidden">
+                            <div className="hidden border-b border-border bg-muted/50 px-4 py-3 sm:flex sm:px-6">
+                                <span className="w-10"></span>
+                                <span className="ml-4 flex-1 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Profissional & Especialidade</span>
+                                <span className="mr-8 text-right text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Comissão Atual</span>
+                                <span className="w-5"></span>
+                            </div>
+
+                            <div className="flex flex-col">
+                                {equipaFiltrada.length === 0 ? (
+                                    <div className="p-16 text-center flex flex-col items-center justify-center">
+                                        <div className="w-16 h-16 bg-primary/10 text-primary rounded-full flex items-center justify-center mb-4">
+                                            <UserPlus className="w-8 h-8" />
+                                        </div>
+                                        <p className="text-lg font-bold text-foreground">{busca ? 'Nenhum resultado' : 'Equipe Vazia'}</p>
+                                        <p className="text-sm text-muted-foreground mt-1 max-w-sm">Adicione talentos à sua equipe para habilitar os agendamentos online.</p>
+                                    </div>
+                                ) : (
+                                    equipaFiltrada.map(prof => (
+                                        <ProfissionalRow
+                                            key={prof.id}
+                                            profissional={{
+                                                id: prof.id,
+                                                nome: prof.nome,
+                                                cargo: prof.especialidade || 'Membro da Equipe',
+                                                comissao: prof.comissao,
+                                                ativo: prof.ativo,
+                                                expediente: prof.expedientes,
+                                                servicosAtribuidos: prof.servicos.map(s => s.nome)
+                                            }}
+                                            onEditar={() => { setModalAcessos(prof); setAbaAtiva('permissoes') }}
+                                            onEditarEscala={() => { setModalAcessos(prof); setAbaAtiva('escala') }}
+                                            onEditarPortifolio={() => setModalServicos({ id: prof.id, nome: prof.nome, servicosIds: prof.servicos.map(s => s.id) })}
+                                            onAlternarStatus={(id, atual) => handleAlternarStatus(id, atual)}
+                                        />
+                                    ))
+                                )}
                             </div>
                         </div>
-                    ))}
-                </div>
-
-                {/* ── PESQUISA ── */}
-                <div className="relative bg-card rounded-xl shadow-sm border border-border p-1">
-                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" />
-                    <input
-                        type="text"
-                        placeholder="Pesquisar por nome ou e-mail..."
-                        value={busca}
-                        onChange={e => setBusca(e.target.value)}
-                        className="w-full pl-11 pr-4 py-3 bg-transparent text-sm outline-none focus:ring-0 transition-all text-foreground"
-                    />
-                </div>
-
-                {/* ── TABELA (Progressive Disclosure) ── */}
-                <div className="bg-card rounded-2xl shadow-sm border border-border overflow-hidden">
-                    <div className="hidden border-b border-border bg-muted/50 px-4 py-3 sm:flex sm:px-6">
-                        <span className="w-10"></span>
-                        <span className="ml-4 flex-1 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Profissional & Especialidade</span>
-                        <span className="mr-8 text-right text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Comissão Atual</span>
-                        <span className="w-5"></span>
-                    </div>
-
-                    <div className="flex flex-col">
-                        {equipaFiltrada.length === 0 ? (
-                            <div className="p-16 text-center flex flex-col items-center justify-center">
-                                <div className="w-16 h-16 bg-primary/10 text-primary rounded-full flex items-center justify-center mb-4">
-                                    <UserPlus className="w-8 h-8" />
-                                </div>
-                                <p className="text-lg font-bold text-foreground">{busca ? 'Nenhum resultado' : 'Equipe Vazia'}</p>
-                                <p className="text-sm text-muted-foreground mt-1 max-w-sm">Adicione talentos à sua equipe para habilitar os agendamentos online.</p>
-                            </div>
-                        ) : (
-                            equipaFiltrada.map(prof => (
-                                <ProfissionalRow
-                                    key={prof.id}
-                                    profissional={{
-                                        id: prof.id,
-                                        nome: prof.nome,
-                                        cargo: prof.especialidade || 'Membro da Equipe',
-                                        comissao: prof.comissao,
-                                        ativo: prof.ativo,
-                                        expediente: prof.expedientes,
-                                        servicosAtribuidos: prof.servicos.map(s => s.nome)
-                                    }}
-                                    onEditar={() => { setModalAcessos(prof); setAbaAtiva('permissoes') }}
-                                    onEditarEscala={() => { setModalAcessos(prof); setAbaAtiva('escala') }}
-                                    onEditarPortifolio={() => setModalServicos({ id: prof.id, nome: prof.nome, servicosIds: prof.servicos.map(s => s.id) })}
-                                    onAlternarStatus={(id, atual) => handleAlternarStatus(id, atual)}
-                                />
-                            ))
-                        )}
-                    </div>
-                </div>
+                    </>
+                )}
             </div>
 
             {/* ── MODAL: GERIR ACESSOS E ESCALAS ── */}
