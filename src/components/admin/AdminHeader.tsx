@@ -1,4 +1,8 @@
+'use client'
+
+import { useState } from 'react'
 import Link from 'next/link'
+import { Menu, X } from 'lucide-react'
 
 interface AdminHeaderProps {
     titulo: string
@@ -8,6 +12,8 @@ interface AdminHeaderProps {
 }
 
 export default function AdminHeader({ titulo, subtitulo, abaAtiva, botaoAcao }: AdminHeaderProps) {
+    const [isMenuOpen, setIsMenuOpen] = useState(false)
+
     const links = [
         { href: '/admin/dashboard', label: 'Equipe' },
         { href: '/admin/financeiro', label: 'Financeiro' },
@@ -33,17 +39,53 @@ export default function AdminHeader({ titulo, subtitulo, abaAtiva, botaoAcao }: 
                 </Link>
             </div>
 
-            <header className="mb-8 flex flex-col md:flex-row md:justify-between md:items-end gap-4">
-                <div>
-                    <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-marrom-medio tracking-tight leading-tight">{titulo}</h1>
-                    <p className="text-gray-500 mt-1.5 text-xs sm:text-sm md:text-base">{subtitulo}</p>
+            <header className="mb-6 flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+                <div className="flex items-center justify-between w-full md:w-auto">
+                    <div>
+                        <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-marrom-medio tracking-tight leading-tight">{titulo}</h1>
+                        <p className="text-gray-500 mt-1.5 text-xs sm:text-sm md:text-base">{subtitulo}</p>
+                    </div>
+
+                    {/* Botão Hambúrguer (Mobile Only) */}
+                    <button
+                        onClick={() => setIsMenuOpen(!isMenuOpen)}
+                        className="md:hidden p-2.5 bg-gray-100 text-marrom-medio rounded-xl hover:bg-gray-200 transition-colors shadow-sm active:scale-95"
+                        aria-label="Abrir menu"
+                    >
+                        {isMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+                    </button>
                 </div>
+
                 {botaoAcao && (
                     <div className="w-full sm:w-auto">{botaoAcao}</div>
                 )}
             </header>
 
-            <nav className="flex overflow-x-auto no-scrollbar gap-2 md:gap-3 mb-10 p-1 md:p-1.5 bg-gray-100/60 backdrop-blur rounded-2xl w-full sm:w-fit border border-gray-200/50">
+            {/* Navegação Mobile (Dropdown) */}
+            <div className={`md:hidden overflow-hidden transition-all duration-300 ease-in-out mb-6 ${isMenuOpen ? 'max-h-[500px] opacity-100 translate-y-0' : 'max-h-0 opacity-0 -translate-y-4 pointer-events-none'}`}>
+                <nav className="flex flex-col gap-2 p-3 bg-gray-100/60 backdrop-blur-md rounded-2xl border border-gray-200/50 shadow-sm">
+                    {links.map(({ href, label }) => {
+                        const ativo = label === abaAtiva
+                        return (
+                            <Link
+                                key={href}
+                                href={href}
+                                onClick={() => setIsMenuOpen(false)}
+                                className={
+                                    ativo
+                                        ? 'bg-white text-marrom-medio px-4 py-3 rounded-xl shadow-sm font-bold text-sm tracking-wide'
+                                        : 'text-gray-500 px-4 py-3 rounded-xl font-semibold text-sm tracking-wide hover:bg-white/50 hover:text-gray-900 transition-all'
+                                }
+                            >
+                                {label}
+                            </Link>
+                        )
+                    })}
+                </nav>
+            </div>
+
+            {/* Navegação Desktop (Tabs) */}
+            <nav className="hidden md:flex flex-wrap gap-2 md:gap-3 mb-10 p-1 md:p-1.5 bg-gray-100/60 backdrop-blur rounded-2xl w-fit border border-gray-200/50">
                 {links.map(({ href, label }) => {
                     const ativo = label === abaAtiva
                     return (
@@ -52,8 +94,8 @@ export default function AdminHeader({ titulo, subtitulo, abaAtiva, botaoAcao }: 
                             href={href}
                             className={
                                 ativo
-                                    ? 'bg-white text-marrom-medio px-4 md:px-5 py-2 md:py-2.5 rounded-xl shadow-sm font-bold text-[12px] md:text-sm tracking-wide whitespace-nowrap min-w-fit'
-                                    : 'text-gray-500 px-4 md:px-5 py-2 md:py-2.5 rounded-xl font-semibold text-[12px] md:text-sm tracking-wide hover:bg-white/50 hover:text-gray-900 transition-all whitespace-nowrap min-w-fit'
+                                    ? 'bg-white text-marrom-medio px-5 py-2.5 rounded-xl shadow-sm font-bold text-sm tracking-wide'
+                                    : 'text-gray-500 px-5 py-2.5 rounded-xl font-semibold text-sm tracking-wide hover:bg-white/50 hover:text-gray-900 transition-all'
                             }
                         >
                             {label}
