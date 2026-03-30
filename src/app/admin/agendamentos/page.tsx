@@ -108,6 +108,13 @@ export default function AgendamentosGlobaisPage() {
     const formNovo = useForm<FormNovo>({ resolver: zodResolver(schemaNovo) })
     const formEditar = useForm<FormEditar>({ resolver: zodResolver(schemaEditar) })
 
+    // Mover exibirMensagem para antes do carregarDados para satisfazer dependência do Hook
+    const exibirMensagem = useCallback((texto: string, tipo: Mensagem['tipo'], ms = 4000) => {
+        setMensagem({ texto, tipo })
+        if (timerRef.current) clearTimeout(timerRef.current)
+        if (ms > 0) timerRef.current = setTimeout(() => setMensagem(null), ms)
+    }, [])
+
     const carregarDados = useCallback(async () => {
         setLoading(true)
         try {
@@ -118,7 +125,6 @@ export default function AgendamentosGlobaisPage() {
                 listarServicosAdmin()
             ])
 
-            // Resolvido: Acessando a propriedade através do encapsulamento 'data'
             if (resAg.sucesso && resAg.data?.agendamentos) {
                 setAgendamentos(resAg.data.agendamentos)
             }
@@ -126,9 +132,6 @@ export default function AgendamentosGlobaisPage() {
                 setEquipa(resEq.data.equipa)
             }
 
-            // Resolvido: Remoção do 'any', substituído pelo contrato estrutural esperado.
-            // Obs: Se as actions de Cliente e Serviço também mudaram para retornar dentro de "data", 
-            // altere para resCli.data?.clientes e resServ.data?.servicos respectivamente.
             if (resCli.sucesso && 'clientes' in resCli && Array.isArray(resCli.clientes)) {
                 setClientesList(
                     resCli.clientes.map((c: { id: string; nome: string }) => ({ id: c.id, nome: c.nome }))
@@ -140,11 +143,12 @@ export default function AgendamentosGlobaisPage() {
                 )
             }
         } catch (error) {
+            console.error("Falha ao sincronizar os dados:", error)
             exibirMensagem('Falha ao sincronizar dados. Tente recarregar a página.', 'erro')
         } finally {
             setLoading(false)
         }
-    }, [])
+    }, [exibirMensagem])
 
     useEffect(() => {
         void carregarDados()
@@ -152,13 +156,6 @@ export default function AgendamentosGlobaisPage() {
             if (timerRef.current) clearTimeout(timerRef.current)
         }
     }, [carregarDados])
-
-    // CORREÇÃO: Prevenção de Race Condition no feedback visual
-    const exibirMensagem = useCallback((texto: string, tipo: Mensagem['tipo'], ms = 4000) => {
-        setMensagem({ texto, tipo })
-        if (timerRef.current) clearTimeout(timerRef.current)
-        if (ms > 0) timerRef.current = setTimeout(() => setMensagem(null), ms)
-    }, [])
 
     const mudarMes = (direcao: number) => {
         setDataAtual(new Date(dataAtual.getFullYear(), dataAtual.getMonth() + direcao, 1))
@@ -182,6 +179,7 @@ export default function AgendamentosGlobaisPage() {
                 exibirMensagem(res.erro || 'Erro ao cancelar agendamento.', 'erro')
             }
         } catch (err) {
+            console.error("Erro no cancelamento:", err)
             exibirMensagem('Erro inesperado de comunicação.', 'erro')
         } finally {
             setLoadingCancelarId(null)
@@ -206,6 +204,7 @@ export default function AgendamentosGlobaisPage() {
                 exibirMensagem(res.erro || 'Erro ao criar agendamento.', 'erro')
             }
         } catch (err) {
+            console.error("Falha ao criar agendamento:", err)
             exibirMensagem('Falha ao submeter o agendamento.', 'erro')
         } finally {
             setLoadingSalvar(false)
@@ -213,7 +212,6 @@ export default function AgendamentosGlobaisPage() {
     }
 
     const abrirModalEdicao = (ag: AgendamentoGlobalItem) => {
-        // CORREÇÃO: Solução robusta sem mutar a instância Date com TimezoneOffset
         const d = new Date(ag.dataHoraInicio)
         const tzOffset = d.getTimezoneOffset() * 60000;
         const localISOTime = new Date(d.getTime() - tzOffset).toISOString().slice(0, 16);
@@ -243,6 +241,7 @@ export default function AgendamentosGlobaisPage() {
                 exibirMensagem(res.erro || 'Erro ao editar agendamento.', 'erro')
             }
         } catch (err) {
+            console.error("Falha ao editar agendamento:", err)
             exibirMensagem('Falha ao processar atualização.', 'erro')
         } finally {
             setLoadingEditar(false)
@@ -257,7 +256,7 @@ export default function AgendamentosGlobaisPage() {
             const { id, comissao, podeVerComissao, podeAgendar, podeVerHistorico, podeCancelar, expedientes } = modalAcessos
             const [resP, resE] = await Promise.all([
                 atualizarFuncionarioCompleto(id, {
-                    comissao: Number(comissao) || 0, // Fallback seguro
+                    comissao: Number(comissao) || 0,
                     podeVerComissao: Boolean(podeVerComissao),
                     podeAgendar: Boolean(podeAgendar),
                     podeVerHistorico: Boolean(podeVerHistorico),
@@ -273,6 +272,7 @@ export default function AgendamentosGlobaisPage() {
                 exibirMensagem('Erro ao atualizar dados do profissional.', 'erro')
             }
         } catch (err) {
+            console.error("Erro ao atualizar os dados do profissional:", err)
             exibirMensagem('Ocorreu um erro no servidor.', 'erro')
         } finally {
             setLoadingAcaoProfissional(false)

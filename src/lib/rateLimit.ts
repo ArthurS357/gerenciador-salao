@@ -49,7 +49,7 @@ export async function verificarRateLimit(identificador: string): Promise<boolean
         });
 
         // 5. Abuso detectado: Aplica a penalidade se o limite estourou
-        if (updatedRow.count > MAX_REQ) {
+        if (updatedRow && updatedRow.count > MAX_REQ) {
             await prisma.rateLimit.update({
                 where: { identificador },
                 data: { blockedUntil: new Date(agora.getTime() + BLOQUEIO_MS) }
