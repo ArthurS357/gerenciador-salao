@@ -3,17 +3,15 @@ import { notFound, redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
 import { jwtVerify } from 'jose';
 import PainelComanda from '@/components/PainelComanda';
-import { JWT_SECRET } from '@/lib/jwt'
+import { getJwtSecret } from '@/lib/jwt'; // Corrigido
 
 interface PageProps {
     params: Promise<{ id: string }>;
 }
 
 export default async function ComandaPage({ params }: PageProps) {
-    // Passo 1: Extrair o ID da URL de forma assíncrona (Next.js 15+)
     const resolvedParams = await params;
 
-    // Passo 2: Validar o token do profissional/admin logado
     const cookieStore = await cookies();
     const token = cookieStore.get('funcionario_session')?.value;
 
@@ -21,24 +19,23 @@ export default async function ComandaPage({ params }: PageProps) {
 
     let funcionarioId = '';
     let role = '';
+
     try {
-        const { payload } = await jwtVerify(token, JWT_SECRET);
+        const { payload } = await jwtVerify(token, getJwtSecret()); // Corrigido
         funcionarioId = payload.sub as string;
         role = payload.role as string;
-    } catch {
+    } catch (error) {
+        console.warn(`[Auth-Funcionario] Falha na validação de sessão: ${error instanceof Error ? error.message : 'Desconhecido'}`);
         redirect('/login-profissional');
     }
 
-    // Passo 3: Buscar permissões atualizadas do usuário logado
     const usuarioLogado = await prisma.funcionario.findUnique({
         where: { id: funcionarioId },
         select: { role: true, podeVerComissao: true }
     });
 
-    // Se for ADMIN, vê tudo. Se for PROFISSIONAL, depende da trava do banco.
     const podeVerFinancas = usuarioLogado?.role === 'ADMIN' || usuarioLogado?.podeVerComissao === true;
 
-    // Passo 4: Busca consolidada da comanda
     const agendamento = await prisma.agendamento.findUnique({
         where: { id: resolvedParams.id },
         include: {
@@ -57,7 +54,6 @@ export default async function ComandaPage({ params }: PageProps) {
         return notFound();
     }
 
-    // Trava de segurança: impede que um profissional abra a comanda de outro (exceto ADMIN)
     if (agendamento.funcionarioId !== funcionarioId && role !== 'ADMIN') {
         return (
             <div className="min-h-screen flex items-center justify-center bg-[#fdfbf7]">
@@ -68,15 +64,12 @@ export default async function ComandaPage({ params }: PageProps) {
         );
     }
 
-    // Passo 5: Busca os produtos do catálogo disponíveis para venda extra
     const produtosDisponiveis = await prisma.produto.findMany({
         where: { ativo: true, estoque: { gt: 0 } },
         select: { id: true, nome: true, precoVenda: true, estoque: true },
         orderBy: { nome: 'asc' }
     });
 
-    // Passo 4.1: Sanitização Rigorosa de Dados (DTO)
-    // Se o usuário não puder ver as finanças, os preços não devem sequer trafegar na rede.
     const agendamentoSanitizado = {
         ...agendamento,
         servicos: agendamento.servicos.map(s => ({
@@ -95,7 +88,7 @@ export default async function ComandaPage({ params }: PageProps) {
                 <PainelComanda
                     agendamento={agendamentoSanitizado}
                     produtosDisponiveis={produtosDisponiveis}
-                    podeVerFinancas={podeVerFinancas} // <-- Repassando a permissão
+                    podeVerFinancas={podeVerFinancas}
                 />
             </div>
         </div>

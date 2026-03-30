@@ -89,16 +89,18 @@ export async function calcularFechamentoComanda(
 
         return {
             sucesso: true,
-            financeiro: {
-                bruto: valorBruto,
-                deducoes: deducoesTotais,
-                baseReal: valorBruto - deducoesTotais,
-                comissao: valorComissao,
-                lucroSalao,
-            },
+            data: {
+                financeiro: {
+                    bruto: valorBruto,
+                    deducoes: deducoesTotais,
+                    baseReal: valorBruto - deducoesTotais,
+                    comissao: valorComissao,
+                    lucroSalao,
+                },
+            }
         }
     } catch (error) {
-        console.error('Erro crítico no processamento financeiro:', error)
+        console.error('[Financeiro] Erro crítico no processamento financeiro:', error)
         return { sucesso: false, erro: 'Falha ao processar o fechamento da comanda.' }
     }
 }
@@ -164,9 +166,10 @@ export async function obterResumoFinanceiro(
             totalComissaoRecebida: mapaComissoes.get(p.id) || 0
         }))
 
+        // Correção Aplicada: Removido o .toISOString() para respeitar a tipagem 'Date' na interface
         const historico = agendamentos.map(ag => ({
             id: ag.id,
-            data: ag.dataHoraInicio.toISOString(),
+            data: ag.dataHoraInicio,
             clienteNome: ag.cliente?.nome || 'Não identificado',
             profissionalNome: ag.funcionario?.nome || 'Não identificado',
             valorBruto: ag.valorBruto,
@@ -175,15 +178,17 @@ export async function obterResumoFinanceiro(
 
         return {
             sucesso: true,
-            faturamentoBruto,
-            custoProdutos,
-            totalComissoes,
-            lucroLiquido,
-            equipe: equipeComValores as FuncionarioResumo[],
-            historico
+            data: {
+                faturamentoBruto,
+                custoProdutos,
+                totalComissoes,
+                lucroLiquido,
+                equipe: equipeComValores as FuncionarioResumo[],
+                historico
+            }
         }
     } catch (error) {
-        console.error('Erro no módulo financeiro:', error)
+        console.error('[Financeiro] Erro no módulo financeiro:', error)
         return { sucesso: false, erro: 'Falha ao processar dados financeiros.' }
     }
 }
@@ -209,7 +214,7 @@ export async function atualizarComissaoFuncionario(
         })
         return { sucesso: true }
     } catch (error) {
-        console.error('Erro ao atualizar comissão:', error)
+        console.error('[Financeiro] Erro ao atualizar comissão:', error)
         return { sucesso: false, erro: 'Erro ao atualizar configurações do profissional.' }
     }
 }
@@ -258,9 +263,9 @@ export async function obterDadosGraficosFinanceiros(dias: number = 7) {
             'Atendimentos': valores.atendimentos,
         }))
 
-        return { sucesso: true, chartData }
+        return { sucesso: true, data: { chartData } }
     } catch (error) {
-        console.error('Erro ao gerar dados do gráfico:', error)
+        console.error('[Financeiro] Erro ao gerar dados do gráfico:', error)
         return { sucesso: false, erro: 'Falha ao carregar gráficos.' }
     }
 }
@@ -309,7 +314,7 @@ export async function reabrirComanda(
 
         return { sucesso: true }
     } catch (error) {
-        console.error('Erro ao reabrir comanda:', error)
+        console.error('[Financeiro] Erro ao reabrir comanda:', error)
         return { sucesso: false, erro: 'Falha técnica ao reabrir a comanda.' }
     }
 }

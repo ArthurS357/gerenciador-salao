@@ -71,9 +71,11 @@ export async function listarProdutosAdmin(): Promise<ActionResult<{ produtos: Pr
                 createdAt: true, updatedAt: true
             }
         })
-        return { sucesso: true, produtos }
+
+        // Correção Crítica: Encapsulamento correto do payload
+        return { sucesso: true, data: { produtos } }
     } catch (error) {
-        console.error('Erro ao listar produtos:', error)
+        console.error('[Produto] Erro ao listar produtos:', error)
         return { sucesso: false, erro: 'Falha ao carregar o estoque.' }
     }
 }
@@ -123,9 +125,11 @@ export async function criarProdutoAdmin(
         })
 
         revalidatePath('/admin/estoque')
-        return { sucesso: true, produto }
+
+        // Correção Crítica: Encapsulamento correto do payload
+        return { sucesso: true, data: { produto } }
     } catch (error) {
-        console.error('Erro ao criar produto:', error)
+        console.error('[Produto] Erro ao criar produto:', error)
         return { sucesso: false, erro: 'Falha ao cadastrar o produto.' }
     }
 }
@@ -157,9 +161,11 @@ export async function editarProduto(
         })
 
         revalidatePath('/admin/estoque')
-        return { sucesso: true, produto }
+
+        // Correção Crítica: Encapsulamento correto do payload
+        return { sucesso: true, data: { produto } }
     } catch (error) {
-        console.error('Erro ao editar produto:', error)
+        console.error('[Produto] Erro ao editar produto:', error)
         return { sucesso: false, erro: 'Falha ao editar o produto.' }
     }
 }
@@ -197,7 +203,7 @@ export async function adicionarEstoqueFrascos(
         revalidatePath('/admin/estoque')
         return { sucesso: true }
     } catch (error) {
-        console.error('Erro ao adicionar estoque:', error)
+        console.error('[Produto] Erro ao adicionar estoque:', error)
         return {
             sucesso: false,
             erro: error instanceof Error && error.message === 'Produto não encontrado.'
@@ -246,9 +252,11 @@ export async function baixarEstoqueAbsoluto(
         })
 
         revalidatePath('/admin/estoque')
-        return { sucesso: true, produto }
+
+        // Correção Crítica: Encapsulamento correto do payload
+        return { sucesso: true, data: { produto } }
     } catch (error) {
-        console.error('Erro ao atualizar o estoque:', error)
+        console.error('[Produto] Erro ao atualizar o estoque:', error)
         return { sucesso: false, erro: 'Erro ao atualizar o estoque.' }
     }
 }
@@ -266,12 +274,16 @@ export async function excluirProdutoLogico(id: string): Promise<ActionResult<{ m
         })
 
         revalidatePath('/admin/estoque')
+
+        // Correção Crítica: Encapsulamento correto do payload
         return {
             sucesso: true,
-            mensagem: 'Produto removido do catálogo. O histórico financeiro foi preservado.',
+            data: {
+                mensagem: 'Produto removido do catálogo. O histórico financeiro foi preservado.',
+            }
         }
     } catch (error) {
-        console.error('Erro na exclusão lógica do produto:', error)
+        console.error('[Produto] Erro na exclusão lógica do produto:', error)
         return { sucesso: false, erro: 'Falha ao remover o produto do catálogo.' }
     }
 }

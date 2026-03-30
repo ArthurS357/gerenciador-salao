@@ -118,13 +118,15 @@ export async function criarFuncionario(
 
         return {
             sucesso: true,
-            funcionario: {
-                ...novoFuncionario,
-                comissao: Number(novoFuncionario.comissao)
-            } as ProfissionalResumo
+            data: {
+                funcionario: {
+                    ...novoFuncionario,
+                    comissao: Number(novoFuncionario.comissao)
+                }
+            }
         }
     } catch (error) {
-        console.error('Erro na criação de funcionário:', error)
+        console.error('[Admin] Erro na criação de funcionário:', error)
         return { sucesso: false, erro: 'Falha técnica ao criar profissional. O e-mail já pode estar em uso.' }
     }
 }
@@ -150,7 +152,7 @@ export async function editarFuncionarioCompleto(
         })
         return { sucesso: true }
     } catch (error) {
-        console.error('Erro ao editar funcionário:', error)
+        console.error(`[Admin] Erro ao editar funcionário ${id}:`, error)
         return { sucesso: false, erro: 'Falha técnica ao atualizar os dados.' }
     }
 }
@@ -171,12 +173,11 @@ export async function atualizarFuncionarioCompleto(
         revalidatePath('/admin/dashboard')
         return { sucesso: true }
     } catch (error) {
-        console.error('Erro ao atualizar permissões:', error)
+        console.error(`[Admin] Erro ao atualizar permissões do funcionário ${id}:`, error)
         return { sucesso: false, erro: 'Falha ao atualizar permissões.' }
     }
 }
 
-// Omissão de "error" no catch para remover aviso do ESLint
 export async function inativarFuncionario(id: string): Promise<ActionResult> {
     const erroAuth = await checarPermissaoAdmin()
     if (erroAuth) return { sucesso: false, erro: erroAuth }
@@ -184,12 +185,12 @@ export async function inativarFuncionario(id: string): Promise<ActionResult> {
     try {
         await prisma.funcionario.update({ where: { id }, data: { ativo: false } })
         return { sucesso: true }
-    } catch {
+    } catch (error) {
+        console.error(`[Admin] Erro ao inativar funcionário ${id}:`, error)
         return { sucesso: false, erro: 'Falha ao inativar funcionário.' }
     }
 }
 
-// Omissão de "error" no catch
 export async function excluirFuncionarioPermanente(id: string): Promise<ActionResult> {
     const erroAuth = await checarPermissaoAdmin()
     if (erroAuth) return { sucesso: false, erro: erroAuth }
@@ -201,12 +202,12 @@ export async function excluirFuncionarioPermanente(id: string): Promise<ActionRe
         await prisma.funcionario.delete({ where: { id } })
         revalidatePath('/admin/dashboard')
         return { sucesso: true }
-    } catch {
+    } catch (error) {
+        console.error(`[Admin] Erro ao excluir funcionário ${id} permanentemente:`, error)
         return { sucesso: false, erro: 'Falha técnica ao excluir o funcionário.' }
     }
 }
 
-// Omissão de "error" no catch
 export async function excluirClientePermanente(id: string): Promise<ActionResult> {
     const erroAuth = await checarPermissaoAdmin()
     if (erroAuth) return { sucesso: false, erro: erroAuth }
@@ -218,12 +219,12 @@ export async function excluirClientePermanente(id: string): Promise<ActionResult
         await prisma.cliente.delete({ where: { id } })
         revalidatePath('/admin/clientes')
         return { sucesso: true }
-    } catch {
+    } catch (error) {
+        console.error(`[Admin] Erro ao excluir cliente ${id} permanentemente:`, error)
         return { sucesso: false, erro: 'Falha ao excluir o cliente permanentemente.' }
     }
 }
 
-// Omissão de "error" no catch
 export async function anonimizarClienteLGPD(clienteId: string): Promise<ActionResult<{ mensagem: string }>> {
     const erroAuth = await checarPermissaoAdmin()
     if (erroAuth) return { sucesso: false, erro: erroAuth }
@@ -237,8 +238,12 @@ export async function anonimizarClienteLGPD(clienteId: string): Promise<ActionRe
             data: { nome: hashNome, telefone: hashTelefone, email: null, cpf: null, anonimizado: true },
         })
 
-        return { sucesso: true, mensagem: 'Cliente anonimizado com sucesso.' }
-    } catch {
+        return {
+            sucesso: true,
+            data: { mensagem: 'Cliente anonimizado com sucesso.' }
+        }
+    } catch (error) {
+        console.error(`[Admin] Erro ao anonimizar cliente ${clienteId} (LGPD):`, error)
         return { sucesso: false, erro: 'Falha técnica ao processar a anonimização.' }
     }
 }
@@ -279,9 +284,12 @@ export async function listarEquipaAdmin(): Promise<ActionResult<{ equipa: Profis
             }
         })
 
-        return { sucesso: true, equipa: equipaNormalizada as ProfissionalResumo[] }
+        return {
+            sucesso: true,
+            data: { equipa: equipaNormalizada }
+        }
     } catch (error) {
-        console.error('Erro ao listar equipa:', error)
+        console.error('[Admin] Erro ao listar equipa:', error)
         return { sucesso: false, erro: 'Falha ao carregar a equipa.' }
     }
 }
@@ -293,7 +301,6 @@ export async function salvarEscalaFuncionarioAdmin(
     if (erroAuth) return { sucesso: false, erro: erroAuth }
 
     try {
-        // Execução atômica das escalas garantida pelo $transaction interativo
         await prisma.$transaction(async (tx) => {
             for (const exp of expedientes) {
                 await tx.expediente.upsert({
@@ -306,14 +313,13 @@ export async function salvarEscalaFuncionarioAdmin(
         revalidatePath('/admin/dashboard')
         return { sucesso: true }
     } catch (error) {
-        console.error('Erro ao salvar a escala:', error)
+        console.error(`[Admin] Erro ao salvar a escala do funcionário ${funcionarioId}:`, error)
         return { sucesso: false, erro: 'Erro técnico ao salvar a escala.' }
     }
 }
 
 // ── 4. SISTEMA DE NOTIFICAÇÕES ────────────────────────────────────────────────
 
-// Omissão de "error" no catch
 export async function listarNotificacoesAdmin(): Promise<ActionResult<{ notificacoes: NotificacaoItem[] }>> {
     const erroAuth = await checarPermissaoAdmin()
     if (erroAuth) return { sucesso: false, erro: erroAuth }
@@ -324,13 +330,16 @@ export async function listarNotificacoesAdmin(): Promise<ActionResult<{ notifica
             orderBy: { criadoEm: 'desc' },
             select: { id: true, mensagem: true, lida: true, criadoEm: true }
         })
-        return { sucesso: true, notificacoes }
-    } catch {
+        return {
+            sucesso: true,
+            data: { notificacoes }
+        }
+    } catch (error) {
+        console.error('[Admin] Erro ao carregar notificações:', error)
         return { sucesso: false, erro: 'Erro ao carregar notificações.' }
     }
 }
 
-// Omissão de "error" no catch
 export async function marcarNotificacaoLida(id: string): Promise<ActionResult> {
     const erroAuth = await checarPermissaoAdmin()
     if (erroAuth) return { sucesso: false, erro: erroAuth }
@@ -338,7 +347,8 @@ export async function marcarNotificacaoLida(id: string): Promise<ActionResult> {
     try {
         await prisma.notificacao.update({ where: { id }, data: { lida: true } })
         return { sucesso: true }
-    } catch {
+    } catch (error) {
+        console.error(`[Admin] Erro ao marcar notificação ${id} como lida:`, error)
         return { sucesso: false, erro: 'Erro ao limpar alerta.' }
     }
 }

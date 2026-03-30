@@ -93,18 +93,21 @@ export async function obterDadosPainelProfissional(): Promise<ActionResult<{
             comissaoMensal = agregacao._sum.valorComissao ?? 0
         }
 
+        // Correção Crítica: Encapsulamento correto do payload 'data'
         return {
             sucesso: true,
-            profissional: {
-                nome: funcionario.nome,
-                podeVerComissao: funcionario.podeVerComissao,
-                taxaComissao: funcionario.comissao,
-                comissaoMensal,
-            },
-            agendamentosHoje // Tipagem garantida pelo Prisma, sem 'as unknown'
+            data: {
+                profissional: {
+                    nome: funcionario.nome,
+                    podeVerComissao: funcionario.podeVerComissao,
+                    taxaComissao: Number(funcionario.comissao), // Garantindo conversão estrita
+                    comissaoMensal,
+                },
+                agendamentosHoje
+            }
         }
     } catch (error) {
-        console.error('Erro ao carregar painel do profissional:', error)
+        console.error('[Profissional] Erro ao carregar painel do profissional:', error)
         return { sucesso: false, erro: 'Falha técnica ao carregar dados.' }
     }
 }
@@ -142,8 +145,17 @@ export async function obterPerfilEExpediente(): Promise<ActionResult<{
             }))
         }
 
-        return { sucesso: true, fotoUrl: funcionario.fotoUrl, expedientes }
-    } catch {
+        // Correção Crítica: Encapsulamento correto do payload 'data'
+        return {
+            sucesso: true,
+            data: {
+                fotoUrl: funcionario.fotoUrl,
+                expedientes
+            }
+        }
+    } catch (error) {
+        // Correção Crítica: Remoção de Error Swallowing
+        console.error('[Profissional] Erro técnico ao carregar perfil/expediente:', error)
         return { sucesso: false, erro: 'Erro técnico ao carregar perfil.' }
     }
 }
@@ -193,7 +205,7 @@ export async function salvarPerfilEExpediente(
 
         return { sucesso: true }
     } catch (error) {
-        console.error('Erro ao salvar perfil e escala:', error)
+        console.error('[Profissional] Erro ao salvar perfil e escala:', error)
         return { sucesso: false, erro: 'Falha técnica ao salvar o horário de trabalho.' }
     }
 }
@@ -216,7 +228,7 @@ export async function alterarSenhaProfissional(novaSenha: string): Promise<Actio
 
         return { sucesso: true }
     } catch (error) {
-        console.error('Erro ao alterar senha do profissional:', error)
+        console.error('[Profissional] Erro ao alterar senha do profissional:', error)
         return { sucesso: false, erro: 'Falha ao comunicar com o banco de dados.' }
     }
 }

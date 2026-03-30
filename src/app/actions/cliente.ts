@@ -107,9 +107,10 @@ export async function criarCliente(dados: DadosCliente): Promise<ActionResult<{ 
             select: { id: true, nome: true, telefone: true, email: true, cpf: true, anonimizado: true }
         })
 
-        return { sucesso: true, cliente }
+        // Correção Crítica: Encapsula no objeto `data`
+        return { sucesso: true, data: { cliente } }
     } catch (error) {
-        console.error('Erro ao criar cliente:', error)
+        console.error('[Cliente] Erro ao criar cliente:', error)
         return { sucesso: false, erro: 'Falha técnica ao criar o cliente.' }
     }
 }
@@ -153,7 +154,7 @@ export async function editarCliente(id: string, dados: DadosCliente): Promise<Ac
 
         return { sucesso: true }
     } catch (error) {
-        console.error('Erro ao editar cliente:', error)
+        console.error(`[Cliente] Erro ao editar cliente ${id}:`, error)
         return { sucesso: false, erro: 'Falha técnica ao atualizar o perfil.' }
     }
 }
@@ -180,7 +181,6 @@ export async function excluirContaCliente(clienteId: string): Promise<ActionResu
             }
         })
 
-        // Apenas apaga a cookie se foi o próprio cliente a excluir a conta
         const sessaoCli = await verificarSessaoCliente()
         if (sessaoCli.logado && sessaoCli.id === clienteId) {
             const cookieStore = await cookies()
@@ -189,7 +189,7 @@ export async function excluirContaCliente(clienteId: string): Promise<ActionResu
 
         return { sucesso: true }
     } catch (error) {
-        console.error('Erro ao anonimizar cliente:', error)
+        console.error(`[Cliente] Erro ao anonimizar cliente ${clienteId}:`, error)
         return { sucesso: false, erro: 'Falha técnica ao excluir os dados.' }
     }
 }
@@ -218,9 +218,11 @@ export async function listarTodosClientes(
             }),
             prisma.cliente.count()
         ])
-        return { sucesso: true, clientes, total }
+
+        // Correção Crítica: Encapsula no objeto `data`
+        return { sucesso: true, data: { clientes, total } }
     } catch (error) {
-        console.error('Erro ao listar todos os clientes:', error)
+        console.error('[Cliente] Erro ao listar todos os clientes:', error)
         return { sucesso: false, erro: 'Falha ao listar clientes.' }
     }
 }
@@ -255,22 +257,24 @@ export async function obterHistoricoCliente(clienteId: string): Promise<ActionRe
             .filter(ag => ag.concluido)
             .reduce((acc, ag) => acc + ag.valorBruto, 0)
 
+        // Correção Crítica: Encapsula no objeto `data`
         return {
             sucesso: true,
-            dados: {
-                cliente,
-                totalGasto,
-                agendamentos
+            data: {
+                dados: {
+                    cliente,
+                    totalGasto,
+                    agendamentos
+                }
             }
         }
     } catch (error) {
-        console.error('Erro ao obter histórico do cliente:', error)
+        console.error(`[Cliente] Erro ao obter histórico do cliente ${clienteId}:`, error)
         return { sucesso: false, erro: 'Falha técnica ao carregar o histórico.' }
     }
 }
 
 export async function anonimizarClienteLGPD(id: string): Promise<ActionResult> {
-    // Alias semântico para exclusão de conta via painel (mantido por compatibilidade de rotas)
     return excluirContaCliente(id);
 }
 
@@ -281,7 +285,9 @@ export async function excluirClientePermanente(id: string): Promise<ActionResult
     try {
         await prisma.cliente.delete({ where: { id } })
         return { sucesso: true }
-    } catch {
+    } catch (error) {
+        // Correção Crítica: Não silenciar os erros de banco silenciosamente
+        console.error(`[Cliente] Erro ao excluir permanentemente o cliente ${id}:`, error)
         return { sucesso: false, erro: 'Não é possível excluir clientes com histórico financeiro atrelado. Utilize a anonimização.' }
     }
 }

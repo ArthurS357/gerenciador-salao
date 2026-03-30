@@ -90,7 +90,7 @@ export async function adicionarProdutoNaComanda(
         revalidatePath(`/profissional/comanda/${agendamentoId}`);
         return { sucesso: true };
     } catch (error) {
-        console.error("Erro Concorrência/Produto ao adicionar à comanda:", error);
+        console.error("[Comanda] Erro Concorrência/Produto ao adicionar à comanda:", error);
         return {
             sucesso: false,
             erro: error instanceof Error ? error.message : 'Falha técnica ao adicionar produto à comanda.'
@@ -212,9 +212,10 @@ export async function finalizarComanda(
         revalidatePath('/admin/estoque');
         revalidatePath('/admin/financeiro');
 
-        return { sucesso: true, financeiro: resultadoFechamento };
+        // Correção Crítica: Respeitando o contrato `ActionResult<{ financeiro: FechamentoComanda }>`
+        return { sucesso: true, data: { financeiro: resultadoFechamento } };
     } catch (error) {
-        console.error("Erro crítico ao faturar comanda:", error);
+        console.error("[Comanda] Erro crítico ao faturar comanda:", error);
         return {
             sucesso: false,
             erro: error instanceof Error ? error.message : 'Falha técnica ao faturar a comanda.'

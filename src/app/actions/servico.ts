@@ -66,9 +66,10 @@ export async function listarServicosPublicos(): Promise<ActionResult<{ servicos:
                 tempoMinutos: true, imagemUrl: true, ativo: true, destaque: true
             }
         })
-        return { sucesso: true, servicos }
+        // Correção Crítica: Encapsulamento correto do payload 'data'
+        return { sucesso: true, data: { servicos } }
     } catch (error) {
-        console.error('Erro ao listar serviços públicos:', error)
+        console.error('[Serviço] Erro ao listar serviços públicos:', error)
         return { sucesso: false, erro: 'Falha ao listar serviços.' }
     }
 }
@@ -92,9 +93,10 @@ export async function listarServicosAdmin(): Promise<ActionResult<{ servicos: Se
                 }
             }
         })
-        return { sucesso: true, servicos }
+        // Correção Crítica: Encapsulamento correto do payload 'data'
+        return { sucesso: true, data: { servicos } }
     } catch (error) {
-        console.error('Erro ao listar serviços do admin:', error)
+        console.error('[Serviço] Erro ao listar serviços do admin:', error)
         return { sucesso: false, erro: 'Falha ao listar serviços detalhados.' }
     }
 }
@@ -128,16 +130,17 @@ export async function criarServicoAdmin(
         })
 
         revalidatePath('/admin/servicos')
-        return { sucesso: true, servico }
+
+        // Correção Crítica: Encapsulamento correto do payload 'data'
+        return { sucesso: true, data: { servico } }
     } catch (error) {
-        console.error('Erro ao cadastrar serviço:', error)
+        console.error('[Serviço] Erro ao cadastrar serviço:', error)
         return { sucesso: false, erro: 'Falha ao cadastrar o serviço.' }
     }
 }
 
 // ── 3. LÓGICA DE DESTAQUE (Vitrine / Homepage) ────────────────────────────────
 
-// Omissão de `error` no catch para agradar o ESLint
 export async function alternarDestaqueServico(id: string, destaque: boolean): Promise<ActionResult> {
     const erroAuth = await checarPermissaoAdmin()
     if (erroAuth) return { sucesso: false, erro: erroAuth }
@@ -152,7 +155,9 @@ export async function alternarDestaqueServico(id: string, destaque: boolean): Pr
         revalidatePath('/')
 
         return { sucesso: true }
-    } catch {
+    } catch (error) {
+        // Correção Crítica: Remoção de Error Swallowing
+        console.error(`[Serviço] Erro ao alternar destaque do serviço ${id}:`, error)
         return { sucesso: false, erro: 'Falha ao alterar o status de destaque.' }
     }
 }
@@ -173,7 +178,6 @@ export async function adicionarInsumoFichaTecnica(
     }
 
     try {
-        // Refatoração Crítica: Upsert atômico substitui a checagem manual vulnerável a Race Conditions.
         await prisma.insumoServico.upsert({
             where: { servicoId_produtoId: { servicoId, produtoId } },
             update: { quantidadeUsada },
@@ -183,12 +187,11 @@ export async function adicionarInsumoFichaTecnica(
         revalidatePath('/admin/servicos')
         return { sucesso: true }
     } catch (error) {
-        console.error('Erro na ficha técnica:', error)
+        console.error(`[Serviço] Erro na ficha técnica do serviço ${servicoId}:`, error)
         return { sucesso: false, erro: 'Falha ao gravar insumo na ficha técnica.' }
     }
 }
 
-// Omissão de `error` no catch para agradar o ESLint
 export async function removerInsumoFichaTecnica(idInsumo: string): Promise<ActionResult> {
     const erroAuth = await checarPermissaoAdmin()
     if (erroAuth) return { sucesso: false, erro: erroAuth }
@@ -200,7 +203,9 @@ export async function removerInsumoFichaTecnica(idInsumo: string): Promise<Actio
 
         revalidatePath('/admin/servicos')
         return { sucesso: true }
-    } catch {
+    } catch (error) {
+        // Correção Crítica: Remoção de Error Swallowing
+        console.error(`[Serviço] Erro ao remover insumo ${idInsumo} da ficha técnica:`, error)
         return { sucesso: false, erro: 'Falha ao remover insumo da ficha técnica.' }
     }
 }

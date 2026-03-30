@@ -61,9 +61,11 @@ export const listarPortfolioPublico = cache(async (): Promise<ActionResult<{ ite
                 criadoEm: true
             }
         })
-        return { sucesso: true, itens }
+
+        // Correção Crítica: Encapsulamento correto do payload 'data'
+        return { sucesso: true, data: { itens } }
     } catch (error) {
-        console.error('Erro ao listar o portfólio público:', error)
+        console.error('[Portfolio] Erro ao listar o portfólio público:', error)
         return { sucesso: false, erro: 'Falha ao carregar portfólio.' }
     }
 })
@@ -71,7 +73,7 @@ export const listarPortfolioPublico = cache(async (): Promise<ActionResult<{ ite
 // ── 2. CRIAÇÃO (Protegida) ────────────────────────────────────────────────────
 
 export async function adicionarItemPortfolio(
-    dadosRaw: Record<string, unknown>
+    dadosRaw: unknown // Ajustado para unknown garantindo que o Zod faça o type-narrowing adequado
 ): Promise<ActionResult<{ item: ItemPortfolioDb }>> {
 
     const erroAuth = await checarPermissaoAdmin()
@@ -108,9 +110,10 @@ export async function adicionarItemPortfolio(
         // Revalida a página de gestão administrativa
         revalidatePath('/admin/portfolio')
 
-        return { sucesso: true, item }
+        // Correção Crítica: Encapsulamento correto do payload 'data'
+        return { sucesso: true, data: { item } }
     } catch (error) {
-        console.error('Erro ao adicionar item ao portfólio:', error)
+        console.error('[Portfolio] Erro ao adicionar item ao portfólio:', error)
         return { sucesso: false, erro: 'Falha ao salvar no portfólio.' }
     }
 }

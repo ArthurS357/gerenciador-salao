@@ -10,7 +10,7 @@ import { after } from 'next/server'
 import { verificarSessaoCliente, verificarSessaoFuncionario } from '@/app/actions/auth'
 import { ActionResult } from '@/types/domain'
 import { schemaCriarAgendamento, schemaEditarAgendamento } from '@/lib/schemas'
-import { cache } from 'react' // Importação crítica para performance
+import { cache } from 'react'
 
 // ── Constantes de Domínio ────────────────────────────────────────────────────
 const FUSO_HORARIO = 'America/Sao_Paulo'
@@ -88,7 +88,6 @@ const validarDataRetroativa = (data: Date): boolean => {
     return data >= new Date(Date.now() - TOLERANCIA_ATRASO_MS);
 }
 
-// Otimização: Uso de date-fns-tz puro, sem instanciar Date objects com strings locale dependentes
 const extrairMinutosLocal = (dataHora: Date): number => {
     const horas = Number(formatInTimeZone(dataHora, FUSO_HORARIO, 'H'))
     const minutos = Number(formatInTimeZone(dataHora, FUSO_HORARIO, 'm'))
@@ -96,12 +95,10 @@ const extrairMinutosLocal = (dataHora: Date): number => {
 }
 
 const obterDiaSemanaLocal = (dataHora: Date): number => {
-    // O token 'i' retorna 1 (Segunda) a 7 (Domingo). Ajustamos para o padrão JS (0 a 6).
     const diaISO = Number(formatInTimeZone(dataHora, FUSO_HORARIO, 'i'))
     return diaISO === 7 ? 0 : diaISO
 }
 
-// ── FUNÇÃO AUXILIAR: Validador de Expediente Seguro (Timezone Proof) ──────────
 async function validarHorarioExpediente(funcionarioId: string, dataHoraInicio: Date, dataHoraFim: Date): Promise<string | null> {
     const diaSemanaInicioLocal = obterDiaSemanaLocal(dataHoraInicio)
     const diaSemanaFimLocal = obterDiaSemanaLocal(dataHoraFim)
@@ -137,7 +134,6 @@ async function validarHorarioExpediente(funcionarioId: string, dataHoraInicio: D
     return null
 }
 
-// ── GUARD DE AUTORIZAÇÃO: Encapsula regras IDOR (DRY) ────────────────────────
 function autorizarAcessoAgendamento(
     clienteId: string,
     funcionarioId: string,
@@ -195,7 +191,6 @@ export async function criarAgendamentoMultiplo(
             return { sucesso: false, erro: 'Selecione pelo menos um serviço.' }
         }
 
-        // Correção de Regra de Negócio: Garantir que o profissional realiza os serviços solicitados
         const [cliente, profissionalAlvo] = await Promise.all([
             prisma.cliente.findUnique({
                 where: { id: clienteId },
@@ -281,8 +276,8 @@ export async function criarAgendamentoMultiplo(
             isolationLevel: Prisma.TransactionIsolationLevel.Serializable
         })
 
-        if (!resultadoTransacao.sucesso) {
-            return { sucesso: false, erro: resultadoTransacao.erro }
+        if (!resultadoTransacao.sucesso || !resultadoTransacao.novoAgendamento) {
+            return { sucesso: false, erro: resultadoTransacao.erro || 'Falha técnica.' }
         }
 
         const novoAgendamento = resultadoTransacao.novoAgendamento
@@ -298,7 +293,7 @@ export async function criarAgendamentoMultiplo(
         const nomesServicos = servicos.map(s => s.nome).join(', ');
 
         const mensagemConfirmacao =
-            `Olá ${cliente.nome.split(' ')[0]}! 🌟 Sua reserva no Studio LmLu Matiello foi confirmada!\n\n📅 *Data:* ${dataFormatada}\n💅 *Serviço(s):* ${nomesServicos}\n👨‍🎨 *Profissional:* ${novoAgendamento!.funcionario.nome}\n\nPara cancelar ou reagendar, por favor acesse o painel no nosso site. Estamos ansiosos para te receber!`;
+            `Olá ${cliente.nome.split(' ')[0]}! 🌟 Sua reserva no Studio LmLu Matiello foi confirmada!\n\n📅 *Data:* ${dataFormatada}\n💅 *Serviço(s):* ${nomesServicos}\n👨‍🎨 *Profissional:* ${novoAgendamento.funcionario.nome}\n\nPara cancelar ou reagendar, por favor acesse o painel no nosso site. Estamos ansiosos para te receber!`;
 
         after(async () => {
             await enviarMensagemWhatsApp(cliente.telefone!, mensagemConfirmacao).catch(err => {
@@ -306,7 +301,8 @@ export async function criarAgendamentoMultiplo(
             });
         });
 
-        return { sucesso: true, agendamentoId: novoAgendamento!.id }
+        // Correção Crítica: Retorno respeita o contrato ActionResult<T>
+        return { sucesso: true, data: { agendamentoId: novoAgendamento.id } }
     } catch (error) {
         console.error('Erro na orquestração do agendamento múltiplo:', error)
         return { sucesso: false, erro: 'Falha técnica ao processar a reserva.' }
@@ -335,7 +331,8 @@ export async function listarAgendaProfissional(
             },
         })
 
-        return { sucesso: true, agendamentos }
+        // Correção Crítica: Encapsula no objeto `data`
+        return { sucesso: true, data: { agendamentos } }
     } catch (error) {
         console.error('Erro ao listar agenda do profissional:', error)
         return { sucesso: false, erro: 'Falha ao carregar a sua agenda.' }
@@ -375,8 +372,6 @@ export async function cancelarAgendamentoPendente(id: string): Promise<ActionRes
         }, {} as Record<string, number>);
 
         await prisma.$transaction(async (tx) => {
-            // Correção de Concorrência: Execução sequencial previne deadlocks dentro do Prisma Pool
-            // quando ocorrem transações interativas com múltiplas queries.
             for (const [produtoId, quantidade] of Object.entries(produtosParaRestaurar)) {
                 await tx.produto.update({
                     where: { id: produtoId },
@@ -415,7 +410,8 @@ export async function listarAgendamentosGlobais(): Promise<ActionResult<{ agenda
             }
         })
 
-        return { sucesso: true, agendamentos }
+        // Correção Crítica: Encapsula no objeto `data`
+        return { sucesso: true, data: { agendamentos } }
     } catch (error) {
         console.error('Erro ao listar agendamentos globais:', error)
         return { sucesso: false, erro: 'Falha ao carregar a agenda global.' }
@@ -477,7 +473,7 @@ export async function editarAgendamentoPendente(
             const conflito = await tx.agendamento.findFirst({
                 where: {
                     funcionarioId,
-                    id: { not: id }, // Exclui a si mesmo da busca
+                    id: { not: id },
                     concluido: false,
                     canceladoEm: null,
                     AND: [
@@ -512,7 +508,6 @@ export async function editarAgendamentoPendente(
     }
 }
 
-// React Cache: Previne N+1 Queries e exaustão do banco em acessos massivos ao frontend público
 export const listarEquipaComExpediente = cache(async (): Promise<ActionResult<{ equipa: FuncionarioComExpedienteItem[] }>> => {
     try {
         const equipa = await prisma.funcionario.findMany({
@@ -532,7 +527,9 @@ export const listarEquipaComExpediente = cache(async (): Promise<ActionResult<{ 
             },
             orderBy: { nome: 'asc' }
         })
-        return { sucesso: true, equipa }
+
+        // Correção Crítica: Encapsula no objeto `data`
+        return { sucesso: true, data: { equipa } }
     } catch (error) {
         console.error('Erro ao listar equipa com expediente:', error)
         return { sucesso: false, erro: 'Falha ao carregar a equipa.' }

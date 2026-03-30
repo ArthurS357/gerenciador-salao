@@ -14,7 +14,7 @@ export type ProfissionalPublico = {
  * Busca a lista de profissionais ativos para exibição pública.
  * - Implementa 'select' restritivo para evitar vazamento de PII.
  * - Envolvido em React cache() para deduplicação da query no ciclo de vida da requisição,
- * protegendo o banco de dados em caso de tráfego massivo.
+ * protegendo o banco de dados em caso de tráfego massivo em uma mesma request.
  */
 export const buscarProfissionais = cache(async (): Promise<ActionResult<{ profissionais: ProfissionalPublico[] }>> => {
     try {
@@ -33,12 +33,13 @@ export const buscarProfissionais = cache(async (): Promise<ActionResult<{ profis
             }
         });
 
+        // Correção Crítica: Encapsulamento correto do payload na propriedade 'data'
         return {
             sucesso: true,
-            profissionais
+            data: { profissionais }
         };
     } catch (error) {
-        console.error('Erro ao buscar profissionais:', error);
+        console.error('[Profissionais] Erro ao buscar profissionais públicos:', error);
         return {
             sucesso: false,
             erro: 'Não foi possível carregar a lista de profissionais no momento.'

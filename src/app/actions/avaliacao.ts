@@ -25,10 +25,14 @@ export async function criarAvaliacao(
             return { sucesso: false, erro: validacao.error.issues[0]?.message ?? 'Dados de avaliação inválidos.' }
         }
 
-        // Anti-IDOR: confirma que o agendamento pertence a este cliente e está concluído
+        // Anti-IDOR e Idempotência: consolidados em uma única query
         const agendamento = await prisma.agendamento.findUnique({
             where: { id: agendamentoId },
-            select: { clienteId: true, concluido: true }
+            select: {
+                clienteId: true,
+                concluido: true,
+                avaliacao: { select: { id: true } } // Traz a relação se existir
+            }
         })
 
         if (!agendamento) {
@@ -40,12 +44,7 @@ export async function criarAvaliacao(
         if (!agendamento.concluido) {
             return { sucesso: false, erro: 'Só é possível avaliar atendimentos concluídos.' }
         }
-
-        // Idempotência básica de leitura
-        const existente = await prisma.avaliacao.findUnique({
-            where: { agendamentoId }
-        })
-        if (existente) {
+        if (agendamento.avaliacao) {
             return { sucesso: false, erro: 'Você já avaliou este atendimento. Obrigado!' }
         }
 
@@ -55,13 +54,13 @@ export async function criarAvaliacao(
 
         return { sucesso: true }
     } catch (error) {
-        // Blindagem contra Race Condition (Double-Click): se duas requests tentarem criar, 
+        // Blindagem contra Race Condition (Double-Click): se duas requests tentarem criar simultaneamente,
         // o banco de dados disparará o P2002 (Unique Constraint Violation)
         if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
             return { sucesso: false, erro: 'Você já avaliou este atendimento. Obrigado!' }
         }
 
-        console.error('Erro ao salvar avaliação:', error)
+        console.error('[Avaliacao] Erro ao salvar avaliação:', error)
         return { sucesso: false, erro: 'Falha técnica ao tentar salvar a avaliação.' }
     }
 }
@@ -116,9 +115,16 @@ export async function listarAvaliacoesAdmin(): Promise<ActionResult<{ avaliacoes
         const mediaBruta = agregacao._avg.nota || 0
         const mediaGeral = Math.round(mediaBruta * 10) / 10 // Arredonda para 1 casa decimal
 
-        return { sucesso: true, avaliacoes, mediaGeral }
+        // Correção Crítica: Encapsulamento correto do payload na propriedade 'data'
+        return {
+            sucesso: true,
+            data: {
+                avaliacoes,
+                mediaGeral
+            }
+        }
     } catch (error) {
-        console.error('Erro ao listar avaliações:', error)
+        console.error('[Avaliacao] Erro ao listar avaliações:', error)
         return { sucesso: false, erro: 'Falha ao carregar as avaliações.' }
     }
 }
