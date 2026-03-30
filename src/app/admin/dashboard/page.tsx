@@ -94,9 +94,9 @@ export default function TorreControleDashboard() {
         const init = async () => {
             try {
                 const [resEq, resSv, resNotif] = await Promise.all([listarEquipaAdmin(), listarServicosAdmin(), listarNotificacoesAdmin()])
-                if (resEq.sucesso && 'equipa' in resEq) setEquipa(resEq.equipa as ProfissionalResumo[])
-                if (resSv.sucesso && 'servicos' in resSv) setServicosDisponiveis(resSv.servicos as ServicoResumo[])
-                if (resNotif.sucesso && 'notificacoes' in resNotif) setNotificacoes(resNotif.notificacoes as NotificacaoItem[])
+                if (resEq.sucesso && 'data' in resEq) setEquipa(resEq.data.equipa as ProfissionalResumo[])
+                if (resSv.sucesso && 'data' in resSv) setServicosDisponiveis(resSv.data.servicos as ServicoResumo[])
+                if (resNotif.sucesso && 'data' in resNotif) setNotificacoes(resNotif.data.notificacoes as NotificacaoItem[])
             } finally {
                 setIsCarregando(false)
             }
@@ -106,8 +106,8 @@ export default function TorreControleDashboard() {
 
     const recarregarDados = useCallback(async () => {
         const [resEq, resNotif] = await Promise.all([listarEquipaAdmin(), listarNotificacoesAdmin()])
-        if (resEq.sucesso && 'equipa' in resEq) setEquipa(resEq.equipa as ProfissionalResumo[])
-        if (resNotif.sucesso && 'notificacoes' in resNotif) setNotificacoes(resNotif.notificacoes as NotificacaoItem[])
+        if (resEq.sucesso && 'data' in resEq) setEquipa(resEq.data.equipa as ProfissionalResumo[])
+        if (resNotif.sucesso && 'data' in resNotif) setNotificacoes(resNotif.data.notificacoes as NotificacaoItem[])
     }, [])
 
     const exibirMensagem = (texto: string, tipo: Mensagem['tipo'], ms = 4000) => {
@@ -219,7 +219,7 @@ export default function TorreControleDashboard() {
                 botaoAcao={
                     <button
                         onClick={() => { setCredenciaisNovo(null); setIsModalOpen(true) }}
-                        className="flex items-center justify-center gap-2 bg-primary text-primary-foreground px-5 py-2.5 rounded-xl font-bold text-sm hover:bg-primary/90 transition-colors shadow-sm active:scale-[0.98]"
+                        className="w-full sm:w-auto flex items-center justify-center gap-2 bg-primary text-primary-foreground px-5 py-2.5 rounded-xl font-bold text-sm hover:bg-primary/90 transition-colors shadow-sm active:scale-[0.98]"
                     >
                         <UserPlus className="w-4 h-4" /> Novo Profissional
                     </button>
@@ -297,7 +297,7 @@ export default function TorreControleDashboard() {
                 ) : (
                     <>
                         {/* ── MÉTRICAS ── */}
-                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-6">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
                             {[
                                 { label: 'Total da Equipe', valor: equipa.length, border: 'border-blue-400', bgGrad: 'from-blue-50', text: 'text-foreground' },
                                 { label: 'Em Atividade', valor: totalAtivos, border: 'border-emerald-400', bgGrad: 'from-emerald-50', text: 'text-emerald-700' },

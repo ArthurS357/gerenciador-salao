@@ -35,15 +35,15 @@ export default function AdminHeader({ titulo, subtitulo, abaAtiva, botaoAcao }: 
 
             <header className="mb-8 flex flex-col md:flex-row md:justify-between md:items-end gap-4">
                 <div>
-                    <h1 className="text-3xl md:text-4xl font-black text-marrom-medio tracking-tight">{titulo}</h1>
-                    <p className="text-gray-500 mt-2 text-sm md:text-base">{subtitulo}</p>
+                    <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-marrom-medio tracking-tight leading-tight">{titulo}</h1>
+                    <p className="text-gray-500 mt-1.5 text-xs sm:text-sm md:text-base">{subtitulo}</p>
                 </div>
                 {botaoAcao && (
-                    <div>{botaoAcao}</div>
+                    <div className="w-full sm:w-auto">{botaoAcao}</div>
                 )}
             </header>
 
-            <nav className="flex flex-wrap gap-2 md:gap-3 mb-10 p-1 md:p-1.5 bg-gray-100/60 backdrop-blur rounded-2xl w-fit">
+            <nav className="flex overflow-x-auto no-scrollbar gap-2 md:gap-3 mb-10 p-1 md:p-1.5 bg-gray-100/60 backdrop-blur rounded-2xl w-full sm:w-fit border border-gray-200/50">
                 {links.map(({ href, label }) => {
                     const ativo = label === abaAtiva
                     return (
@@ -52,8 +52,8 @@ export default function AdminHeader({ titulo, subtitulo, abaAtiva, botaoAcao }: 
                             href={href}
                             className={
                                 ativo
-                                    ? 'bg-white text-marrom-medio px-5 py-2 md:py-2.5 rounded-xl shadow-sm font-bold text-[13px] md:text-sm tracking-wide'
-                                    : 'text-gray-500 px-5 py-2 md:py-2.5 rounded-xl font-semibold text-[13px] md:text-sm tracking-wide hover:bg-white/50 hover:text-gray-900 transition-all'
+                                    ? 'bg-white text-marrom-medio px-4 md:px-5 py-2 md:py-2.5 rounded-xl shadow-sm font-bold text-[12px] md:text-sm tracking-wide whitespace-nowrap min-w-fit'
+                                    : 'text-gray-500 px-4 md:px-5 py-2 md:py-2.5 rounded-xl font-semibold text-[12px] md:text-sm tracking-wide hover:bg-white/50 hover:text-gray-900 transition-all whitespace-nowrap min-w-fit'
                             }
                         >
                             {label}

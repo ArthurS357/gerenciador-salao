@@ -22,21 +22,15 @@ type Mensagem = { texto: string; tipo: 'sucesso' | 'erro' }
 type PeriodoFiltro = 'hoje' | 'semana' | 'mes' | 'tudo'
 type ChartData = { data: string; 'Faturamento (R$)': number; Atendimentos: number }
 
-function isSuccessResponse<T>(response: unknown): response is T & { sucesso: true } {
-    return typeof response === 'object' && response !== null && 'sucesso' in response && (response as Record<string, unknown>).sucesso === true
+function isSuccessResponse<T>(response: unknown): response is { sucesso: true; data: T } {
+    return typeof response === 'object' && response !== null && 'sucesso' in response && (response as Record<string, unknown>).sucesso === true && 'data' in response
 }
 
 function isErrorResponse(response: unknown): response is { sucesso: false; erro: string } {
     return typeof response === 'object' && response !== null && 'sucesso' in response && (response as Record<string, unknown>).sucesso === false && 'erro' in response
 }
 
-function isFinanceiroResumo(response: unknown): response is FinanceiroResumo {
-    return typeof response === 'object' && response !== null && 'equipe' in response
-}
 
-function isChartDataResponse(response: unknown): response is { chartData: ChartData[] } {
-    return typeof response === 'object' && response !== null && 'chartData' in response
-}
 
 export default function PainelFinanceiroPage() {
     const [dados, setDados] = useState<FinanceiroResumo | null>(null)
@@ -86,10 +80,11 @@ export default function PainelFinanceiroPage() {
             obterDadosGraficosFinanceiros(7)
         ])
 
-        if (isSuccessResponse<FinanceiroResumo>(res) && isFinanceiroResumo(res)) {
-            setDados(res)
+        if (isSuccessResponse<FinanceiroResumo>(res)) {
+            const dataResumo = res.data
+            setDados(dataResumo)
             const estado: EditState = {}
-            res.equipe.forEach((p) => {
+            dataResumo.equipe.forEach((p) => {
                 estado[p.id] = { comissao: p.comissao, podeVerComissao: p.podeVerComissao }
             })
             setEditState(estado)
@@ -99,8 +94,8 @@ export default function PainelFinanceiroPage() {
             setMensagem({ texto: 'Erro ao carregar dados financeiros', tipo: 'erro' })
         }
 
-        if (isSuccessResponse<{ chartData: ChartData[] }>(resGraficos) && isChartDataResponse(resGraficos)) {
-            setChartData(resGraficos.chartData)
+        if (isSuccessResponse<{ chartData: ChartData[] }>(resGraficos)) {
+            setChartData(resGraficos.data.chartData)
         } else if (isErrorResponse(resGraficos)) {
             console.error('Erro ao carregar dados gráficos:', resGraficos.erro)
         }
@@ -318,69 +313,71 @@ export default function PainelFinanceiroPage() {
                         <h2 className="text-xl font-bold text-foreground tracking-tight">Regras de Comissão</h2>
                         <p className="text-sm text-muted-foreground mt-1">Configuração de repasse financeiro por profissional na equipe.</p>
                     </div>
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse">
-                            <thead>
-                                <tr className="bg-muted/10">
-                                    <th className="p-5 text-xs font-bold text-muted-foreground uppercase tracking-widest border-b border-border">Profissional</th>
-                                    <th className="p-5 text-xs font-bold text-center text-muted-foreground uppercase tracking-widest border-b border-border">Taxa (%)</th>
-                                    <th className="p-5 text-xs font-bold text-center text-muted-foreground uppercase tracking-widest border-b border-border">Recebido (R$)</th>
-                                    <th className="p-5 text-xs font-bold text-center text-muted-foreground uppercase tracking-widest border-b border-border">Acesso Visível?</th>
-                                    <th className="p-5 text-xs font-bold text-right text-muted-foreground uppercase tracking-widest border-b border-border">Ações</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {!dados || dados.equipe.length === 0 ? (
-                                    <tr><td colSpan={5} className="p-8 text-center text-muted-foreground italic">Nenhum profissional registado com faturamento no período.</td></tr>
-                                ) : (
-                                    dados.equipe.map((p) => {
-                                        const estado = editState[p.id]
-                                        if (!estado) return null
-                                        const isSaving = loadingIds[p.id]
+                    <div className="overflow-x-auto -mx-6 md:mx-0">
+                        <div className="min-w-[800px] inline-block align-middle w-full">
+                            <table className="w-full text-left border-collapse">
+                                <thead>
+                                    <tr className="bg-muted/10">
+                                        <th className="p-5 text-xs font-bold text-muted-foreground uppercase tracking-widest border-b border-border">Profissional</th>
+                                        <th className="p-5 text-xs font-bold text-center text-muted-foreground uppercase tracking-widest border-b border-border">Taxa (%)</th>
+                                        <th className="p-5 text-xs font-bold text-center text-muted-foreground uppercase tracking-widest border-b border-border">Recebido (R$)</th>
+                                        <th className="p-5 text-xs font-bold text-center text-muted-foreground uppercase tracking-widest border-b border-border">Acesso Visível?</th>
+                                        <th className="p-5 text-xs font-bold text-right text-muted-foreground uppercase tracking-widest border-b border-border">Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {!dados || dados.equipe.length === 0 ? (
+                                        <tr><td colSpan={5} className="p-8 text-center text-muted-foreground italic">Nenhum profissional registado com faturamento no período.</td></tr>
+                                    ) : (
+                                        dados.equipe.map((p) => {
+                                            const estado = editState[p.id]
+                                            if (!estado) return null
+                                            const isSaving = loadingIds[p.id]
 
-                                        return (
-                                            <tr key={p.id} className="border-b border-border hover:bg-muted/30 transition-colors">
-                                                <td className="p-4 font-bold text-foreground">{p.nome}</td>
-                                                <td className="p-4 text-center">
-                                                    <div className="inline-flex items-center border border-border rounded overflow-hidden">
-                                                        <input
-                                                            type="number" min={0} max={100} disabled={isSaving}
-                                                            value={estado.comissao}
-                                                            onChange={(e) => setComissao(p.id, Number(e.target.value))}
-                                                            className="w-16 px-2 py-1.5 text-center font-bold text-primary bg-card outline-none focus:bg-primary/5 disabled:bg-muted"
-                                                        />
-                                                        <span className="bg-muted px-2 py-1.5 text-muted-foreground font-bold border-l border-border">%</span>
-                                                    </div>
-                                                </td>
-                                                <td className="p-4 text-center">
-                                                    <div className="font-bold text-primary">R$ {p.totalComissaoRecebida?.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0,00'}</div>
-                                                </td>
-                                                <td className="p-4 text-center">
-                                                    <label className="relative inline-flex items-center cursor-pointer">
-                                                        <input
-                                                            type="checkbox" className="sr-only peer"
-                                                            checked={estado.podeVerComissao} disabled={isSaving}
-                                                            onChange={(e) => setPodeVer(p.id, e.target.checked)}
-                                                        />
-                                                        <div className="w-11 h-6 bg-muted rounded-full peer peer-focus:ring-2 peer-focus:ring-primary/20 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-border after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
-                                                    </label>
-                                                </td>
-                                                <td className="p-4 text-right">
-                                                    <button
-                                                        onClick={() => handleAtualizarRegras(p)}
-                                                        disabled={isSaving}
-                                                        className="bg-secondary text-foreground font-bold px-5 py-2 rounded-xl text-sm hover:bg-primary hover:text-primary-foreground transition-all disabled:opacity-50 disabled:cursor-not-allowed border border-border hover:border-primary shadow-sm"
-                                                    >
-                                                        {isSaving ? <Loader2 className="w-4 h-4 animate-spin inline mr-1" /> : null}
-                                                        {isSaving ? 'A Guardar...' : 'Atualizar'}
-                                                    </button>
-                                                </td>
-                                            </tr>
-                                        )
-                                    })
-                                )}
-                            </tbody>
-                        </table>
+                                            return (
+                                                <tr key={p.id} className="border-b border-border hover:bg-muted/30 transition-colors">
+                                                    <td className="p-4 font-bold text-foreground">{p.nome}</td>
+                                                    <td className="p-4 text-center">
+                                                        <div className="inline-flex items-center border border-border rounded overflow-hidden">
+                                                            <input
+                                                                type="number" min={0} max={100} disabled={isSaving}
+                                                                value={estado.comissao}
+                                                                onChange={(e) => setComissao(p.id, Number(e.target.value))}
+                                                                className="w-16 px-2 py-1.5 text-center font-bold text-primary bg-card outline-none focus:bg-primary/5 disabled:bg-muted"
+                                                            />
+                                                            <span className="bg-muted px-2 py-1.5 text-muted-foreground font-bold border-l border-border">%</span>
+                                                        </div>
+                                                    </td>
+                                                    <td className="p-4 text-center">
+                                                        <div className="font-bold text-primary">R$ {p.totalComissaoRecebida?.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0,00'}</div>
+                                                    </td>
+                                                    <td className="p-4 text-center">
+                                                        <label className="relative inline-flex items-center cursor-pointer">
+                                                            <input
+                                                                type="checkbox" className="sr-only peer"
+                                                                checked={estado.podeVerComissao} disabled={isSaving}
+                                                                onChange={(e) => setPodeVer(p.id, e.target.checked)}
+                                                            />
+                                                            <div className="w-11 h-6 bg-muted rounded-full peer peer-focus:ring-2 peer-focus:ring-primary/20 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-border after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                                                        </label>
+                                                    </td>
+                                                    <td className="p-4 text-right">
+                                                        <button
+                                                            onClick={() => handleAtualizarRegras(p)}
+                                                            disabled={isSaving}
+                                                            className="bg-secondary text-foreground font-bold px-5 py-2 rounded-xl text-sm hover:bg-primary hover:text-primary-foreground transition-all disabled:opacity-50 disabled:cursor-not-allowed border border-border hover:border-primary shadow-sm"
+                                                        >
+                                                            {isSaving ? <Loader2 className="w-4 h-4 animate-spin inline mr-1" /> : null}
+                                                            {isSaving ? 'A Guardar...' : 'Atualizar'}
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            )
+                                        })
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </section>
             </div>
