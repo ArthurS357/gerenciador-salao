@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -87,8 +87,10 @@ export default function AgendamentosGlobaisPage() {
     const [equipa, setEquipa] = useState<FuncionarioComExpedienteItem[]>([])
     const [clientesList, setClientesList] = useState<{ id: string, nome: string }[]>([])
     const [servicosList, setServicosList] = useState<{ id: string, nome: string }[]>([])
+
     const [loading, setLoading] = useState(true)
     const [mensagem, setMensagem] = useState<Mensagem | null>(null)
+    const timerRef = useRef<NodeJS.Timeout | null>(null)
 
     const [dataAtual, setDataAtual] = useState(new Date())
     const [diaSelecionado, setDiaSelecionado] = useState<Date | null>(null)
@@ -108,25 +110,55 @@ export default function AgendamentosGlobaisPage() {
 
     const carregarDados = useCallback(async () => {
         setLoading(true)
-        const [resAg, resEq, resCli, resServ] = await Promise.all([
-            listarAgendamentosGlobais(),
-            listarEquipaComExpediente(),
-            listarTodosClientes(),
-            listarServicosAdmin()
-        ])
-        if (resAg.sucesso && resAg.agendamentos) setAgendamentos(resAg.agendamentos)
-        if (resEq.sucesso && resEq.equipa) setEquipa(resEq.equipa)
-        if (resCli.sucesso && 'clientes' in resCli) setClientesList(resCli.clientes as { id: string, nome: string }[])
-        if (resServ.sucesso && 'servicos' in resServ) setServicosList(resServ.servicos as { id: string, nome: string }[])
-        setLoading(false)
+        try {
+            const [resAg, resEq, resCli, resServ] = await Promise.all([
+                listarAgendamentosGlobais(),
+                listarEquipaComExpediente(),
+                listarTodosClientes(),
+                listarServicosAdmin()
+            ])
+
+            // Resolvido: Acessando a propriedade através do encapsulamento 'data'
+            if (resAg.sucesso && resAg.data?.agendamentos) {
+                setAgendamentos(resAg.data.agendamentos)
+            }
+            if (resEq.sucesso && resEq.data?.equipa) {
+                setEquipa(resEq.data.equipa)
+            }
+
+            // Resolvido: Remoção do 'any', substituído pelo contrato estrutural esperado.
+            // Obs: Se as actions de Cliente e Serviço também mudaram para retornar dentro de "data", 
+            // altere para resCli.data?.clientes e resServ.data?.servicos respectivamente.
+            if (resCli.sucesso && 'clientes' in resCli && Array.isArray(resCli.clientes)) {
+                setClientesList(
+                    resCli.clientes.map((c: { id: string; nome: string }) => ({ id: c.id, nome: c.nome }))
+                )
+            }
+            if (resServ.sucesso && 'servicos' in resServ && Array.isArray(resServ.servicos)) {
+                setServicosList(
+                    resServ.servicos.map((s: { id: string; nome: string }) => ({ id: s.id, nome: s.nome }))
+                )
+            }
+        } catch (error) {
+            exibirMensagem('Falha ao sincronizar dados. Tente recarregar a página.', 'erro')
+        } finally {
+            setLoading(false)
+        }
     }, [])
 
-    useEffect(() => { void carregarDados() }, [carregarDados])
+    useEffect(() => {
+        void carregarDados()
+        return () => {
+            if (timerRef.current) clearTimeout(timerRef.current)
+        }
+    }, [carregarDados])
 
-    const exibirMensagem = (texto: string, tipo: Mensagem['tipo'], ms = 4000) => {
+    // CORREÇÃO: Prevenção de Race Condition no feedback visual
+    const exibirMensagem = useCallback((texto: string, tipo: Mensagem['tipo'], ms = 4000) => {
         setMensagem({ texto, tipo })
-        if (ms > 0) setTimeout(() => setMensagem(null), ms)
-    }
+        if (timerRef.current) clearTimeout(timerRef.current)
+        if (ms > 0) timerRef.current = setTimeout(() => setMensagem(null), ms)
+    }, [])
 
     const mudarMes = (direcao: number) => {
         setDataAtual(new Date(dataAtual.getFullYear(), dataAtual.getMonth() + direcao, 1))
@@ -141,14 +173,19 @@ export default function AgendamentosGlobaisPage() {
 
     const handleCancelar = async (id: string) => {
         setLoadingCancelarId(id)
-        const res = await cancelarAgendamentoPendente(id)
-        if (res.sucesso) {
-            exibirMensagem('Agendamento cancelado com sucesso.', 'sucesso')
-            void carregarDados()
-        } else {
-            exibirMensagem(res.erro || 'Erro ao cancelar agendamento.', 'erro')
+        try {
+            const res = await cancelarAgendamentoPendente(id)
+            if (res.sucesso) {
+                exibirMensagem('Agendamento cancelado com sucesso.', 'sucesso')
+                void carregarDados()
+            } else {
+                exibirMensagem(res.erro || 'Erro ao cancelar agendamento.', 'erro')
+            }
+        } catch (err) {
+            exibirMensagem('Erro inesperado de comunicação.', 'erro')
+        } finally {
+            setLoadingCancelarId(null)
         }
-        setLoadingCancelarId(null)
     }
 
     const onSubmitNovo = async (data: FormNovo) => {
@@ -168,17 +205,22 @@ export default function AgendamentosGlobaisPage() {
             } else {
                 exibirMensagem(res.erro || 'Erro ao criar agendamento.', 'erro')
             }
+        } catch (err) {
+            exibirMensagem('Falha ao submeter o agendamento.', 'erro')
         } finally {
             setLoadingSalvar(false)
         }
     }
 
     const abrirModalEdicao = (ag: AgendamentoGlobalItem) => {
+        // CORREÇÃO: Solução robusta sem mutar a instância Date com TimezoneOffset
         const d = new Date(ag.dataHoraInicio)
-        d.setMinutes(d.getMinutes() - d.getTimezoneOffset())
+        const tzOffset = d.getTimezoneOffset() * 60000;
+        const localISOTime = new Date(d.getTime() - tzOffset).toISOString().slice(0, 16);
+
         formEditar.reset({
             funcionarioId: ag.funcionarioId,
-            dataHora: d.toISOString().slice(0, 16),
+            dataHora: localISOTime,
         })
         setAgendamentoEditandoId(ag.id)
     }
@@ -200,6 +242,8 @@ export default function AgendamentosGlobaisPage() {
             } else {
                 exibirMensagem(res.erro || 'Erro ao editar agendamento.', 'erro')
             }
+        } catch (err) {
+            exibirMensagem('Falha ao processar atualização.', 'erro')
         } finally {
             setLoadingEditar(false)
         }
@@ -208,19 +252,31 @@ export default function AgendamentosGlobaisPage() {
     const handleSalvarProfissional = async () => {
         if (!modalAcessos) return
         setLoadingAcaoProfissional(true)
-        const { id, comissao, podeVerComissao, podeAgendar, podeVerHistorico, podeCancelar, expedientes } = modalAcessos
-        const [resP, resE] = await Promise.all([
-            atualizarFuncionarioCompleto(id, { comissao: Number(comissao), podeVerComissao, podeAgendar, podeVerHistorico, podeCancelar }),
-            salvarEscalaFuncionarioAdmin(id, expedientes)
-        ])
-        if (resP.sucesso && resE.sucesso) {
-            exibirMensagem('Perfil do profissional atualizado!', 'sucesso')
-            setModalAcessos(null)
-            void carregarDados()
-        } else {
-            exibirMensagem('Erro ao atualizar dados do profissional.', 'erro')
+
+        try {
+            const { id, comissao, podeVerComissao, podeAgendar, podeVerHistorico, podeCancelar, expedientes } = modalAcessos
+            const [resP, resE] = await Promise.all([
+                atualizarFuncionarioCompleto(id, {
+                    comissao: Number(comissao) || 0, // Fallback seguro
+                    podeVerComissao: Boolean(podeVerComissao),
+                    podeAgendar: Boolean(podeAgendar),
+                    podeVerHistorico: Boolean(podeVerHistorico),
+                    podeCancelar: Boolean(podeCancelar)
+                }),
+                salvarEscalaFuncionarioAdmin(id, expedientes)
+            ])
+            if (resP.sucesso && resE.sucesso) {
+                exibirMensagem('Perfil do profissional atualizado!', 'sucesso')
+                setModalAcessos(null)
+                void carregarDados()
+            } else {
+                exibirMensagem('Erro ao atualizar dados do profissional.', 'erro')
+            }
+        } catch (err) {
+            exibirMensagem('Ocorreu um erro no servidor.', 'erro')
+        } finally {
+            setLoadingAcaoProfissional(false)
         }
-        setLoadingAcaoProfissional(false)
     }
 
     const atualizarExpedienteLocal = <K extends keyof ExpedienteInfo>(index: number, campo: K, valor: ExpedienteInfo[K]) => {
@@ -263,9 +319,6 @@ export default function AgendamentosGlobaisPage() {
             />
 
             <div className="max-w-7xl mx-auto px-4 md:px-8 space-y-6 pb-12 mt-6">
-                {/* AQUI REMOVEMOS O <nav> REPETIDO 
-                   O AdminHeader já cuida disso!
-                */}
 
                 {mensagem && (
                     <div className={`flex items-center gap-3 p-4 rounded-xl text-sm font-bold shadow-sm border animate-in fade-in ${mensagem.tipo === 'sucesso' ? 'bg-green-50 text-green-800 border-green-200' : 'bg-destructive/10 text-destructive border-destructive/20'}`}>

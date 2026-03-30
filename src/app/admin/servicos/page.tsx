@@ -68,11 +68,11 @@ export default function PainelServicosPage() {
                 listarProdutosAdmin()
             ]);
 
-            if (resServicos.sucesso && resServicos.servicos) {
-                setServicos(resServicos.servicos as Servico[]);
+            if (resServicos.sucesso) {
+                setServicos(resServicos.data.servicos as Servico[]);
             }
-            if (resProdutos.sucesso && resProdutos.produtos) {
-                setProdutos(resProdutos.produtos);
+            if (resProdutos.sucesso) {
+                setProdutos(resProdutos.data.produtos);
             }
             setLoading(false);
         };
@@ -81,11 +81,11 @@ export default function PainelServicosPage() {
 
     const recarregarServicosManualmente = async () => {
         const res = await listarServicosAdmin();
-        if (res.sucesso && res.servicos) {
-            setServicos(res.servicos as Servico[]);
+        if (res.sucesso) {
+            setServicos(res.data.servicos as Servico[]);
             setModalFichaTecnica(prevModal => {
                 if (prevModal) {
-                    const atualizado = res.servicos?.find((s: Servico) => s.id === prevModal.id);
+                    const atualizado = res.data.servicos?.find((s: Servico) => s.id === prevModal.id);
                     return (atualizado as Servico) || null;
                 }
                 return null;

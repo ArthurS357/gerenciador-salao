@@ -57,7 +57,7 @@ export default function PainelEstoquePage() {
         const init = async () => {
             setCarregando(true)
             const res = await listarProdutosAdmin()
-            if (res.sucesso && res.produtos) setProdutos(res.produtos as Produto[])
+            if (res.sucesso) setProdutos(res.data.produtos as Produto[])
             setCarregando(false)
         }
         init()
@@ -65,7 +65,7 @@ export default function PainelEstoquePage() {
 
     const recarregarDados = useCallback(async () => {
         const res = await listarProdutosAdmin()
-        if (res.sucesso && res.produtos) setProdutos(res.produtos as Produto[])
+        if (res.sucesso) setProdutos(res.data.produtos as Produto[])
     }, [])
 
     const handleCriar = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -127,7 +127,7 @@ export default function PainelEstoquePage() {
         setLoadingId(id)
         const res = await excluirProdutoLogico(id)
         if (res.sucesso) {
-            setMensagem({ texto: res.mensagem, tipo: 'sucesso' })
+            setMensagem({ texto: res.data.mensagem, tipo: 'sucesso' })
             recarregarDados()
         } else {
             setMensagem({ texto: res.erro, tipo: 'erro' })

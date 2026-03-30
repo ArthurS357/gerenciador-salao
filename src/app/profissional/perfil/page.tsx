@@ -13,7 +13,7 @@ export default function PerfilProfissionalPage() {
         const carregarDados = async () => {
             const res = await obterPerfilEExpediente()
             if (res.sucesso) {
-                setDados({ fotoUrl: res.fotoUrl, expedientes: res.expedientes })
+                setDados({ fotoUrl: res.data.fotoUrl, expedientes: res.data.expedientes })
             }
             setCarregando(false)
         }

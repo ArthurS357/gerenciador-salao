@@ -33,8 +33,8 @@ export default async function AgendaProfissionalPage() {
 
     const res = await listarAgendaProfissional(sessao.id);
 
-    const agendamentos: AgendaProfissionalItem[] = (res.sucesso && 'agendamentos' in res)
-        ? res.agendamentos
+    const agendamentos: AgendaProfissionalItem[] = res.sucesso
+        ? res.data.agendamentos
         : [];
 
     const pendentes = agendamentos.filter((a) => !a.concluido);

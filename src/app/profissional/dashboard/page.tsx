@@ -16,12 +16,12 @@ export default async function ProfissionalDashboardPage() {
 
         const res = await listarAgendaProfissional(sessao.id);
 
-        if (res.sucesso && 'agendamentos' in res) {
+        if (res.sucesso) {
             const agora = new Date();
             const fuso = 'America/Sao_Paulo';
 
             // Filtra agendamentos não concluídos e que iniciam a partir de agora
-            const pendentes = res.agendamentos.filter(ag => {
+            const pendentes = res.data.agendamentos.filter(ag => {
                 const dataAg = new Date(ag.dataHoraInicio);
                 return !ag.concluido && dataAg >= agora;
             }).sort((a, b) => new Date(a.dataHoraInicio).getTime() - new Date(b.dataHoraInicio).getTime());

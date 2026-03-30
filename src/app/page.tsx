@@ -38,9 +38,9 @@ export default async function LandingPage() {
     listarPortfolioPublico(),
   ])
 
-  const profissionais = resProfissionais.sucesso ? resProfissionais.profissionais : []
-  const catalogoServicos = resServicos.sucesso ? resServicos.servicos : []
-  const itensPortfolio = resPortfolio.sucesso ? resPortfolio.itens : []
+  const profissionais = resProfissionais.sucesso ? resProfissionais.data.profissionais : []
+  const catalogoServicos = resServicos.sucesso ? resServicos.data.servicos : []
+  const itensPortfolio = resPortfolio.sucesso ? resPortfolio.data.itens : []
 
   // Resolve a sessão com precedência: funcionário > cliente > anônimo
   let sessao: SessaoProps = { logado: false }

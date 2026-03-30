@@ -28,9 +28,8 @@ export default async function ClienteDashboardPage() {
     // Busca o histórico completo de agendamentos do cliente
     const resHistorico = await obterHistoricoCliente(sessao.id)
 
-    const agendamentos = resHistorico.sucesso ? resHistorico.dados.agendamentos : []
-    const totalGasto = resHistorico.sucesso ? resHistorico.dados.totalGasto : 0
-
+    const agendamentos = resHistorico.sucesso ? resHistorico.data.dados.agendamentos : []
+    const totalGasto = resHistorico.sucesso ? resHistorico.data.dados.totalGasto : 0
     return (
         <ClienteDashboardUI
             clienteId={sessao.id}

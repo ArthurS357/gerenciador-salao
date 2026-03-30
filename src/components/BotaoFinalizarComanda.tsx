@@ -29,7 +29,7 @@ export default function BotaoFinalizarComanda({
             const res = await finalizarComanda(agendamentoId, taxaCartao, custoInsumos)
 
             if (res.sucesso) {
-                const f = res.financeiro
+                const f = res.data.financeiro
                 alert(
                     `✅ Comanda faturada com sucesso!\n\n` +
                     `Bruto: R$ ${f.bruto.toFixed(2)}\n` +
