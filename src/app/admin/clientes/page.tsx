@@ -790,10 +790,12 @@ export default function GestaoClientesAdminPage() {
                             .filter(s => s.id === novaReserva.servicoId)
                             .map(s => ({ id: s.id, nome: s.nome, tempoMinutos: null }))
                     }
-                    onConfirmar={(dataIso, hora) => {
-                        // Combina o ISO da data selecionada com o horário retornado pelo componente
-                        const baseDate = dataIso.includes('T') ? dataIso.split('T')[0] : dataIso;
-                        setNovaReserva(prev => ({ ...prev, dataHora: `${baseDate}T${hora}` }));
+                    onConfirmar={(resultados) => {
+                        if (resultados.length > 0) {
+                            const { dataIso, hora } = resultados[0];
+                            const baseDate = dataIso.includes('T') ? dataIso.split('T')[0] : dataIso;
+                            setNovaReserva(prev => ({ ...prev, dataHora: `${baseDate}T${hora}` }));
+                        }
                         setModalCalendarioOpen(false);
                     }}
                 />

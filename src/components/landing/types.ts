@@ -1,11 +1,5 @@
 // src/components/landing/types.ts
 // ─────────────────────────────────────────────────────────────────────────────
-// Contratos centralizados para todos os componentes da landing.
-// CORRIGIDO:
-//   1. SessaoRole expandida para incluir 'PROFISSIONAL' | 'ADMIN' (antes só tinha 'FUNCIONARIO')
-//   2. FormularioReservaProps.sessao usa o tipo completo em vez de Pick<Sessao, 'logado'>
-//      que causava o cast `sessao as any` em page.tsx
-// ─────────────────────────────────────────────────────────────────────────────
 
 export interface Profissional {
     id: string
@@ -30,11 +24,6 @@ export interface ItemPortfolio {
     linkSocial: string | null
 }
 
-/**
- * Todos os roles possíveis no sistema.
- * Antes era 'CLIENTE' | 'FUNCIONARIO' — mas o backend emite 'PROFISSIONAL' e 'ADMIN'.
- * Isso causava incompatibilidade silenciosa em toda a landing.
- */
 export type SessaoRole = 'CLIENTE' | 'PROFISSIONAL' | 'ADMIN'
 
 export interface Sessao {
@@ -50,6 +39,17 @@ export type TipoMensagem = 'erro' | 'sucesso' | 'info' | ''
 export interface Mensagem {
     texto: string
     tipo: TipoMensagem
+}
+
+/**
+ * Representa um horário confirmado no wizard de agendamento.
+ * Estruturalmente idêntico a AgendamentoConfirmado do ModalAgendamento,
+ * mantido aqui para evitar dependência cruzada de módulos.
+ */
+export interface AgendamentoConfirmado {
+    servicoId: string
+    dataIso: string // "YYYY-MM-DD"
+    hora: string    // "HH:MM"
 }
 
 // ── Props de componentes ──────────────────────────────────────────────────────
@@ -69,10 +69,6 @@ export interface PortfolioGaleriaProps {
     itensPortfolio: ItemPortfolio[]
 }
 
-/**
- * CORRIGIDO: sessao agora recebe o tipo completo Sessao em vez de Pick<Sessao, 'logado'>.
- * O componente já usava .nome internamente com um cast `as any` — agora está tipado corretamente.
- */
 export interface FormularioReservaProps {
     sessao: Sessao
     mounted: boolean
@@ -84,6 +80,9 @@ export interface FormularioReservaProps {
     setProfissionalId: (id: string) => void
     dataHora: string
     setDataHora: (dh: string) => void
+    /** Horários confirmados para cada serviço (wizard multi-step). */
+    agendamentosConfirmados: AgendamentoConfirmado[]
+    setAgendamentosConfirmados: (ags: AgendamentoConfirmado[]) => void
     mensagem: Mensagem
     handleAgendar: (e: React.FormEvent) => void
     profissionalSelecionado?: Profissional

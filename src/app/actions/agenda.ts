@@ -150,3 +150,29 @@ export async function obterHorariosDisponiveis(
 
     return Array.from(horariosDisponiveisGlobal).sort((a, b) => converterParaMinutos(a) - converterParaMinutos(b));
 }
+
+/**
+ * Retorna os índices dos dias da semana em que o profissional tem expediente ativo.
+ * 0 = Domingo … 6 = Sábado.
+ * Se nenhum profissional for informado, retorna todos os dias (sem filtro).
+ */
+export async function obterDiasAtivosDoFuncionario(
+    funcionarioId: string | undefined
+): Promise<number[]> {
+    if (!funcionarioId) return [0, 1, 2, 3, 4, 5, 6];
+
+    try {
+        const expedientes = await prisma.expediente.findMany({
+            where: { funcionarioId, ativo: true },
+            select: { diaSemana: true },
+        });
+
+        // Se o profissional não tiver expediente configurado, não bloqueia o calendário
+        if (expedientes.length === 0) return [0, 1, 2, 3, 4, 5, 6];
+
+        return expedientes.map(e => e.diaSemana);
+    } catch {
+        // Em caso de falha, não bloqueia o fluxo do usuário
+        return [0, 1, 2, 3, 4, 5, 6];
+    }
+}

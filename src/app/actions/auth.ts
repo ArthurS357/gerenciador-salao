@@ -80,8 +80,8 @@ export async function loginFuncionario(email: string, senhaPlana: string): Promi
 
 // React Cache: Evita redundância de validação JWT e acesso ao banco no mesmo request lifecycle
 export const verificarSessaoCliente = cache(async (): Promise<SessaoClienteResult> => {
+    const cookieStore = await cookies()
     try {
-        const cookieStore = await cookies()
         const token = cookieStore.get('cliente_session')?.value
 
         if (!token) return { logado: false }
@@ -114,8 +114,8 @@ export const verificarSessaoCliente = cache(async (): Promise<SessaoClienteResul
 
 // React Cache: Transforma N+1 queries de validação de rota numa consulta O(1)
 export const verificarSessaoFuncionario = cache(async (): Promise<SessaoFuncionarioResult> => {
+    const cookieStore = await cookies()
     try {
-        const cookieStore = await cookies()
         const token = cookieStore.get('funcionario_session')?.value
 
         if (!token) return { logado: false }
