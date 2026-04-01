@@ -2,7 +2,8 @@
 
 import { prisma } from '@/lib/prisma'
 import { Prisma } from '@prisma/client'
-import { verificarNumeroExisteNoWhatsApp, enviarMensagemWhatsApp } from '@/lib/whatsapp'
+import { verificarNumeroExisteNoWhatsApp } from '@/lib/whatsapp'
+import { enviarMensagemWhatsAppAction } from '@/app/actions/whatsapp'
 import { formatInTimeZone } from 'date-fns-tz'
 import { ptBR } from 'date-fns/locale'
 import { verificarRateLimit } from '@/lib/rateLimit'
@@ -282,23 +283,20 @@ export async function criarAgendamentoMultiplo(
 
         const novoAgendamento = resultadoTransacao.novoAgendamento
 
-        // ── INTEGRAÇÃO WHATSAPP ──
-        const dataFormatada = formatInTimeZone(
-            dataHoraInicio,
-            FUSO_HORARIO,
-            "EEEE, dd 'de' MMMM 'às' HH:mm",
-            { locale: ptBR }
-        );
-
+        // ── NOTIFICAÇÃO WHATSAPP: Confirmação de agendamento ──
+        const dataFormatada = formatInTimeZone(dataHoraInicio, FUSO_HORARIO, "EEEE, dd 'de' MMMM", { locale: ptBR });
+        const horaFormatada = formatInTimeZone(dataHoraInicio, FUSO_HORARIO, 'HH:mm', { locale: ptBR });
         const nomesServicos = servicos.map(s => s.nome).join(', ');
 
         const mensagemConfirmacao =
-            `Olá ${cliente.nome.split(' ')[0]}! 🌟 Sua reserva no Studio LmLu Matiello foi confirmada!\n\n📅 *Data:* ${dataFormatada}\n💅 *Serviço(s):* ${nomesServicos}\n👨‍🎨 *Profissional:* ${novoAgendamento.funcionario.nome}\n\nPara cancelar ou reagendar, por favor acesse o painel no nosso site. Estamos ansiosos para te receber!`;
+            `Olá, ${cliente.nome}! Seu agendamento foi confirmado com sucesso. 🎉\n\n📅 Data: ${dataFormatada}\n⏰ Horário: ${horaFormatada}\n✂️ Serviço: ${nomesServicos}\n👤 Profissional: ${novoAgendamento.funcionario.nome}\n\nPara cancelar ou reagendar, entre em contato conosco.`;
 
         after(async () => {
-            await enviarMensagemWhatsApp(cliente.telefone!, mensagemConfirmacao).catch(err => {
-                console.warn(`[Background Task] Falha silenciosa ao notificar cliente ${clienteId}:`, err);
-            });
+            try {
+                await enviarMensagemWhatsAppAction(cliente.telefone!, mensagemConfirmacao);
+            } catch (err) {
+                console.error(`[Background Task] Falha silenciosa ao notificar confirmação do cliente ${clienteId}:`, err);
+            }
         });
 
         // Correção Crítica: Retorno respeita o contrato ActionResult<T>
@@ -346,8 +344,9 @@ export async function cancelarAgendamentoPendente(id: string): Promise<ActionRes
                 where: { id },
                 include: {
                     produtos: true,
-                    cliente: { select: { nome: true } },
-                    funcionario: { select: { nome: true } }
+                    cliente: { select: { nome: true, telefone: true } },
+                    funcionario: { select: { nome: true } },
+                    servicos: { include: { servico: { select: { nome: true } } } },
                 }
             }),
             verificarSessaoCliente(),
@@ -387,6 +386,24 @@ export async function cancelarAgendamentoPendente(id: string): Promise<ActionRes
                 }
             })
         })
+
+        // ── NOTIFICAÇÃO WHATSAPP: Cancelamento de agendamento ──
+        if (agendamento.cliente.telefone) {
+            const dataFormatada = formatInTimeZone(agendamento.dataHoraInicio, FUSO_HORARIO, 'dd/MM/yyyy', { locale: ptBR });
+            const horaFormatada = formatInTimeZone(agendamento.dataHoraInicio, FUSO_HORARIO, 'HH:mm', { locale: ptBR });
+            const nomeServico = agendamento.servicos.map(s => s.servico.nome).join(', ');
+
+            const mensagemCancelamento =
+                `Olá, ${agendamento.cliente.nome}.\n\nInformamos que o seu agendamento de ${nomeServico} para o dia ${dataFormatada} às ${horaFormatada} foi CANCELADO.\n\nSe desejar reagendar, por favor, entre em contato conosco ou acesse nosso sistema. Ficaremos felizes em te atender!`;
+
+            after(async () => {
+                try {
+                    await enviarMensagemWhatsAppAction(agendamento.cliente.telefone!, mensagemCancelamento);
+                } catch (err) {
+                    console.error(`[Background Task] Falha silenciosa ao notificar cancelamento do agendamento ${id}:`, err);
+                }
+            });
+        }
 
         return { sucesso: true }
     } catch (error) {
