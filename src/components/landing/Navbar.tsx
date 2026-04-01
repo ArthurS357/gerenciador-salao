@@ -7,7 +7,7 @@ import { logoutCliente, logoutFuncionario } from '@/app/actions/auth'
 
 export type SessaoProps = {
     logado: boolean;
-    role?: 'CLIENTE' | 'PROFISSIONAL' | 'ADMIN';
+    role?: 'CLIENTE' | 'PROFISSIONAL' | 'ADMIN' | 'RECEPCIONISTA'; // ← ADICIONADO AQUI
     nome?: string;
     id?: string;
 }
@@ -70,7 +70,7 @@ const Navbar = memo(function Navbar({ sessao }: NavbarProps) {
     }
 
     const isCliente = sessao.logado && sessao.role === 'CLIENTE'
-    const isFuncionario = sessao.logado && (sessao.role === 'PROFISSIONAL' || sessao.role === 'ADMIN')
+    const isFuncionario = sessao.logado && (sessao.role === 'PROFISSIONAL' || sessao.role === 'ADMIN' || sessao.role === 'RECEPCIONISTA') // ← ADICIONADO AQUI
     const isAdmin = sessao.logado && sessao.role === 'ADMIN'
 
     // Extrai o primeiro nome para a saudação

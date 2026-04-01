@@ -25,7 +25,7 @@ export interface ItemPortfolio {
     linkInstagram: string | null
 }
 
-export type SessaoRole = 'CLIENTE' | 'PROFISSIONAL' | 'ADMIN'
+export type SessaoRole = 'CLIENTE' | 'PROFISSIONAL' | 'ADMIN' | 'RECEPCIONISTA' // ← ADICIONADO AQUI
 
 export interface Sessao {
     logado: boolean

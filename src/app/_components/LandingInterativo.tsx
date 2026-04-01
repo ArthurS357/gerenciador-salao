@@ -8,7 +8,7 @@ import PortfolioGaleria from '@/components/landing/PortfolioGaleria'
 import FormularioReserva from '@/components/landing/FormularioReserva'
 import { criarAgendamentoMultiplo } from '@/app/actions/agendamento'
 import type { SessaoProps } from '@/components/landing/Navbar'
-import type { Profissional, Servico, ItemPortfolio, Mensagem, AgendamentoConfirmado } from '@/components/landing/types'
+import type { Profissional, Servico, ItemPortfolio, Mensagem, AgendamentoConfirmado, SessaoRole } from '@/components/landing/types'
 
 interface LandingInterativoProps {
     profissionais: Profissional[]
@@ -112,7 +112,7 @@ export default function LandingInterativo({
     const sessaoParaFormulario = {
         logado: sessao.logado,
         id: sessao.id,
-        role: sessao.role as 'CLIENTE' | 'PROFISSIONAL' | 'ADMIN' | undefined,
+        role: sessao.role as SessaoRole | undefined, // ← Simplificado e perfeitamente tipado
         nome: sessao.nome,
     }
 

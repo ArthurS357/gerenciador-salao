@@ -7,7 +7,9 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ============================================================
 // 1. USUÁRIOS E EQUIPE
+// ============================================================
 
 model Cliente {
   id           String        @id @default(uuid())
@@ -17,27 +19,30 @@ model Cliente {
   cpf          String?       @unique
   senhaHash    String?
   anonimizado  Boolean       @default(false)
-  
+  createdAt    DateTime      @default(now())  // ← NOVO: obrigatório por requisito
+
   agendamentos Agendamento[]
+  dividas      DividaCliente[]  // ← NOVO: relação com dívidas
+  pacoteVendas PacoteVenda[]    // ← NOVO: relação com pacotes adquiridos
 }
 
 model Funcionario {
-  id                String        @id @default(uuid())
-  nome              String
-  email             String        @unique
-  senhaHash         String
-  role              String        @default("PROFISSIONAL")
-  comissao          Float         @default(40.0)
-  podeVerComissao   Boolean       @default(true)
-  podeAgendar       Boolean       @default(false)
-  podeVerHistorico  Boolean       @default(false)
-  podeCancelar      Boolean       @default(false)
-  cpf               String?       @unique
-  telefone          String?
-  descricao         String?
-  especialidade     String?
-  fotoUrl           String?
-  ativo             Boolean       @default(true)
+  id               String       @id @default(uuid())
+  nome             String
+  email            String       @unique
+  senhaHash        String
+  role             String       @default("PROFISSIONAL")
+  comissao         Float        @default(40.0)
+  podeVerComissao  Boolean      @default(true)
+  podeAgendar      Boolean      @default(false)
+  podeVerHistorico Boolean      @default(false)
+  podeCancelar     Boolean      @default(false)
+  cpf              String?      @unique
+  telefone         String?
+  descricao        String?
+  especialidade    String?
+  fotoUrl          String?
+  ativo            Boolean      @default(true)
 
   agendamentos     Agendamento[]
   servicos         Servico[]
@@ -48,111 +53,210 @@ model Funcionario {
 }
 
 model Expediente {
-  id             String      @id @default(uuid())
-  funcionarioId  String
-  diaSemana      Int
-  horaInicio     String
-  horaFim        String
-  ativo          Boolean     @default(false)
+  id            String      @id @default(uuid())
+  funcionarioId String
+  diaSemana     Int
+  horaInicio    String
+  horaFim       String
+  ativo         Boolean     @default(false)
 
-  funcionario    Funcionario @relation(fields: [funcionarioId], references: [id], onDelete: Cascade)
+  funcionario   Funcionario @relation(fields: [funcionarioId], references: [id], onDelete: Cascade)
 
   @@unique([funcionarioId, diaSemana])
 }
 
-// 2. CATÁLOGO, PORTFÓLIO E ESTOQUE
+// ============================================================
+// 2. CATÁLOGO, PORTFÓLIO, ESTOQUE E PACOTES
+// ============================================================
 
 model Servico {
-  id               String   @id @default(uuid())
+  id               String          @id @default(uuid())
   nome             String
   descricao        String?
   preco            Float?
   tempoMinutos     Int?
   imagemUrl        String?
-  ativo            Boolean  @default(true)
-  destaque         Boolean  @default(false)
+  ativo            Boolean         @default(true)
+  destaque         Boolean         @default(false)
 
   itensAgendamento ItemServico[]
   funcionarios     Funcionario[]
   insumos          InsumoServico[]
+  pacotes          PacoteServico[] // ← NOVO: relação inversa com pacotes
 }
 
 model InsumoServico {
-  id               String   @id @default(uuid())
-  servicoId        String
-  produtoId        String
-  quantidadeUsada  Int
+  id              String   @id @default(uuid())
+  servicoId       String
+  produtoId       String
+  quantidadeUsada Int
 
-  servico          Servico  @relation(fields: [servicoId], references: [id], onDelete: Cascade)
-  produto          Produto  @relation(fields: [produtoId], references: [id], onDelete: Cascade)
+  servico         Servico  @relation(fields: [servicoId], references: [id], onDelete: Cascade)
+  produto         Produto  @relation(fields: [produtoId], references: [id], onDelete: Cascade)
 
   @@unique([servicoId, produtoId])
 }
 
 model Produto {
-  id               String   @id @default(uuid())
+  id               String          @id @default(uuid())
   nome             String
   descricao        String?
   precoCusto       Float?
   precoVenda       Float
   
-  estoque          Int      @default(0)
-  unidadeMedida    String   @default("un")
-  tamanhoUnidade   Int      @default(1)
+  estoque          Int             @default(0)
+  unidadeMedida    String          @default("un")
+  tamanhoUnidade   Int             @default(1)
   
-  ativo            Boolean  @default(true)
+  ativo            Boolean         @default(true)
   
   itensAgendamento ItemProduto[]   
   insumos          InsumoServico[] 
 
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
 }
 
+model Pacote {
+  id           String          @id @default(uuid())
+  nome         String
+  descricao    String?
+  valorBase    Float           // preço sem desconto
+  valorFinal   Float           // preço final cobrado
+  desconto     Float           @default(0)    // % de desconto (calculado ou manual)
+  ativo        Boolean         @default(true)
+  criadoEm     DateTime        @default(now())
+  atualizadoEm DateTime        @updatedAt
+
+  servicos     PacoteServico[]
+  vendas       PacoteVenda[]
+}
+
+model PacoteServico {
+  id         String  @id @default(uuid())
+  pacoteId   String
+  servicoId  String
+  quantidade Int     @default(1)
+
+  pacote     Pacote  @relation(fields: [pacoteId], references: [id], onDelete: Cascade)
+  servico    Servico @relation(fields: [servicoId], references: [id])
+
+  @@unique([pacoteId, servicoId])
+}
+
+model PacoteVenda {
+  id           String    @id @default(uuid())
+  pacoteId     String
+  clienteId    String
+  valorCobrado Float     // snapshot do valorFinal no momento da venda
+  status       String    @default("PENDENTE") // "PAGO_ANTECIPADAMENTE" | "PENDENTE"
+  criadoEm     DateTime  @default(now())
+  paidAt       DateTime?
+
+  pacote       Pacote    @relation(fields: [pacoteId], references: [id])
+  cliente      Cliente   @relation(fields: [clienteId], references: [id])
+
+  @@index([clienteId, status])
+}
+
+// ============================================================
 // 3. MOTOR FINANCEIRO E COMANDAS
+// ============================================================
 
 model ConfiguracaoSalao {
   id            String   @id @default("config_global")
-  taxaCredito   Float    @default(3.0)  // % taxa maquininha cartão de crédito
-  taxaDebito    Float    @default(1.5)  // % taxa maquininha cartão de débito
-  taxaPix       Float    @default(0.0)  // % taxa PIX (geralmente zero)
+  taxaCredito   Float    @default(3.0)   // Legado — substituído por TaxaMetodoPagamento
+  taxaDebito    Float    @default(1.5)   // Legado — substituído por TaxaMetodoPagamento
+  taxaPix       Float    @default(0.0)   // Legado — substituído por TaxaMetodoPagamento
   atualizadoEm  DateTime @updatedAt
 }
 
+model TaxaMetodoPagamento {
+  id           String             @id @default(uuid())
+  metodo       String             @unique  
+  // Valores válidos: "DINHEIRO" | "PIX" | "CARTAO_DEBITO" | "CARTAO_CREDITO" | "CORTESIA" | "VOUCHER" | "PERMUTA"
+  descricao    String?
+  taxaBase     Float              @default(0.0)   // % aplicada sobre o valor (ex: 2.20 para débito)
+  ativo        Boolean            @default(true)
+  criadoEm     DateTime           @default(now())
+  atualizadoEm DateTime           @updatedAt
+
+  pagamentos   PagamentoComanda[] 
+}
+
 model Agendamento {
-  id             String   @id @default(uuid())
-  clienteId      String
-  funcionarioId  String
-  dataHoraInicio DateTime
-  dataHoraFim    DateTime
-  valorBruto     Float
-  concluido      Boolean  @default(false)
-  canceladoEm    DateTime?
+  id               String             @id @default(uuid())
+  clienteId        String
+  funcionarioId    String
+  dataHoraInicio   DateTime
+  dataHoraFim      DateTime
+  valorBruto       Float
+  concluido        Boolean            @default(false)
+  canceladoEm      DateTime?
 
-  // ── Snapshot Financeiro Imutável (preenchido somente no fechamento da comanda) ──
-  // Estes campos são gravados UMA ÚNICA VEZ quando concluido vira true.
-  // Nunca devem ser recalculados dinamicamente; refletem a realidade do momento do atendimento.
-  taxas           Float    @default(0)   // Total de taxas da maquininha (incide só sobre o valor em cartão)
-  custoInsumos    Float    @default(0)   // Insumos consumidos (validado/editado pelo operador)
-  custoRevenda    Float    @default(0)   // precoCusto × quantidade de cada produto vendido
-  valorComissao   Float    @default(0)   // Repasse ao profissional (sobre baseLiquida)
-  comissaoSnap    Float    @default(0)   // % de comissão congelada no momento do fechamento
+  // ── Snapshot Financeiro Imutável ──
+  taxas            Float              @default(0)
+  custoInsumos     Float              @default(0)
+  custoRevenda     Float              @default(0)
+  valorComissao    Float              @default(0)
+  comissaoSnap     Float              @default(0)
+  comissaoLiberada Boolean            @default(false)  
 
-  // ── Detalhamento do Pagamento (snapshot da divisão por método) ──
-  valorDinheiro   Float    @default(0)   // Parte paga em dinheiro físico
-  valorCartao     Float    @default(0)   // Parte paga em cartão (crédito ou débito)
-  valorPix        Float    @default(0)   // Parte paga em PIX
-  metodoPagamento String?               // "DINHEIRO" | "CARTAO_CREDITO" | "CARTAO_DEBITO" | "PIX" | "MISTO"
+  // ── Controle de Pagamento Parcial (NOVOS) ──
+  valorPago        Float              @default(0)    
+  valorPendente    Float              @default(0)    
 
-  cliente        Cliente     @relation(fields: [clienteId], references: [id])
-  funcionario    Funcionario @relation(fields: [funcionarioId], references: [id])
+  // ── Campos Legado ──
+  valorDinheiro    Float              @default(0)   
+  valorCartao      Float              @default(0)   
+  valorPix         Float              @default(0)   
+  metodoPagamento  String?                
 
-  servicos       ItemServico[]
-  produtos       ItemProduto[]
-  avaliacao      Avaliacao?
+  cliente          Cliente            @relation(fields: [clienteId], references: [id])
+  funcionario      Funcionario        @relation(fields: [funcionarioId], references: [id])
 
-  @@index([funcionarioId, dataHoraInicio, dataHoraFim]) // Anti-double-booking
-  @@index([concluido, dataHoraInicio])                  // Relatórios financeiros (full scan → index range scan)
+  servicos         ItemServico[]
+  produtos         ItemProduto[]
+  avaliacao        Avaliacao?
+  pagamentos       PagamentoComanda[] 
+  divida           DividaCliente?     
+
+  @@index([funcionarioId, dataHoraInicio, dataHoraFim])
+  @@index([concluido, dataHoraInicio])
+  @@index([clienteId, valorPendente])  
+}
+
+model PagamentoComanda {
+  id            String               @id @default(uuid())
+  agendamentoId String
+  metodo        String   
+  valor         Float
+  parcelas      Int                  @default(1)  
+  taxaAplicada  Float                @default(0)  
+  taxaMetodoId  String?              
+  criadoEm      DateTime             @default(now())
+
+  agendamento   Agendamento          @relation(fields: [agendamentoId], references: [id], onDelete: Cascade)
+  taxaMetodo    TaxaMetodoPagamento? @relation(fields: [taxaMetodoId], references: [id])
+
+  @@index([agendamentoId])
+}
+
+model DividaCliente {
+  id            String       @id @default(uuid())
+  clienteId     String
+  agendamentoId String?      @unique  
+  valorOriginal Float               
+  valorQuitado  Float        @default(0)
+  status        String       @default("PENDENTE") // "PENDENTE" | "QUITADA" | "PARCIAL"
+  observacao    String?
+  criadoEm      DateTime     @default(now())
+  quitadoEm     DateTime?
+
+  cliente       Cliente      @relation(fields: [clienteId], references: [id])
+  agendamento   Agendamento? @relation(fields: [agendamentoId], references: [id])
+
+  @@index([clienteId, status])  
 }
 
 model ItemServico {
@@ -160,6 +264,7 @@ model ItemServico {
   servicoId     String
   agendamentoId String
   precoCobrado  Float?
+  
   servico       Servico     @relation(fields: [servicoId], references: [id])
   agendamento   Agendamento @relation(fields: [agendamentoId], references: [id], onDelete: Cascade)
 }
@@ -175,27 +280,36 @@ model ItemProduto {
   agendamento   Agendamento @relation(fields: [agendamentoId], references: [id], onDelete: Cascade)
 }
 
-// 4. Vitrine de portfólio homepage
+// ============================================================
+// 4. VITRINE DE PORTFÓLIO HOMEPAGE
+// ============================================================
+
 model ItemPortfolio {
   id            String   @id @default(uuid())
   titulo        String
-  descricao     String?              // Descrição detalhada do trabalho
+  descricao     String?              
   valor         Float?
-  imagensJson   String               // Array JSON: ["img1.png","img2.png"] — suporte a até 4 fotos
-  linkInstagram String?              // Link direto para o post/perfil no Instagram
+  imagensJson   String               
+  linkInstagram String?              
   ativo         Boolean  @default(true)
   criadoEm      DateTime @default(now())
 }
 
+// ============================================================
 // 5. SISTEMA DE ALERTAS
+// ============================================================
+
 model Notificacao {
-  id        String   @id @default(uuid())
-  mensagem  String
-  lida      Boolean  @default(false)
-  criadoEm  DateTime @default(now())
+  id       String   @id @default(uuid())
+  mensagem String
+  lida     Boolean  @default(false)
+  criadoEm DateTime @default(now())
 }
 
+// ============================================================
 // 6. AVALIAÇÕES (NPS)
+// ============================================================
+
 model Avaliacao {
   id            String      @id @default(uuid())
   agendamentoId String      @unique
@@ -206,23 +320,27 @@ model Avaliacao {
   agendamento   Agendamento @relation(fields: [agendamentoId], references: [id], onDelete: Cascade)
 }
 
+// ============================================================
+// 7. SISTEMA E LOGS
+// ============================================================
+
 model RateLimit {
   identificador String    @id
   count         Int       @default(1)
   windowStart   DateTime  @default(now())
   blockedUntil  DateTime?
 
-  @@map("rate_limits") // Opcional: padroniza o nome da tabela no banco
+  @@map("rate_limits") 
 }
 
 model AuditLog {
-  id            String   @id @default(cuid())
-  usuarioId     String   // Quem fez a ação
-  acao          String   // EX: "FECHAMENTO_COMANDA", "ALTERACAO_PRECO"
-  entidade      String   // EX: "Comanda", "Servico"
-  entidadeId    String   // ID do registro afetado
-  detalhes      String?  // JSON ou descrição da mudança
-  timestamp     DateTime @default(now())
+  id         String   @id @default(cuid())
+  usuarioId  String   
+  acao       String   
+  entidade   String   
+  entidadeId String   
+  detalhes   String?  
+  timestamp  DateTime @default(now())
 
   @@index([entidade, entidadeId])
   @@index([usuarioId])

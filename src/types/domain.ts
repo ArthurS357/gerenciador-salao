@@ -1,4 +1,4 @@
-export type Role = 'ADMIN' | 'PROFISSIONAL' | 'CLIENTE'
+export type Role = 'ADMIN' | 'PROFISSIONAL' | 'CLIENTE' | 'RECEPCIONISTA'
 
 // ── ENTIDADES BASE ───────────────────────────────────────────────────────────
 

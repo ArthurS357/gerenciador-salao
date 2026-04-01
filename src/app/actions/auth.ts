@@ -4,9 +4,9 @@ import { SignJWT, jwtVerify } from 'jose'
 import { cookies } from 'next/headers'
 import { prisma } from '@/lib/prisma'
 import { compare } from 'bcrypt'
-import { getJwtSecret } from '@/lib/jwt' // Correção: Importando a função de Lazy Load
+import { getJwtSecret } from '@/lib/jwt'
 import { z } from 'zod'
-import { cache } from 'react' // Importação crítica para performance
+import { cache } from 'react'
 import { verificarRateLimit } from '@/lib/rateLimit'
 
 type LoginFuncionarioResult =
@@ -18,7 +18,7 @@ type SessaoClienteResult =
     | { logado: false }
 
 type SessaoFuncionarioResult =
-    | { logado: true; id: string; nome: string; role: 'ADMIN' | 'PROFISSIONAL' }
+    | { logado: true; id: string; nome: string; role: 'ADMIN' | 'PROFISSIONAL' | 'RECEPCIONISTA' }
     | { logado: false }
 
 // ── SCHEMAS ──────────────────────────────────────────────────────────────────
@@ -30,7 +30,7 @@ const SessaoClienteSchema = z.object({
 })
 
 const SessaoFuncionarioSchema = z.object({
-    role: z.enum(['ADMIN', 'PROFISSIONAL']),
+    role: z.enum(['ADMIN', 'PROFISSIONAL', 'RECEPCIONISTA']),
     sub: z.string().min(1),
 })
 
@@ -40,7 +40,6 @@ const EXPIRACAO_SEGUNDOS = 60 * 60 * 24 // 1 dia
 
 export async function loginFuncionario(email: string, senhaPlana: string): Promise<LoginFuncionarioResult> {
     try {
-        // Blindagem contra Força Bruta Focada (Proteção por Conta)
         const rateLimitKey = `login_func_${email}`;
         if (!(await verificarRateLimit(rateLimitKey))) {
             return { success: false, error: 'Muitas tentativas. Aguarde 30 segundos.' }
@@ -60,7 +59,7 @@ export async function loginFuncionario(email: string, senhaPlana: string): Promi
             .setSubject(funcionario.id)
             .setIssuedAt()
             .setExpirationTime(`${EXPIRACAO_SEGUNDOS}s`)
-            .sign(getJwtSecret()) // Lazy load seguro do secret
+            .sign(getJwtSecret())
 
         const cookieStore = await cookies()
         cookieStore.set('funcionario_session', token, {
@@ -68,7 +67,7 @@ export async function loginFuncionario(email: string, senhaPlana: string): Promi
             secure: process.env.NODE_ENV === 'production',
             maxAge: EXPIRACAO_SEGUNDOS,
             path: '/',
-            sameSite: 'lax', // Proteção contra CSRF
+            sameSite: 'lax',
         })
 
         return { success: true, role: funcionario.role }
@@ -78,7 +77,6 @@ export async function loginFuncionario(email: string, senhaPlana: string): Promi
     }
 }
 
-// React Cache: Evita redundância de validação JWT e acesso ao banco no mesmo request lifecycle
 export const verificarSessaoCliente = cache(async (): Promise<SessaoClienteResult> => {
     const cookieStore = await cookies()
     try {
@@ -93,7 +91,6 @@ export const verificarSessaoCliente = cache(async (): Promise<SessaoClienteResul
             return { logado: false }
         }
 
-        // Checa se o cliente ainda existe/não foi banido no DB (Aceitável dado o uso do cache)
         const clienteAtivo = await prisma.cliente.findUnique({
             where: { id: validacao.data.sub },
             select: { id: true, anonimizado: true }
@@ -112,7 +109,6 @@ export const verificarSessaoCliente = cache(async (): Promise<SessaoClienteResul
     }
 })
 
-// React Cache: Transforma N+1 queries de validação de rota numa consulta O(1)
 export const verificarSessaoFuncionario = cache(async (): Promise<SessaoFuncionarioResult> => {
     const cookieStore = await cookies()
     try {
