@@ -101,12 +101,17 @@ export async function adicionarProdutoNaComanda(
 // ── 3. Fechamento Absoluto (Físico + Financeiro) ──────────────────────────────
 /**
  * Unificação da baixa de estoque (Insumos) e do Snapshot Financeiro.
- * Executa todas as atualizações de forma atômica (ACID).
+ * Suporta pagamentos mistos (Dinheiro + Cartão + PIX).
+ * A taxa da maquininha incide APENAS sobre o valor pago em cartão.
+ * As taxas são lidas dinamicamente de ConfiguracaoSalao.
  */
 export async function finalizarComanda(
     agendamentoId: string,
-    taxaAdquirentePercentual: number = 3,
-    custoInsumosValidado: number // Segue a abordagem Híbrida definida anteriormente
+    custoInsumosValidado: number,
+    valorDinheiro: number = 0,
+    valorCartao: number = 0,
+    valorPix: number = 0,
+    tipoCartao?: 'CREDITO' | 'DEBITO'
 ): Promise<ActionResult<{ financeiro: FechamentoComanda }>> {
     try {
         // Blindagem de Acesso
@@ -116,8 +121,11 @@ export async function finalizarComanda(
         // Validação Estrita de Entrada (Zod)
         const validacao = schemaFinalizarComanda.safeParse({
             agendamentoId,
-            taxaAdquirentePercentual,
-            custoInsumosValidado
+            custoInsumosValidado,
+            valorDinheiro,
+            valorCartao,
+            valorPix,
+            tipoCartao,
         });
 
         if (!validacao.success) {
@@ -127,7 +135,9 @@ export async function finalizarComanda(
             };
         }
 
-        // Inicia a super-transação do fechamento da comanda
+        const input = validacao.data;
+
+        // Inicia a super-transação do fechamento da comanda (ACID)
         const resultadoFechamento = await prisma.$transaction(async (tx) => {
             const agendamento = await tx.agendamento.findUnique({
                 where: { id: agendamentoId },
@@ -138,9 +148,7 @@ export async function finalizarComanda(
                             servico: { include: { insumos: { include: { produto: true } } } }
                         }
                     },
-                    produtos: {
-                        include: { produto: true }
-                    }
+                    produtos: { include: { produto: true } }
                 }
             });
 
@@ -150,7 +158,13 @@ export async function finalizarComanda(
             const valorBruto = agendamento.valorBruto;
             const comissaoSnap = agendamento.funcionario.comissao;
 
-            // 1. Processamento Físico: Baixa de Insumos da Ficha Técnica
+            // 1. Lê as taxas dinâmicas configuradas pelo Admin
+            const config = await tx.configuracaoSalao.findFirst()
+            const taxaCredito = config?.taxaCredito ?? 3.0
+            const taxaDebito = config?.taxaDebito ?? 1.5
+            const taxaPix = config?.taxaPix ?? 0.0
+
+            // 2. Processamento Físico: Baixa de Insumos da Ficha Técnica
             const consumoTotalInsumos = new Map<string, number>();
             for (const itemServico of agendamento.servicos) {
                 for (const insumo of itemServico.servico.insumos) {
@@ -159,8 +173,6 @@ export async function finalizarComanda(
                 }
             }
 
-            // Otimização de Performance: Despacha as promises de atualização do banco em paralelo.
-            // Impede que o loop segure a transação (e os locks do banco) por muito tempo.
             const operacoesEstoque = Array.from(consumoTotalInsumos.entries()).map(([produtoId, quantidadeGasta]) =>
                 tx.produto.update({
                     where: { id: produtoId },
@@ -169,31 +181,46 @@ export async function finalizarComanda(
             );
             await Promise.all(operacoesEstoque);
 
-            // 2. Processamento Financeiro: Custo de Revenda
+            // 3. Processamento Financeiro: Custo de Revenda
             let custoRevenda = 0;
             for (const item of agendamento.produtos) {
                 const custoUnitario = item.produto?.precoCusto ?? (item.precoCobrado * 0.5);
                 custoRevenda += custoUnitario * item.quantidade;
             }
 
-            // 3. Regras de Negócio Financeiras (Imutáveis)
-            const valorTaxaCartao = valorBruto * (taxaAdquirentePercentual / 100);
-            const deducoesTotais = valorTaxaCartao + custoInsumosValidado + custoRevenda;
+            // 4. Regra de Negócio: Taxa APENAS sobre o valor pago em cartão/PIX
+            //    Dinheiro físico → zero dedução de maquininha
+            const taxaCartaoPerc = input.tipoCartao === 'DEBITO' ? taxaDebito : taxaCredito
+            const valorTaxaCartao = input.valorCartao * (taxaCartaoPerc / 100)
+            const valorTaxaPix = input.valorPix * (taxaPix / 100)
+            const totalTaxas = valorTaxaCartao + valorTaxaPix
 
+            const deducoesTotais = totalTaxas + input.custoInsumosValidado + custoRevenda;
             const baseLiquidaComissao = Math.max(0, valorBruto - deducoesTotais);
             const valorComissao = baseLiquidaComissao * (comissaoSnap / 100);
             const lucroSalao = valorBruto - deducoesTotais - valorComissao;
 
-            // 4. Selo de Imutabilidade (Snapshot)
+            // 5. Determina o método de pagamento para o snapshot
+            const metodos: string[] = []
+            if (input.valorDinheiro > 0) metodos.push('DINHEIRO')
+            if (input.valorCartao > 0) metodos.push(input.tipoCartao === 'DEBITO' ? 'CARTAO_DEBITO' : 'CARTAO_CREDITO')
+            if (input.valorPix > 0) metodos.push('PIX')
+            const metodoPagamento = metodos.length > 1 ? 'MISTO' : (metodos[0] ?? 'NAO_INFORMADO')
+
+            // 6. Selo de Imutabilidade (Snapshot)
             await tx.agendamento.update({
                 where: { id: agendamentoId },
                 data: {
                     concluido: true,
-                    taxas: valorTaxaCartao,
-                    custoInsumos: custoInsumosValidado,
+                    taxas: totalTaxas,
+                    custoInsumos: input.custoInsumosValidado,
                     custoRevenda,
                     valorComissao,
                     comissaoSnap,
+                    valorDinheiro: input.valorDinheiro,
+                    valorCartao: input.valorCartao,
+                    valorPix: input.valorPix,
+                    metodoPagamento,
                 }
             });
 
@@ -206,13 +233,11 @@ export async function finalizarComanda(
             };
         });
 
-        // Revalida o cache
         revalidatePath('/profissional/agenda');
         revalidatePath(`/profissional/comanda/${agendamentoId}`);
         revalidatePath('/admin/estoque');
         revalidatePath('/admin/financeiro');
 
-        // Correção Crítica: Respeitando o contrato `ActionResult<{ financeiro: FechamentoComanda }>`
         return { sucesso: true, data: { financeiro: resultadoFechamento } };
     } catch (error) {
         console.error("[Comanda] Erro crítico ao faturar comanda:", error);

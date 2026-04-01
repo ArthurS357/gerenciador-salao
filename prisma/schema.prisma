@@ -111,6 +111,14 @@ model Produto {
 
 // 3. MOTOR FINANCEIRO E COMANDAS
 
+model ConfiguracaoSalao {
+  id            String   @id @default("config_global")
+  taxaCredito   Float    @default(3.0)  // % taxa maquininha cartão de crédito
+  taxaDebito    Float    @default(1.5)  // % taxa maquininha cartão de débito
+  taxaPix       Float    @default(0.0)  // % taxa PIX (geralmente zero)
+  atualizadoEm  DateTime @updatedAt
+}
+
 model Agendamento {
   id             String   @id @default(uuid())
   clienteId      String
@@ -124,11 +132,17 @@ model Agendamento {
   // ── Snapshot Financeiro Imutável (preenchido somente no fechamento da comanda) ──
   // Estes campos são gravados UMA ÚNICA VEZ quando concluido vira true.
   // Nunca devem ser recalculados dinamicamente; refletem a realidade do momento do atendimento.
-  taxas          Float    @default(0)   // Taxa do adquirente de cartão (% sobre valorBruto)
-  custoInsumos   Float    @default(0)   // Insumos consumidos (validado/editado pelo operador)
-  custoRevenda   Float    @default(0)   // precoCusto × quantidade de cada produto vendido
-  valorComissao  Float    @default(0)   // Repasse ao profissional (sobre baseLiquida)
-  comissaoSnap   Float    @default(0)   // % de comissão congelada no momento do fechamento
+  taxas           Float    @default(0)   // Total de taxas da maquininha (incide só sobre o valor em cartão)
+  custoInsumos    Float    @default(0)   // Insumos consumidos (validado/editado pelo operador)
+  custoRevenda    Float    @default(0)   // precoCusto × quantidade de cada produto vendido
+  valorComissao   Float    @default(0)   // Repasse ao profissional (sobre baseLiquida)
+  comissaoSnap    Float    @default(0)   // % de comissão congelada no momento do fechamento
+
+  // ── Detalhamento do Pagamento (snapshot da divisão por método) ──
+  valorDinheiro   Float    @default(0)   // Parte paga em dinheiro físico
+  valorCartao     Float    @default(0)   // Parte paga em cartão (crédito ou débito)
+  valorPix        Float    @default(0)   // Parte paga em PIX
+  metodoPagamento String?               // "DINHEIRO" | "CARTAO_CREDITO" | "CARTAO_DEBITO" | "PIX" | "MISTO"
 
   cliente        Cliente     @relation(fields: [clienteId], references: [id])
   funcionario    Funcionario @relation(fields: [funcionarioId], references: [id])

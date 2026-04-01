@@ -94,6 +94,7 @@ export function ServicoRow({
                 )}
             >
                 <div className="overflow-hidden border-t border-border/30 bg-muted/10">
+                    <div className="overflow-x-auto">
 
                     {/* Barra de Ações Rápidas do Serviço */}
                     <div className="flex flex-wrap items-center gap-2 p-4 sm:px-6 border-b border-border/30">
@@ -172,6 +173,7 @@ export function ServicoRow({
                         )}
                     </div>
 
+                    </div>
                 </div>
             </div>
         </div>

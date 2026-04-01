@@ -96,6 +96,7 @@ export function ProdutoRow({ produto, isLoading, onBaixa, onEntrada, onRemover }
             {/* ── ÁREA EXPANDIDA ── */}
             <div className={cn("grid transition-all duration-300 ease-in-out", expanded ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0")}>
                 <div className="overflow-hidden border-t border-border/30 bg-muted/10">
+                    <div className="overflow-x-auto">
 
                     <div className="flex flex-wrap items-center gap-2 p-4 sm:px-6 border-b border-border/30 bg-card">
                         <Button
@@ -150,6 +151,7 @@ export function ProdutoRow({ produto, isLoading, onBaixa, onEntrada, onRemover }
                         </div>
                     </div>
 
+                    </div>
                 </div>
             </div>
         </div>

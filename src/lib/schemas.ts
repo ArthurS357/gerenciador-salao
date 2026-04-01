@@ -76,15 +76,22 @@ export const schemaAdicionarProdutoComanda = z.object({
 
 export const schemaFinalizarComanda = z.object({
     agendamentoId: z.string().min(1, 'ID do agendamento é necessário.'),
-    taxaAdquirentePercentual: z.coerce
-        .number()
-        .min(0, 'A taxa não pode ser negativa.')
-        .max(20, 'A taxa não pode exceder 20%.')
-        .default(3),
     custoInsumosValidado: z.coerce
         .number()
         .min(0, 'O custo de insumos não pode ser negativo.'),
+    valorDinheiro: z.coerce.number().min(0, 'Valor em dinheiro inválido.').default(0),
+    valorCartao: z.coerce.number().min(0, 'Valor em cartão inválido.').default(0),
+    valorPix: z.coerce.number().min(0, 'Valor em PIX inválido.').default(0),
+    tipoCartao: z.enum(['CREDITO', 'DEBITO']).optional(),
 })
+.refine(
+    d => (d.valorDinheiro + d.valorCartao + d.valorPix) > 0,
+    { message: 'Informe ao menos uma forma de pagamento.' }
+)
+.refine(
+    d => !(d.valorCartao > 0 && !d.tipoCartao),
+    { message: 'Selecione o tipo de cartão (Crédito ou Débito).', path: ['tipoCartao'] }
+)
 
 // ── SCHEMAS de CLIENTE (LGPD & CRUD) ─────────────────────────────────────────
 

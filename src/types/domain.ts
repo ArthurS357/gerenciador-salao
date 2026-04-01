@@ -138,6 +138,18 @@ export interface AgendamentoHistoricoFinanceiro {
     valorComissao: number
 }
 
+export interface ResumoMetodosPagamento {
+    totalDinheiro: number
+    totalCartao: number
+    totalPix: number
+}
+
+export interface ConfiguracaoSalao {
+    taxaCredito: number
+    taxaDebito: number
+    taxaPix: number
+}
+
 export interface FinanceiroResumo {
     faturamentoBruto: number
     custoProdutos: number
@@ -145,6 +157,7 @@ export interface FinanceiroResumo {
     lucroLiquido: number
     equipe: FuncionarioResumo[]
     historico: AgendamentoHistoricoFinanceiro[]
+    metodosPagamento: ResumoMetodosPagamento
 }
 
 export interface FechamentoComanda {

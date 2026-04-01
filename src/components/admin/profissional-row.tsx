@@ -61,6 +61,7 @@ export function ProfissionalRow({ profissional, onEditar, onEditarEscala, onEdit
             {/* ── ÁREA EXPANDIDA ── */}
             <div className={cn("grid transition-all duration-300 ease-in-out", expanded ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0")}>
                 <div className="overflow-hidden border-t border-border/30 bg-muted/10">
+                    <div className="overflow-x-auto">
 
                     {/* Ações Rápidas */}
                     <div className="flex flex-wrap items-center gap-2 p-4 sm:px-6 border-b border-border/30 bg-[#faf6f1]">
@@ -114,6 +115,7 @@ export function ProfissionalRow({ profissional, onEditar, onEditarEscala, onEdit
                                 </div>
                             )}
                         </div>
+                    </div>
                     </div>
                 </div>
             </div>

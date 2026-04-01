@@ -81,6 +81,7 @@ export function ClienteRow({ cliente, onAgendar, onHistorico, onEditar, onLgpd, 
                 )}
             >
                 <div className="overflow-hidden">
+                    <div className="overflow-x-auto">
                     {/* Métricas para Mobile (só aparece se a tela for muito pequena) */}
                     <div className="flex justify-between border-t border-border/30 px-4 py-3 sm:hidden bg-muted/20">
                         <span className="text-xs text-muted-foreground">Total Investido:</span>
@@ -141,6 +142,7 @@ export function ClienteRow({ cliente, onAgendar, onHistorico, onEditar, onLgpd, 
                         >
                             <Trash2 className="mr-2 h-3.5 w-3.5" /> Excluir
                         </Button>
+                    </div>
                     </div>
                 </div>
             </div>

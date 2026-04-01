@@ -2,12 +2,13 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
 import { finalizarComanda } from '@/app/actions/comanda'
 
 interface BotaoFinalizarComandaProps {
     agendamentoId: string;
     valorBruto: number;
-    custoInsumosEstimado?: number; // Sugestão do sistema (calculado pelo front-end via ficha técnica)
+    custoInsumosEstimado?: number;
 }
 
 export default function BotaoFinalizarComanda({
@@ -17,42 +18,56 @@ export default function BotaoFinalizarComanda({
 }: BotaoFinalizarComandaProps) {
     const [carregando, setCarregando] = useState(false)
     const [mostrarModal, setMostrarModal] = useState(false)
-    // Pré-populado com a estimativa da ficha técnica — operador confirma ou edita
     const [custoInsumos, setCustoInsumos] = useState(custoInsumosEstimado)
-    const [taxaCartao, setTaxaCartao] = useState(3) // % padrão do adquirente
+
+    // Pagamentos mistos
+    const [valorDinheiro, setValorDinheiro] = useState(0)
+    const [valorCartao, setValorCartao] = useState(0)
+    const [valorPix, setValorPix] = useState(0)
+    const [tipoCartao, setTipoCartao] = useState<'CREDITO' | 'DEBITO'>('CREDITO')
+
     const router = useRouter()
 
-    const handleFinalizar = async () => {
-        setCarregando(true)
+    const totalAlocado = valorDinheiro + valorCartao + valorPix
+    const diferenca = valorBruto - totalAlocado
+    const totalValido = Math.abs(diferenca) < 0.01
 
+    const handleFinalizar = async () => {
+        if (!totalValido) {
+            toast.error(`Distribua o valor total: faltam R$ ${diferenca.toFixed(2)}`)
+            return
+        }
+
+        setCarregando(true)
         try {
-            const res = await finalizarComanda(agendamentoId, taxaCartao, custoInsumos)
+            const res = await finalizarComanda(
+                agendamentoId,
+                custoInsumos,
+                valorDinheiro,
+                valorCartao,
+                valorPix,
+                valorCartao > 0 ? tipoCartao : undefined
+            )
 
             if (res.sucesso) {
                 const f = res.data.financeiro
-                alert(
-                    `✅ Comanda faturada com sucesso!\n\n` +
-                    `Bruto: R$ ${f.bruto.toFixed(2)}\n` +
-                    `Deduções: R$ ${f.deducoes.toFixed(2)}\n` +
-                    `Repasse profissional: R$ ${f.comissao.toFixed(2)}\n` +
-                    `Lucro do salão: R$ ${f.lucroSalao.toFixed(2)}`
+                toast.success(
+                    `Comanda faturada! Lucro líquido: R$ ${f.lucroSalao.toFixed(2)}`,
+                    { description: `Bruto R$ ${f.bruto.toFixed(2)} — Repasse prof. R$ ${f.comissao.toFixed(2)}` }
                 )
                 router.push('/profissional/agenda')
             } else {
-                alert(`Erro: ${res.erro}`)
-                setMostrarModal(false)
+                toast.error(res.erro ?? 'Erro ao processar comanda.')
                 setCarregando(false)
             }
         } catch {
-            alert('Ocorreu um erro técnico ao processar a fatura.')
-            setMostrarModal(false)
+            toast.error('Ocorreu um erro técnico ao processar a fatura.')
             setCarregando(false)
         }
     }
 
     return (
         <>
-            {/* Botão principal que abre o modal de confirmação */}
             <button
                 onClick={() => setMostrarModal(true)}
                 disabled={carregando}
@@ -61,7 +76,6 @@ export default function BotaoFinalizarComanda({
                 Concluir Agendamento e Faturar
             </button>
 
-            {/* Modal de confirmação com campos editáveis (Abordagem Híbrida) */}
             {mostrarModal && (
                 <div style={{
                     position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
@@ -70,25 +84,23 @@ export default function BotaoFinalizarComanda({
                 }}>
                     <div style={{
                         background: 'white', borderRadius: '12px', padding: '2rem',
-                        maxWidth: '420px', width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.2)'
+                        maxWidth: '460px', width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
+                        maxHeight: '90vh', overflowY: 'auto'
                     }}>
-                        <h3 style={{ margin: '0 0 0.5rem', fontSize: '1.1rem', fontWeight: 700, color: '#1a1a1a' }}>
+                        <h3 style={{ margin: '0 0 0.25rem', fontSize: '1.1rem', fontWeight: 700, color: '#1a1a1a' }}>
                             Confirmar Fechamento de Comanda
                         </h3>
                         <p style={{ margin: '0 0 1.5rem', fontSize: '0.85rem', color: '#666' }}>
-                            Valor bruto: <strong>R$ {valorBruto.toFixed(2)}</strong>. Revise os valores abaixo antes de faturar.
+                            Valor bruto: <strong>R$ {valorBruto.toFixed(2)}</strong>. Informe como foi o pagamento.
                         </p>
 
-                        {/* Custo de insumos — editável pelo operador (Abordagem Híbrida aprovada) */}
+                        {/* Custo de insumos */}
                         <div style={{ marginBottom: '1rem' }}>
                             <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#555', marginBottom: '0.35rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                                 Custo de Insumos (R$)
                             </label>
                             <input
-                                type="number"
-                                min="0"
-                                step="0.01"
-                                value={custoInsumos}
+                                type="number" min="0" step="0.01" value={custoInsumos}
                                 onChange={e => setCustoInsumos(Math.max(0, parseFloat(e.target.value) || 0))}
                                 style={{ width: '100%', padding: '0.6rem 0.8rem', border: '1.5px solid #ddd', borderRadius: '6px', fontSize: '0.95rem', boxSizing: 'border-box' }}
                             />
@@ -99,20 +111,78 @@ export default function BotaoFinalizarComanda({
                             )}
                         </div>
 
-                        {/* Taxa do adquirente — editável */}
-                        <div style={{ marginBottom: '1.5rem' }}>
-                            <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#555', marginBottom: '0.35rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                                Taxa do Cartão (%)
-                            </label>
-                            <input
-                                type="number"
-                                min="0"
-                                max="10"
-                                step="0.1"
-                                value={taxaCartao}
-                                onChange={e => setTaxaCartao(Math.max(0, parseFloat(e.target.value) || 0))}
-                                style={{ width: '100%', padding: '0.6rem 0.8rem', border: '1.5px solid #ddd', borderRadius: '6px', fontSize: '0.95rem', boxSizing: 'border-box' }}
-                            />
+                        {/* Divisão do pagamento */}
+                        <div style={{ background: '#f8f9fa', borderRadius: '8px', padding: '1rem', marginBottom: '1rem', border: '1px solid #e9ecef' }}>
+                            <p style={{ fontSize: '0.75rem', fontWeight: 700, color: '#555', marginBottom: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                Divisão do Pagamento
+                            </p>
+
+                            {/* Dinheiro */}
+                            <div style={{ marginBottom: '0.75rem' }}>
+                                <label style={{ display: 'block', fontSize: '0.72rem', color: '#666', marginBottom: '0.3rem', fontWeight: 600 }}>
+                                    Dinheiro (R$)
+                                </label>
+                                <input
+                                    type="number" min="0" step="0.01" value={valorDinheiro || ''}
+                                    placeholder="0,00"
+                                    onChange={e => setValorDinheiro(Math.max(0, parseFloat(e.target.value) || 0))}
+                                    style={{ width: '100%', padding: '0.5rem 0.75rem', border: '1.5px solid #ddd', borderRadius: '6px', fontSize: '0.9rem', boxSizing: 'border-box' }}
+                                />
+                            </div>
+
+                            {/* Cartão */}
+                            <div style={{ marginBottom: '0.75rem' }}>
+                                <label style={{ display: 'block', fontSize: '0.72rem', color: '#666', marginBottom: '0.3rem', fontWeight: 600 }}>
+                                    Cartão (R$)
+                                </label>
+                                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                    <input
+                                        type="number" min="0" step="0.01" value={valorCartao || ''}
+                                        placeholder="0,00"
+                                        onChange={e => setValorCartao(Math.max(0, parseFloat(e.target.value) || 0))}
+                                        style={{ flex: 1, padding: '0.5rem 0.75rem', border: '1.5px solid #ddd', borderRadius: '6px', fontSize: '0.9rem', boxSizing: 'border-box' }}
+                                    />
+                                    {valorCartao > 0 && (
+                                        <select
+                                            value={tipoCartao}
+                                            onChange={e => setTipoCartao(e.target.value as 'CREDITO' | 'DEBITO')}
+                                            style={{ padding: '0.5rem', border: '1.5px solid #ddd', borderRadius: '6px', fontSize: '0.85rem', background: 'white', cursor: 'pointer' }}
+                                        >
+                                            <option value="CREDITO">Crédito</option>
+                                            <option value="DEBITO">Débito</option>
+                                        </select>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* PIX */}
+                            <div style={{ marginBottom: '0.5rem' }}>
+                                <label style={{ display: 'block', fontSize: '0.72rem', color: '#666', marginBottom: '0.3rem', fontWeight: 600 }}>
+                                    PIX (R$)
+                                </label>
+                                <input
+                                    type="number" min="0" step="0.01" value={valorPix || ''}
+                                    placeholder="0,00"
+                                    onChange={e => setValorPix(Math.max(0, parseFloat(e.target.value) || 0))}
+                                    style={{ width: '100%', padding: '0.5rem 0.75rem', border: '1.5px solid #ddd', borderRadius: '6px', fontSize: '0.9rem', boxSizing: 'border-box' }}
+                                />
+                            </div>
+
+                            {/* Indicador de total alocado */}
+                            <div style={{
+                                marginTop: '0.75rem', padding: '0.5rem 0.75rem', borderRadius: '6px',
+                                background: totalValido ? '#d1fae5' : Math.abs(diferenca) < 0.001 ? '#d1fae5' : '#fef9c3',
+                                color: totalValido ? '#065f46' : '#78350f',
+                                fontSize: '0.8rem', fontWeight: 700, display: 'flex', justifyContent: 'space-between'
+                            }}>
+                                <span>Total alocado:</span>
+                                <span>R$ {totalAlocado.toFixed(2)} / R$ {valorBruto.toFixed(2)}</span>
+                            </div>
+                            {!totalValido && totalAlocado > 0 && (
+                                <p style={{ fontSize: '0.72rem', color: '#ef4444', marginTop: '0.3rem' }}>
+                                    {diferenca > 0 ? `Faltam R$ ${diferenca.toFixed(2)} para completar.` : `Excesso de R$ ${Math.abs(diferenca).toFixed(2)}.`}
+                                </p>
+                            )}
                         </div>
 
                         <div style={{ display: 'flex', gap: '0.75rem' }}>
@@ -125,8 +195,8 @@ export default function BotaoFinalizarComanda({
                             </button>
                             <button
                                 onClick={handleFinalizar}
-                                disabled={carregando}
-                                style={{ flex: 1, padding: '0.75rem', background: carregando ? '#ccc' : '#16a34a', color: 'white', border: 'none', borderRadius: '8px', cursor: carregando ? 'not-allowed' : 'pointer', fontWeight: 700, fontSize: '0.9rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
+                                disabled={carregando || !totalValido}
+                                style={{ flex: 1, padding: '0.75rem', background: carregando || !totalValido ? '#ccc' : '#16a34a', color: 'white', border: 'none', borderRadius: '8px', cursor: carregando || !totalValido ? 'not-allowed' : 'pointer', fontWeight: 700, fontSize: '0.9rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
                             >
                                 {carregando ? (
                                     <>

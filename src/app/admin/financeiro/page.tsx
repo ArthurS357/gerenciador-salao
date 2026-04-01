@@ -2,9 +2,10 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import dynamic from 'next/dynamic'
-import { obterResumoFinanceiro, atualizarComissaoFuncionario, obterDadosGraficosFinanceiros } from '@/app/actions/financeiro'
+import { obterResumoFinanceiro, atualizarComissaoFuncionario, obterDadosGraficosFinanceiros, obterConfiguracaoSalao, salvarConfiguracaoSalao } from '@/app/actions/financeiro'
+import { toast } from 'sonner'
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
-import type { FinanceiroResumo, FuncionarioResumo } from '@/types/domain'
+import type { FinanceiroResumo, FuncionarioResumo, ConfiguracaoSalao } from '@/types/domain'
 import * as XLSX from 'xlsx'
 import { Loader2 } from 'lucide-react'
 import { MetricCard } from '@/components/admin/metric-card'
@@ -18,7 +19,6 @@ const BotaoExportarPDF = dynamic(() => import('@/components/BotaoExportarPDF'), 
 })
 
 type EditState = Record<string, { comissao: number; podeVerComissao: boolean }>
-type Mensagem = { texto: string; tipo: 'sucesso' | 'erro' }
 type PeriodoFiltro = 'hoje' | 'semana' | 'mes' | 'tudo'
 type ChartData = { data: string; 'Faturamento (R$)': number; Atendimentos: number }
 
@@ -35,9 +35,12 @@ function isErrorResponse(response: unknown): response is { sucesso: false; erro:
 export default function PainelFinanceiroPage() {
     const [dados, setDados] = useState<FinanceiroResumo | null>(null)
     const [chartData, setChartData] = useState<ChartData[]>([])
-    const [mensagem, setMensagem] = useState<Mensagem | null>(null)
     const [editState, setEditState] = useState<EditState>({})
     const [loadingIds, setLoadingIds] = useState<Record<string, boolean>>({})
+
+    // Estado para configuração de taxas
+    const [configuracao, setConfiguracao] = useState<ConfiguracaoSalao>({ taxaCredito: 3.0, taxaDebito: 1.5, taxaPix: 0.0 })
+    const [salvandoConfig, setSalvandoConfig] = useState(false)
 
     const [periodoAtual, setPeriodoAtual] = useState<PeriodoFiltro>('mes')
     const [isLoadingMetrics, setIsLoadingMetrics] = useState(true)
@@ -75,9 +78,10 @@ export default function PainelFinanceiroPage() {
         setIsLoadingMetrics(true)
         const filtro = obterDatasDoFiltro(periodo)
 
-        const [res, resGraficos] = await Promise.all([
+        const [res, resGraficos, resConfig] = await Promise.all([
             obterResumoFinanceiro(filtro),
-            obterDadosGraficosFinanceiros(7)
+            obterDadosGraficosFinanceiros(7),
+            obterConfiguracaoSalao(),
         ])
 
         if (isSuccessResponse<FinanceiroResumo>(res)) {
@@ -89,9 +93,13 @@ export default function PainelFinanceiroPage() {
             })
             setEditState(estado)
         } else if (isErrorResponse(res)) {
-            setMensagem({ texto: res.erro, tipo: 'erro' })
+            toast.error(res.erro)
         } else {
-            setMensagem({ texto: 'Erro ao carregar dados financeiros', tipo: 'erro' })
+            toast.error('Erro ao carregar dados financeiros')
+        }
+
+        if (isSuccessResponse<{ configuracao: ConfiguracaoSalao }>(resConfig)) {
+            setConfiguracao(resConfig.data.configuracao)
         }
 
         if (isSuccessResponse<{ chartData: ChartData[] }>(resGraficos)) {
@@ -119,15 +127,13 @@ export default function PainelFinanceiroPage() {
         const res = await atualizarComissaoFuncionario(prof.id, estado.comissao, estado.podeVerComissao)
 
         if (isSuccessResponse(res)) {
-            setMensagem({ texto: `Regras de ${prof.nome} atualizadas!`, tipo: 'sucesso' })
+            toast.success(`Regras de ${prof.nome} atualizadas!`)
             await carregarDados(periodoAtual)
         } else if (isErrorResponse(res)) {
-            setMensagem({ texto: res.erro, tipo: 'erro' })
+            toast.error(res.erro)
         } else {
-            setMensagem({ texto: 'Erro ao atualizar regras', tipo: 'erro' })
+            toast.error('Erro ao atualizar regras')
         }
-
-        setTimeout(() => setMensagem(null), 3000)
         setLoadingIds((prev) => ({ ...prev, [prof.id]: false }))
     }
 
@@ -136,6 +142,17 @@ export default function PainelFinanceiroPage() {
 
     const setPodeVer = (id: string, podeVerComissao: boolean) =>
         setEditState((prev) => ({ ...prev, [id]: { ...prev[id]!, podeVerComissao } }))
+
+    const handleSalvarTaxas = async () => {
+        setSalvandoConfig(true)
+        const res = await salvarConfiguracaoSalao(configuracao.taxaCredito, configuracao.taxaDebito, configuracao.taxaPix)
+        if (isSuccessResponse(res)) {
+            toast.success('Taxas da maquininha salvas com sucesso!')
+        } else if (isErrorResponse(res)) {
+            toast.error(res.erro)
+        }
+        setSalvandoConfig(false)
+    }
 
     const botoesFiltro: { valor: PeriodoFiltro; label: string }[] = [
         { valor: 'hoje', label: 'Hoje' },
@@ -226,11 +243,43 @@ export default function PainelFinanceiroPage() {
                     </div>
                 </div>
 
-                {mensagem && (
-                    <div className={`mb-6 p-4 rounded-xl text-sm text-center font-bold shadow-sm ${mensagem.tipo === 'sucesso' ? 'bg-green-100 text-green-700 border border-green-200' : 'bg-red-100 text-red-700 border border-red-200'}`}>
-                        {mensagem.texto}
+                {/* CONFIGURAÇÃO DE TAXAS DA MAQUININHA */}
+                <section className="bg-card rounded-2xl shadow-sm border border-border mb-8">
+                    <div className="p-6 md:p-8 border-b border-border bg-muted/30">
+                        <h2 className="text-xl font-bold text-foreground tracking-tight">Taxas da Maquininha</h2>
+                        <p className="text-sm text-muted-foreground mt-1">Percentuais cobrados pelo adquirente. A taxa incide <strong>apenas</strong> sobre o valor pago em cartão.</p>
                     </div>
-                )}
+                    <div className="p-6 md:p-8">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-6">
+                            {[
+                                { label: 'Crédito (%)', value: configuracao.taxaCredito, key: 'taxaCredito' as const },
+                                { label: 'Débito (%)', value: configuracao.taxaDebito, key: 'taxaDebito' as const },
+                                { label: 'PIX (%)', value: configuracao.taxaPix, key: 'taxaPix' as const },
+                            ].map(campo => (
+                                <div key={campo.key}>
+                                    <label className="block text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2">{campo.label}</label>
+                                    <div className="inline-flex items-center border border-border rounded-lg overflow-hidden w-full">
+                                        <input
+                                            type="number" min={0} max={20} step={0.1} disabled={salvandoConfig}
+                                            value={campo.value}
+                                            onChange={e => setConfiguracao(prev => ({ ...prev, [campo.key]: Math.max(0, Math.min(20, parseFloat(e.target.value) || 0)) }))}
+                                            className="flex-1 px-3 py-2 text-center font-bold text-primary bg-card outline-none focus:bg-primary/5 disabled:bg-muted"
+                                        />
+                                        <span className="bg-muted px-3 py-2 text-muted-foreground font-bold border-l border-border text-sm">%</span>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                        <button
+                            onClick={handleSalvarTaxas}
+                            disabled={salvandoConfig}
+                            className="bg-primary text-primary-foreground font-bold px-6 py-2.5 rounded-xl text-sm hover:bg-primary/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm flex items-center gap-2"
+                        >
+                            {salvandoConfig && <Loader2 className="w-4 h-4 animate-spin" />}
+                            {salvandoConfig ? 'Salvando...' : 'Salvar Taxas'}
+                        </button>
+                    </div>
+                </section>
 
                 {/* MÉTRICAS (CARDS REAPROVEITADOS DA UI) */}
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-10">
@@ -256,6 +305,24 @@ export default function PainelFinanceiroPage() {
                         loading={isLoadingMetrics}
                     />
                 </div>
+
+                {/* BREAKDOWN POR MÉTODO DE PAGAMENTO */}
+                {dados && (
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-10">
+                        {[
+                            { label: 'Recebido em Dinheiro', value: dados.metodosPagamento.totalDinheiro, cor: 'text-emerald-700', bg: 'bg-emerald-50 border-emerald-200' },
+                            { label: 'Recebido em Cartão', value: dados.metodosPagamento.totalCartao, cor: 'text-blue-700', bg: 'bg-blue-50 border-blue-200' },
+                            { label: 'Recebido via PIX', value: dados.metodosPagamento.totalPix, cor: 'text-violet-700', bg: 'bg-violet-50 border-violet-200' },
+                        ].map(item => (
+                            <div key={item.label} className={`rounded-2xl border p-5 ${item.bg} ${isLoadingMetrics ? 'opacity-40' : ''}`}>
+                                <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2">{item.label}</p>
+                                <p className={`text-2xl font-black ${item.cor}`}>
+                                    R$ {item.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                </p>
+                            </div>
+                        ))}
+                    </div>
+                )}
 
                 {/* GRÁFICOS VISUAIS RECHARTS */}
                 {mounted && chartData.length > 0 && (

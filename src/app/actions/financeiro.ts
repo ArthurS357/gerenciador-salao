@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { Prisma } from '@prisma/client'
 import { formatInTimeZone } from 'date-fns-tz'
 import { subDays, startOfDay } from 'date-fns'
-import { FinanceiroResumo, FuncionarioResumo, FechamentoComanda, ActionResult } from '@/types/domain'
+import { FinanceiroResumo, FuncionarioResumo, FechamentoComanda, ActionResult, ConfiguracaoSalao } from '@/types/domain'
 import { verificarSessaoFuncionario } from '@/app/actions/auth'
 import { schemaAtualizarComissao } from '@/lib/schemas'
 import { z } from 'zod'
@@ -17,6 +17,12 @@ const SchemaFechamento = z.object({
     agendamentoId: z.string().min(1, 'ID do agendamento inválido.'),
     taxaAdquirentePercentual: z.number().min(0).max(100).default(3),
     custoInsumos: z.number().min(0, 'Custo de insumos não pode ser negativo.'),
+})
+
+const SchemaConfiguracaoSalao = z.object({
+    taxaCredito: z.coerce.number().min(0, 'Taxa não pode ser negativa.').max(20, 'Taxa não pode exceder 20%.'),
+    taxaDebito: z.coerce.number().min(0, 'Taxa não pode ser negativa.').max(20, 'Taxa não pode exceder 20%.'),
+    taxaPix: z.coerce.number().min(0, 'Taxa não pode ser negativa.').max(20, 'Taxa não pode exceder 20%.'),
 })
 
 const SchemaEstorno = z.object({
@@ -123,7 +129,7 @@ export async function obterResumoFinanceiro(
         // Delegação de Agregação Matemática para o Banco de Dados (Previne Out Of Memory)
         const agregacaoAgendamentos = prisma.agendamento.aggregate({
             where: whereClause,
-            _sum: { valorBruto: true, taxas: true, custoInsumos: true, custoRevenda: true, valorComissao: true }
+            _sum: { valorBruto: true, taxas: true, custoInsumos: true, custoRevenda: true, valorComissao: true, valorDinheiro: true, valorCartao: true, valorPix: true }
         })
 
         const comissoesPorProfissional = prisma.agendamento.groupBy({
@@ -184,7 +190,12 @@ export async function obterResumoFinanceiro(
                 totalComissoes,
                 lucroLiquido,
                 equipe: equipeComValores as FuncionarioResumo[],
-                historico
+                historico,
+                metodosPagamento: {
+                    totalDinheiro: agregacao._sum.valorDinheiro || 0,
+                    totalCartao: agregacao._sum.valorCartao || 0,
+                    totalPix: agregacao._sum.valorPix || 0,
+                },
             }
         }
     } catch (error) {
@@ -316,5 +327,58 @@ export async function reabrirComanda(
     } catch (error) {
         console.error('[Financeiro] Erro ao reabrir comanda:', error)
         return { sucesso: false, erro: 'Falha técnica ao reabrir a comanda.' }
+    }
+}
+
+// ── 6. Configuração das Taxas da Maquininha ───────────────────────────────────
+export async function obterConfiguracaoSalao(): Promise<ActionResult<{ configuracao: ConfiguracaoSalao }>> {
+    try {
+        const sessao = await verificarSessaoFuncionario()
+        if (!sessao.logado || sessao.role !== 'ADMIN') {
+            return { sucesso: false, erro: 'Acesso negado.' }
+        }
+
+        const config = await prisma.configuracaoSalao.upsert({
+            where: { id: 'config_global' },
+            create: { taxaCredito: 3.0, taxaDebito: 1.5, taxaPix: 0.0 },
+            update: {},
+        })
+
+        return {
+            sucesso: true,
+            data: { configuracao: { taxaCredito: config.taxaCredito, taxaDebito: config.taxaDebito, taxaPix: config.taxaPix } }
+        }
+    } catch (error) {
+        console.error('[Financeiro] Erro ao obter configuração de taxas:', error)
+        return { sucesso: false, erro: 'Falha ao carregar configuração de taxas.' }
+    }
+}
+
+export async function salvarConfiguracaoSalao(
+    taxaCredito: number,
+    taxaDebito: number,
+    taxaPix: number
+): Promise<ActionResult> {
+    try {
+        const sessao = await verificarSessaoFuncionario()
+        if (!sessao.logado || sessao.role !== 'ADMIN') {
+            return { sucesso: false, erro: 'Acesso negado.' }
+        }
+
+        const validacao = SchemaConfiguracaoSalao.safeParse({ taxaCredito, taxaDebito, taxaPix })
+        if (!validacao.success) {
+            return { sucesso: false, erro: validacao.error.issues[0]?.message ?? 'Dados de configuração inválidos.' }
+        }
+
+        await prisma.configuracaoSalao.upsert({
+            where: { id: 'config_global' },
+            create: { taxaCredito: validacao.data.taxaCredito, taxaDebito: validacao.data.taxaDebito, taxaPix: validacao.data.taxaPix },
+            update: { taxaCredito: validacao.data.taxaCredito, taxaDebito: validacao.data.taxaDebito, taxaPix: validacao.data.taxaPix },
+        })
+
+        return { sucesso: true }
+    } catch (error) {
+        console.error('[Financeiro] Erro ao salvar configuração de taxas:', error)
+        return { sucesso: false, erro: 'Falha ao salvar configuração de taxas.' }
     }
 }
