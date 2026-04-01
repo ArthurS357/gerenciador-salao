@@ -4,7 +4,11 @@
       "Bash(claude login:*)",
       "Bash(npm install:*)",
       "Bash(npx prisma:*)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(\"G:\\\\Meu Drive\\\\Meu_Workspace\\\\Cerebro_IA\\\\Projetos\\\\GerenciadorSalao\\\\Fluxo_Financeiro.md\":*)",
+      "Bash(\"G:\\\\Meu Drive\\\\Meu_Workspace\\\\Cerebro_IA\\\\Projetos\\\\GerenciadorSalao\\\\Integracao_WhatsApp.md\":*)",
+      "Bash(\"G:\\\\Meu Drive\\\\Meu_Workspace\\\\Cerebro_IA\\\\Projetos\\\\GerenciadorSalao\\\\Defense_in_Depth.md\":*)",
+      "Bash(ls -lh \"G:\\\\Meu Drive\\\\Meu_Workspace\\\\Cerebro_IA\\\\Projetos\\\\GerenciadorSalao\"/*.md)"
     ]
   }
 }

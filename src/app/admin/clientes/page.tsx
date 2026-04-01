@@ -110,15 +110,6 @@ export default function GestaoClientesAdminPage() {
     const [profissionaisList, setProfissionaisList] = useState<{ id: string, nome: string }[]>([])
     const [servicosList, setServicosList] = useState<{ id: string, nome: string }[]>([])
 
-    useEffect(() => {
-        const fetchAuxiliares = async () => {
-            const [resProf, resServ] = await Promise.all([listarEquipaAdmin(), listarServicosAdmin()])
-            if (resProf.sucesso && 'equipa' in resProf) setProfissionaisList(resProf.equipa as { id: string, nome: string }[])
-            if (resServ.sucesso && 'servicos' in resServ) setServicosList(resServ.servicos as { id: string, nome: string }[])
-        }
-        void fetchAuxiliares()
-    }, [])
-
     // Modal: Histórico
     const [modalHistoricoOpen, setModalHistoricoOpen] = useState(false)
     const [dadosHistorico, setDadosHistorico] = useState<HistoricoClienteData | null>(null)
@@ -126,7 +117,7 @@ export default function GestaoClientesAdminPage() {
 
     // Modal: Agendamento rápido
     const [modalAgendarOpen, setModalAgendarOpen] = useState(false)
-    const [modalCalendarioOpen, setModalCalendarioOpen] = useState(false) // Novo state para o calendário visual
+    const [modalCalendarioOpen, setModalCalendarioOpen] = useState(false)
     const [clienteAgendando, setClienteAgendando] = useState<{ id: string; nome: string } | null>(null)
     const [novaReserva, setNovaReserva] = useState({ funcionarioId: '', dataHora: '', servicoId: '' })
     const [loadingAgendar, setLoadingAgendar] = useState(false)
@@ -153,21 +144,56 @@ export default function GestaoClientesAdminPage() {
             const res = await listarTodosClientes()
 
             if (!res.sucesso) {
-                logError('carregarClientes', 'Falha ao listar clientes')
+                const erroRes = res as unknown as { erro?: string };
+                logError('carregarClientes', erroRes.erro || 'Falha ao listar clientes')
                 return
             }
 
-            if ('clientes' in res) {
-                setClientes(res.clientes as ClienteListaItem[])
+            // Usando cast com unknown para evitar o erro de any do ESLint
+            const sucessoRes = res as unknown as { data?: { clientes: ClienteListaItem[] }, clientes?: ClienteListaItem[] };
+            const clientesList = sucessoRes.data?.clientes || sucessoRes.clientes;
+
+            if (Array.isArray(clientesList)) {
+                setClientes(clientesList)
+            } else {
+                setClientes([])
             }
         } catch (error) {
             logError('carregarClientes', error)
+            setClientes([])
         } finally {
             setLoading(false)
         }
     }, [])
 
     useEffect(() => { void carregarClientes() }, [carregarClientes])
+
+    useEffect(() => {
+        const fetchAuxiliares = async () => {
+            try {
+                const [resProf, resServ] = await Promise.all([listarEquipaAdmin(), listarServicosAdmin()])
+
+                const profData = resProf as unknown as { sucesso: boolean, data?: { equipa: { id: string, nome: string }[] }, equipa?: { id: string, nome: string }[] };
+                if (profData.sucesso) {
+                    const equipaList = profData.data?.equipa || profData.equipa;
+                    if (Array.isArray(equipaList)) {
+                        setProfissionaisList(equipaList)
+                    }
+                }
+
+                const servData = resServ as unknown as { sucesso: boolean, data?: { servicos: { id: string, nome: string }[] }, servicos?: { id: string, nome: string }[] };
+                if (servData.sucesso) {
+                    const servicosList = servData.data?.servicos || servData.servicos;
+                    if (Array.isArray(servicosList)) {
+                        setServicosList(servicosList)
+                    }
+                }
+            } catch (err) {
+                console.error("Erro ao carregar auxiliares:", err)
+            }
+        }
+        void fetchAuxiliares()
+    }, [])
 
     // ── LGPD / Exclusão ─────────────────────────────────────────────────────
 
@@ -277,13 +303,17 @@ export default function GestaoClientesAdminPage() {
             const res = await obterHistoricoCliente(clienteId)
 
             if (!res.sucesso) {
-                logError('obterHistoricoCliente', 'erro' in res ? res.erro : 'Erro desconhecido')
+                const erroRes = res as unknown as { erro?: string };
+                logError('obterHistoricoCliente', erroRes.erro || 'Erro desconhecido')
                 setModalHistoricoOpen(false)
                 return
             }
 
-            if ('dados' in res) {
-                setDadosHistorico(res.dados as HistoricoClienteData)
+            const sucessoRes = res as unknown as { data?: { dados: HistoricoClienteData }, dados?: HistoricoClienteData };
+            const historicoData = sucessoRes.data?.dados || sucessoRes.dados;
+
+            if (historicoData) {
+                setDadosHistorico(historicoData)
             }
         } catch (error) {
             logError('abrirModalHistorico', error)
@@ -481,7 +511,6 @@ export default function GestaoClientesAdminPage() {
                                         onHistorico={() => abrirModalHistorico(cliente.id)}
                                         onEditar={!isAnonimizado ? () => abrirModalEditar(cliente) : undefined}
                                         onLgpd={!isAnonimizado ? () => handleAnonimizar(cliente.id, cliente.nome) : undefined}
-                                        // CORREÇÃO AQUI: handleExcluir adicionado para limpar o banco
                                         onExcluir={!isAnonimizado ? () => handleExcluir(cliente.id, cliente.nome) : undefined}
                                     />
                                 )
@@ -718,7 +747,6 @@ export default function GestaoClientesAdminPage() {
                                 </select>
                             </div>
 
-                            {/* O INPUT GENÉRICO FOI SUBSTITUÍDO PELO COMPONENTE VISUAL */}
                             <div>
                                 <label className="block text-sm font-semibold text-foreground mb-2">Data e Hora *</label>
                                 {novaReserva.dataHora ? (

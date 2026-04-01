@@ -5,6 +5,7 @@ import { cookies } from 'next/headers'
 import { verificarSessaoCliente, verificarSessaoFuncionario } from '@/app/actions/auth'
 import { ActionResult } from '@/types/domain'
 import { schemaCliente } from '@/lib/schemas'
+import { revalidatePath } from 'next/cache'
 
 export type HistoricoAgendamentoItem = {
     id: string
@@ -106,6 +107,7 @@ export async function criarCliente(dados: DadosCliente): Promise<ActionResult<{ 
             },
             select: { id: true, nome: true, telefone: true, email: true, cpf: true, anonimizado: true }
         })
+        revalidatePath('/admin/clientes')
 
         // Correção Crítica: Encapsula no objeto `data`
         return { sucesso: true, data: { cliente } }
