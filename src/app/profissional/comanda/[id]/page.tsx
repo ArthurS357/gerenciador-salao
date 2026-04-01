@@ -3,13 +3,15 @@ import { notFound, redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
 import { jwtVerify } from 'jose';
 import PainelComanda from '@/components/PainelComanda';
-import { getJwtSecret } from '@/lib/jwt'; // Corrigido
+import { getJwtSecret } from '@/lib/jwt';
+import HistoricoAuditoria from '@/components/admin/HistoricoAuditoria';
 
 interface PageProps {
     params: Promise<{ id: string }>;
 }
 
 export default async function ComandaPage({ params }: PageProps) {
+    // 1. Resolve os parâmetros assíncronos da URL (padrão do Next.js 15+)
     const resolvedParams = await params;
 
     const cookieStore = await cookies();
@@ -21,7 +23,7 @@ export default async function ComandaPage({ params }: PageProps) {
     let role = '';
 
     try {
-        const { payload } = await jwtVerify(token, getJwtSecret()); // Corrigido
+        const { payload } = await jwtVerify(token, getJwtSecret());
         funcionarioId = payload.sub as string;
         role = payload.role as string;
     } catch (error) {
@@ -36,6 +38,7 @@ export default async function ComandaPage({ params }: PageProps) {
 
     const podeVerFinancas = usuarioLogado?.role === 'ADMIN' || usuarioLogado?.podeVerComissao === true;
 
+    // 2. Busca os dados da comanda no banco
     const agendamento = await prisma.agendamento.findUnique({
         where: { id: resolvedParams.id },
         include: {
@@ -54,6 +57,7 @@ export default async function ComandaPage({ params }: PageProps) {
         return notFound();
     }
 
+    // 3. Valida as permissões de acesso da comanda
     if (agendamento.funcionarioId !== funcionarioId && role !== 'ADMIN') {
         return (
             <div className="min-h-screen flex items-center justify-center bg-[#fdfbf7]">
@@ -82,14 +86,19 @@ export default async function ComandaPage({ params }: PageProps) {
         }))
     };
 
+    // 4. Renderiza a interface com o Painel principal e o Histórico de Auditoria
     return (
-        <div className="min-h-screen bg-[#fdfbf7] p-4 md:p-8 font-sans flex items-start md:items-center justify-center pt-32">
-            <div className="w-full max-w-4xl">
+        <div className="min-h-screen bg-[#fdfbf7] p-4 md:p-8 font-sans flex items-start justify-center pt-32">
+            {/* Adicionado space-y-8 para espaçar o painel principal do histórico */}
+            <div className="w-full max-w-4xl space-y-8">
                 <PainelComanda
                     agendamento={agendamentoSanitizado}
                     produtosDisponiveis={produtosDisponiveis}
                     podeVerFinancas={podeVerFinancas}
                 />
+
+                {/* Componente visual do Log de Auditoria incluído no final do fluxo */}
+                <HistoricoAuditoria comandaId={resolvedParams.id} />
             </div>
         </div>
     );

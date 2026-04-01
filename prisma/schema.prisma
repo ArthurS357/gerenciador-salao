@@ -199,3 +199,16 @@ model RateLimit {
 
   @@map("rate_limits") // Opcional: padroniza o nome da tabela no banco
 }
+
+model AuditLog {
+  id            String   @id @default(cuid())
+  usuarioId     String   // Quem fez a ação
+  acao          String   // EX: "FECHAMENTO_COMANDA", "ALTERACAO_PRECO"
+  entidade      String   // EX: "Comanda", "Servico"
+  entidadeId    String   // ID do registro afetado
+  detalhes      String?  // JSON ou descrição da mudança
+  timestamp     DateTime @default(now())
+
+  @@index([entidade, entidadeId])
+  @@index([usuarioId])
+}
