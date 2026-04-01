@@ -27,7 +27,7 @@ const Hero = memo(function Hero() {
                     const { left, top, width, height } = el.getBoundingClientRect();
                     const pctX = (e.clientX - left - width / 2) / (width / 2);
                     const pctY = (e.clientY - top - height / 2) / (height / 2);
-                    
+
                     img.style.willChange = 'transform';
                     if (glow) glow.style.willChange = 'transform, opacity';
 
@@ -202,7 +202,7 @@ const Hero = memo(function Hero() {
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
                             src="/images/logo-hero-render.png"
-                            alt="LmLu Matiello Emblem"
+                            alt="LM Lú Matiello Emblem"
                             className="w-full h-auto object-contain"
                         />
                     </div>

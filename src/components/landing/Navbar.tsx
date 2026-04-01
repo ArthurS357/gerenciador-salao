@@ -91,11 +91,11 @@ const Navbar = memo(function Navbar({ sessao }: NavbarProps) {
                     href="/"
                     onClick={closeMenu}
                     className="group flex items-center gap-4 leading-none no-underline relative z-10"
-                    aria-label="LmLu Mattielo — Página inicial"
+                    aria-label="LM Lú Mattielo — Página inicial"
                 >
                     <div className="flex flex-col">
                         <span className="font-serif text-[1.4rem] md:text-[1.8rem] font-medium text-white/95 tracking-[0.02em] transition-colors duration-500 group-hover:text-caramelo">
-                            LmLu Matiello
+                            LM Lú Matiello
                         </span>
                         <span className="font-sans text-[0.55rem] md:text-[0.6rem] font-medium tracking-[0.35em] uppercase text-caramelo/60 mt-[3px] transition-all duration-500 group-hover:text-caramelo/90 group-hover:tracking-[0.4em]">
                             Studio de Beleza

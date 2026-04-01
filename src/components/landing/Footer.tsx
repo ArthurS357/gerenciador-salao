@@ -27,7 +27,7 @@ const Footer = memo(function Footer() {
                     {/* Logo + tagline */}
                     <div>
                         <span className="block font-serif text-[1.5rem] font-semibold text-white/80 tracking-[0.02em] leading-none">
-                            LmLu Mattielo
+                            LM Lú Matiello
                         </span>
                         <span className="block font-sans text-[0.6rem] font-normal tracking-[0.28em] uppercase text-caramelo/55 mt-1.5">
                             Studio de Beleza
@@ -69,7 +69,7 @@ const Footer = memo(function Footer() {
                 {/* Linha inferior */}
                 <div className="flex flex-col md:flex-row justify-between items-center gap-3 pt-7">
                     <span className="text-[0.62rem] text-white/18 font-light tracking-[0.1em]">
-                        © {new Date().getFullYear()} LmLu Mattielo · Todos os direitos reservados
+                        © {new Date().getFullYear()} LM Lú Matiello · Todos os direitos reservados
                     </span>
                     <div className="flex items-center gap-2">
                         <div className="w-1 h-1 rounded-full bg-caramelo/25" />

@@ -1,7 +1,7 @@
 import { memo } from 'react'
 
 const WA_NUMERO = '5511947969025'
-const WA_URL = `https://wa.me/${WA_NUMERO}?text=${encodeURIComponent('Olá! Vim pelo site e gostaria de agendar um horário no LmLu Matiello. Poderia me ajudar? 😊')}`
+const WA_URL = `https://wa.me/${WA_NUMERO}?text=${encodeURIComponent('Olá! Vim pelo site e gostaria de agendar um horário no LM Lú Matiello. Poderia me ajudar? 😊')}`
 
 const InfoItem = memo(function InfoItem({
     icone, titulo, children,
@@ -52,7 +52,7 @@ const Localizacao = memo(function Localizacao() {
                         </h2>
 
                         <p className="text-[0.88rem] text-[#9c8070] leading-[1.85] mb-10 font-light max-w-[420px]">
-                            O LmLu Matiello está no coração da cidade, projetado para oferecer uma experiência de puro conforto e sofisticação desde o momento em que você entra.
+                            O LM Lú Matiello está no coração da cidade, projetado para oferecer uma experiência de puro conforto e sofisticação desde o momento em que você entra.
                         </p>
 
                         <div className="flex flex-col gap-7 mb-10">
@@ -143,7 +143,7 @@ const Localizacao = memo(function Localizacao() {
                                 allowFullScreen
                                 loading="lazy"
                                 referrerPolicy="no-referrer-when-downgrade"
-                                title="Localização LmLu Matiello — Arujá SP"
+                                title="Localização LM Lú Matiello — Arujá SP"
                             />
                         </div>
 

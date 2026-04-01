@@ -39,7 +39,7 @@ const Sobre = memo(function Sobre() {
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
                             src="https://images.unsplash.com/photo-1560066984-138dadb4c035?q=80&w=1074&auto=format&fit=crop"
-                            alt="Interior do Salão LmLu Mattielo"
+                            alt="Interior do Salão LM Lú Matiello"
                             className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
                             loading="lazy"
                         />
@@ -75,7 +75,7 @@ const Sobre = memo(function Sobre() {
                     <div className="w-8 h-px mb-8 bg-gradient-to-r from-caramelo/40 to-transparent" />
 
                     <p className="text-[0.92rem] leading-[1.9] mb-5 text-white/40 font-light">
-                        Fundado com a missão de transformar o cuidado pessoal em uma experiência de puro luxo e bem-estar, o LmLu Mattielo é mais que um salão de beleza.
+                        Fundado com a missão de transformar o cuidado pessoal em uma experiência de puro luxo e bem-estar, o LM Lú Mattielo é mais que um salão de beleza.
                     </p>
                     <p className="text-[0.92rem] leading-[1.9] text-white/35 font-light">
                         Nossa equipe combina técnicas avançadas, produtos de excelência internacional e atendimento personalizado para resultados que respeitam e realçam a sua identidade única.
