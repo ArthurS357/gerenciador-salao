@@ -71,10 +71,10 @@ export async function listarMetodosPagamento(): Promise<ActionResult<{ metodos: 
         // Fallback: se a tabela estiver vazia, retorna os 4 métodos principais
         if (metodos.length === 0) {
             const fallback: MetodoPagamentoConfig[] = [
-                { id: 'fallback-dinheiro', metodo: 'DINHEIRO',      descricao: 'Dinheiro',          taxaBase: 0,   ativo: true },
-                { id: 'fallback-pix',      metodo: 'PIX',            descricao: 'PIX',               taxaBase: 0,   ativo: true },
-                { id: 'fallback-debito',   metodo: 'CARTAO_DEBITO',  descricao: 'Cartão de Débito',  taxaBase: 1.5, ativo: true },
-                { id: 'fallback-credito',  metodo: 'CARTAO_CREDITO', descricao: 'Cartão de Crédito', taxaBase: 3.0, ativo: true },
+                { id: 'fallback-dinheiro', metodo: 'DINHEIRO', descricao: 'Dinheiro', taxaBase: 0, ativo: true },
+                { id: 'fallback-pix', metodo: 'PIX', descricao: 'PIX', taxaBase: 0, ativo: true },
+                { id: 'fallback-debito', metodo: 'CARTAO_DEBITO', descricao: 'Cartão de Débito', taxaBase: 1.5, ativo: true },
+                { id: 'fallback-credito', metodo: 'CARTAO_CREDITO', descricao: 'Cartão de Crédito', taxaBase: 3.0, ativo: true },
             ];
             return { sucesso: true, data: { metodos: fallback } };
         }
@@ -272,7 +272,7 @@ export async function finalizarComanda(
                 const configMetodo = taxasMap.get(pag.metodo);
                 let taxaBase = configMetodo?.taxaBase;
 
-                // Fallback para configuração legada quando o método não está em TaxaMetodoPagamento
+                // Fallback para configuração legada
                 if (taxaBase === undefined) {
                     if (pag.metodo === 'CARTAO_CREDITO') taxaBase = config?.taxaCredito ?? 3.0;
                     else if (pag.metodo === 'CARTAO_DEBITO') taxaBase = config?.taxaDebito ?? 1.5;
@@ -280,13 +280,22 @@ export async function finalizarComanda(
                     else taxaBase = 0; // DINHEIRO, CORTESIA, VOUCHER, PERMUTA não têm taxa
                 }
 
-                totalTaxas += pag.valor * (taxaBase / 100);
+                // Resolve a quantidade de parcelas garantindo no mínimo 1
+                const parcelas = pag.metodo === 'CARTAO_CREDITO' ? (pag.parcelas ?? 1) : 1;
+
+                // REQUISITO FINANCEIRO CRÍTICO: Multiplica a taxa pelo número de parcelas
+                const taxaAplicadaReal = (pag.metodo === 'CARTAO_CREDITO' && parcelas > 1)
+                    ? taxaBase * parcelas
+                    : taxaBase;
+
+                // Calcula as taxas da comanda usando a taxa escalonada
+                totalTaxas += pag.valor * (taxaAplicadaReal / 100);
 
                 return {
                     metodo: pag.metodo,
                     valor: pag.valor,
-                    parcelas: pag.metodo === 'CARTAO_CREDITO' ? (pag.parcelas ?? 1) : 1,
-                    taxaAplicada: taxaBase,
+                    parcelas,
+                    taxaAplicada: taxaAplicadaReal, // Registra o valor fiel cobrado
                     taxaMetodoId: configMetodo?.id ?? null,
                 };
             });
