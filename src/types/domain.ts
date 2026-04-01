@@ -56,11 +56,12 @@ export interface Produto {
 export interface ItemPortfolio {
     id: string
     titulo: string
-    imagemUrl: string
+    descricao: string | null
+    imagensJson: string           // JSON array: '["url1","url2","url3","url4"]'
     valor: number | null
-    linkSocial: string | null
+    linkInstagram: string | null
     ativo: boolean
-    criadoEm: Date // Padronizado para Date
+    criadoEm: Date
 }
 
 // ── DTOs RESUMIDOS (Para UI e Relacionamentos) ───────────────────────────────

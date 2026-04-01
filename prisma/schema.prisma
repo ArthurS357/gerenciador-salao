@@ -177,13 +177,14 @@ model ItemProduto {
 
 // 4. Vitrine de portfólio homepage
 model ItemPortfolio {
-  id          String   @id @default(uuid())
-  titulo      String
-  valor       Float?
-  imagemUrl   String
-  linkSocial  String?
-  ativo       Boolean  @default(true)
-  criadoEm    DateTime @default(now())
+  id            String   @id @default(uuid())
+  titulo        String
+  descricao     String?              // Descrição detalhada do trabalho
+  valor         Float?
+  imagensJson   String               // Array JSON: ["img1.png","img2.png"] — suporte a até 4 fotos
+  linkInstagram String?              // Link direto para o post/perfil no Instagram
+  ativo         Boolean  @default(true)
+  criadoEm      DateTime @default(now())
 }
 
 // 5. SISTEMA DE ALERTAS

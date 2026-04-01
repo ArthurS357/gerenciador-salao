@@ -12,7 +12,7 @@ import type { Produto } from '@/types/domain'
 import AdminHeader from '@/components/admin/AdminHeader'
 import { MetricCard } from '@/components/admin/metric-card'
 import { ProdutoRow, obterStatusEstoque } from '@/components/admin/produto-row'
-import { Search, Package, Loader2, X } from 'lucide-react'
+import { Search, Package, Loader2, X, Boxes, AlertTriangle, CircleDollarSign, Percent } from 'lucide-react'
 
 type FormCriar = {
     nome: string
@@ -189,28 +189,28 @@ export default function PainelEstoquePage() {
                 {/* ── MÉTRICAS ── */}
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-10">
                     <MetricCard
-                        label="Total de Produtos Variados"
+                        label={<span className="flex items-center gap-2"><Boxes className="w-4 h-4 text-blue-500" /> Variedade de Produtos</span>}
                         value={produtos.length.toString()}
-                        subText="produtos ativos"
+                        subText="produtos ativos no catálogo"
                         loading={carregando}
                     />
                     <MetricCard
-                        label="Alertas de Estoque"
+                        label={<span className="flex items-center gap-2"><AlertTriangle className="w-4 h-4 text-red-500" /> Alertas de Estoque</span>}
                         value={alertas.toString()}
-                        subText={alertas === 0 ? 'tudo em ordem' : 'itens a repor'}
+                        subText={alertas === 0 ? 'Tudo em ordem' : 'Itens que precisam de reposição'}
                         variant={alertas > 0 ? "danger" : "default"}
                         loading={carregando}
                     />
                     <MetricCard
-                        label="Valor Imobilizado"
-                        value={valorTotalEstoque.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        subText="custo do estoque atual"
+                        label={<span className="flex items-center gap-2"><CircleDollarSign className="w-4 h-4 text-green-500" /> Valor Imobilizado</span>}
+                        value={`R$ ${valorTotalEstoque.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                        subText="Custo de todo o estoque atual"
                         loading={carregando}
                     />
                     <MetricCard
-                        label="Margem Média"
+                        label={<span className="flex items-center gap-2"><Percent className="w-4 h-4 text-purple-500" /> Margem de Lucro Média</span>}
                         value={`${margemMedia.toFixed(1)}%`}
-                        subText="sobre todos os produtos"
+                        subText="Rentabilidade sobre os produtos"
                         loading={carregando}
                     />
                 </div>

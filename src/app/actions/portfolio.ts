@@ -7,44 +7,69 @@ import { ActionResult } from '@/types/domain'
 import { z } from 'zod'
 import { cache } from 'react'
 
-// Definição da interface explícita para tipagem do retorno
+// ── Tipos de Retorno ──────────────────────────────────────────────────────────
+
+/** Reflecte o modelo actual do DB após a migração multi-imagem */
 export type ItemPortfolioDb = {
     id: string
     titulo: string
+    descricao: string | null
     valor: number | null
-    imagemUrl: string
-    linkSocial: string | null
+    imagensJson: string           // JSON array: '["url1","url2"]'
+    linkInstagram: string | null
     ativo: boolean
     criadoEm: Date
 }
 
-// ── Schemas de Validação (Runtime Safety) ─────────────────────────────────────
+/** Helper: extrai o array de URLs do campo JSON */
+export function parsearImagens(imagensJson: string): string[] {
+    try {
+        const parsed = JSON.parse(imagensJson) as unknown
+        return Array.isArray(parsed) ? parsed.filter((u): u is string => typeof u === 'string') : [imagensJson]
+    } catch {
+        return [imagensJson] // Fallback: trata como URL directa
+    }
+}
+
+/** Helper: retorna a primeira imagem (para exibição principal) */
+export function primeiraImagem(imagensJson: string): string {
+    return parsearImagens(imagensJson)[0] ?? ''
+}
+
+// ── Schemas de Validação (Runtime Safety) ────────────────────────────────────
+
 const SchemaPortfolio = z.object({
-    titulo: z.string().trim().min(2, 'O título deve ter pelo menos 2 caracteres.'),
-    imagemUrl: z.string().trim().url('É necessário fornecer a URL válida de uma imagem.'),
+    titulo: z.string().trim().min(3, 'O título deve ter pelo menos 3 caracteres.'),
+    descricao: z.string().trim().optional().nullable(),
     valor: z.coerce.number().min(0, 'O valor não pode ser negativo.').optional().nullable(),
-    linkSocial: z.string().trim().optional().nullable(),
+    imagensJson: z.string()
+        .min(2, 'É obrigatório fornecer pelo menos 1 imagem.')
+        .refine((val) => {
+            try {
+                const arr = JSON.parse(val) as unknown
+                return Array.isArray(arr) && arr.length > 0
+            } catch {
+                return false
+            }
+        }, 'O campo imagensJson deve ser um array JSON válido com pelo menos 1 URL.'),
+    linkInstagram: z.string().trim().url('Link do Instagram inválido.').optional().nullable().or(z.literal('')),
 })
 
 export type DadosItemPortfolio = z.infer<typeof SchemaPortfolio>
 
-// ── AUXILIARES DE SEGURANÇA ───────────────────────────────────────────────────
-/**
- * Retorna null se autorizado, ou uma string de erro caso contrário.
- * Elimina o anti-pattern de controle de fluxo via throw Error.
- */
+// ── Auxiliar de Segurança ─────────────────────────────────────────────────────
+
 async function checarPermissaoAdmin(): Promise<string | null> {
     const sessao = await verificarSessaoFuncionario()
     if (!sessao.logado || sessao.role !== 'ADMIN') {
-        return 'Acesso negado. Apenas a gerência pode alterar o portfólio da vitrine.'
+        return 'Acesso negado. Apenas a gerência pode gerir o portfólio.'
     }
     return null
 }
 
-// ── 1. LISTAGEM (Pública) ─────────────────────────────────────────────────────
+// ── 1. LISTAGEM PÚBLICA (Landing Page) ───────────────────────────────────────
 
-// O uso de cache previne N+1 queries ou consultas redundantes no banco de dados 
-// ao renderizar a Landing Page, poupando recursos em alto tráfego.
+// Cache React: evita N+1 queries ao renderizar a Landing Page em alto tráfego
 export const listarPortfolioPublico = cache(async (): Promise<ActionResult<{ itens: ItemPortfolioDb[] }>> => {
     try {
         const itens = await prisma.itemPortfolio.findMany({
@@ -54,15 +79,15 @@ export const listarPortfolioPublico = cache(async (): Promise<ActionResult<{ ite
             select: {
                 id: true,
                 titulo: true,
+                descricao: true,
                 valor: true,
-                imagemUrl: true,
-                linkSocial: true,
+                imagensJson: true,
+                linkInstagram: true,
                 ativo: true,
-                criadoEm: true
-            }
+                criadoEm: true,
+            },
         })
 
-        // Correção Crítica: Encapsulamento correto do payload 'data'
         return { sucesso: true, data: { itens } }
     } catch (error) {
         console.error('[Portfolio] Erro ao listar o portfólio público:', error)
@@ -70,12 +95,40 @@ export const listarPortfolioPublico = cache(async (): Promise<ActionResult<{ ite
     }
 })
 
-// ── 2. CRIAÇÃO (Protegida) ────────────────────────────────────────────────────
+// ── 2. LISTAGEM ADMIN (Painel de Gestão) ─────────────────────────────────────
 
-export async function adicionarItemPortfolio(
-    dadosRaw: unknown // Ajustado para unknown garantindo que o Zod faça o type-narrowing adequado
+// Sem cache: sempre dados frescos para o admin
+export async function listarPortfolioAdmin(): Promise<ActionResult<{ itens: ItemPortfolioDb[] }>> {
+    const erroAuth = await checarPermissaoAdmin()
+    if (erroAuth) return { sucesso: false, erro: erroAuth }
+
+    try {
+        const itens = await prisma.itemPortfolio.findMany({
+            orderBy: { criadoEm: 'desc' },
+            select: {
+                id: true,
+                titulo: true,
+                descricao: true,
+                valor: true,
+                imagensJson: true,
+                linkInstagram: true,
+                ativo: true,
+                criadoEm: true,
+            },
+        })
+
+        return { sucesso: true, data: { itens } }
+    } catch (error) {
+        console.error('[Portfolio] Erro ao listar portfólio para admin:', error)
+        return { sucesso: false, erro: 'Falha ao carregar a galeria.' }
+    }
+}
+
+// ── 3. CRIAÇÃO (Protegida — ADMIN only) ──────────────────────────────────────
+
+export async function criarItemPortfolio(
+    dadosRaw: unknown
 ): Promise<ActionResult<{ item: ItemPortfolioDb }>> {
-
     const erroAuth = await checarPermissaoAdmin()
     if (erroAuth) return { sucesso: false, erro: erroAuth }
 
@@ -90,30 +143,72 @@ export async function adicionarItemPortfolio(
         const item = await prisma.itemPortfolio.create({
             data: {
                 titulo: dados.titulo,
-                valor: dados.valor || null,
-                imagemUrl: dados.imagemUrl,
-                linkSocial: dados.linkSocial || null,
+                descricao: dados.descricao ?? null,
+                valor: dados.valor ?? null,
+                imagensJson: dados.imagensJson,
+                linkInstagram: dados.linkInstagram || null,
             },
             select: {
                 id: true,
                 titulo: true,
+                descricao: true,
                 valor: true,
-                imagemUrl: true,
-                linkSocial: true,
+                imagensJson: true,
+                linkInstagram: true,
                 ativo: true,
-                criadoEm: true
-            }
+                criadoEm: true,
+            },
         })
 
-        // Revalida a landing page pública para mostrar a nova imagem imediatamente
-        revalidatePath('/')
-        // Revalida a página de gestão administrativa
-        revalidatePath('/admin/portfolio')
+        revalidatePath('/admin/galeria')
+        revalidatePath('/') // Atualiza a vitrine pública imediatamente
 
-        // Correção Crítica: Encapsulamento correto do payload 'data'
         return { sucesso: true, data: { item } }
     } catch (error) {
-        console.error('[Portfolio] Erro ao adicionar item ao portfólio:', error)
-        return { sucesso: false, erro: 'Falha ao salvar no portfólio.' }
+        console.error('[Portfolio] Erro ao criar item de portfólio:', error)
+        return { sucesso: false, erro: 'Falha ao guardar o item na galeria.' }
+    }
+}
+
+// ── 4. EXCLUSÃO (Protegida — ADMIN only) ─────────────────────────────────────
+
+export async function excluirItemPortfolio(id: string): Promise<ActionResult> {
+    const erroAuth = await checarPermissaoAdmin()
+    if (erroAuth) return { sucesso: false, erro: erroAuth }
+
+    if (!id) return { sucesso: false, erro: 'ID inválido.' }
+
+    try {
+        await prisma.itemPortfolio.delete({ where: { id } })
+
+        revalidatePath('/admin/galeria')
+        revalidatePath('/')
+
+        return { sucesso: true }
+    } catch (error) {
+        console.error('[Portfolio] Erro ao excluir item de portfólio:', error)
+        return { sucesso: false, erro: 'Falha ao excluir o item da galeria.' }
+    }
+}
+
+// ── 5. ALTERNAR VISIBILIDADE (Ativar / Desativar) ─────────────────────────────
+
+export async function alternarVisibilidadeItem(id: string, ativo: boolean): Promise<ActionResult> {
+    const erroAuth = await checarPermissaoAdmin()
+    if (erroAuth) return { sucesso: false, erro: erroAuth }
+
+    try {
+        await prisma.itemPortfolio.update({
+            where: { id },
+            data: { ativo },
+        })
+
+        revalidatePath('/admin/galeria')
+        revalidatePath('/')
+
+        return { sucesso: true }
+    } catch (error) {
+        console.error('[Portfolio] Erro ao alterar visibilidade:', error)
+        return { sucesso: false, erro: 'Falha ao atualizar visibilidade.' }
     }
 }

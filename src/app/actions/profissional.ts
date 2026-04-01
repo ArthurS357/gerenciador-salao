@@ -9,6 +9,17 @@ import { ActionResult } from '@/types/domain'
 import { schemaExpediente, schemaAlterarSenha } from '@/lib/schemas'
 import { z } from 'zod'
 
+// ── Tipagem do Extrato ────────────────────────────────────────────────────────
+type ItemExtrato = {
+    id: string
+    servico: string
+    data: Date
+    bruto: number
+    insumos: number
+    comissaoLiquida: number
+    taxa: number
+}
+
 const TZ = 'America/Sao_Paulo'
 
 // ── Tipagem Estrita ──────────────────────────────────────────────────────────
@@ -210,7 +221,62 @@ export async function salvarPerfilEExpediente(
     }
 }
 
-// ── 4. Alteração de Senha ─────────────────────────────────────────────────────
+// ── 4. Extrato Financeiro Mensal do Profissional ─────────────────────────────
+export async function getExtratoProfissional(): Promise<ActionResult<{
+    extrato: ItemExtrato[]
+    totalReceber: number
+}>> {
+    try {
+        const sessao = await verificarSessaoFuncionario()
+        if (!sessao.logado) return { sucesso: false, erro: 'Sessão expirada.' }
+
+        const agora = new Date()
+        const inicioMes = new Date(formatInTimeZone(agora, TZ, "yyyy-MM-01'T'00:00:00xxx"))
+        // Calcula o início do próximo mês para filtro preciso (sem depender de "dia 31")
+        const inicioProximoMes = new Date(inicioMes)
+        inicioProximoMes.setMonth(inicioProximoMes.getMonth() + 1)
+
+        const agendamentos = await prisma.agendamento.findMany({
+            where: {
+                funcionarioId: sessao.id,
+                concluido: true,
+                dataHoraInicio: { gte: inicioMes, lt: inicioProximoMes },
+            },
+            include: {
+                servicos: { include: { servico: { select: { nome: true } } } },
+            },
+            orderBy: { dataHoraInicio: 'desc' },
+        })
+
+        let totalReceber = 0
+        const extrato: ItemExtrato[] = agendamentos.map(ag => {
+            const bruto = ag.valorBruto
+            const insumos = ag.custoInsumos
+            const taxa = ag.comissaoSnap // % congelada no momento do fechamento
+            const base = bruto - insumos
+            const comissaoLiquida = base > 0 ? base * (taxa / 100) : 0
+
+            totalReceber += comissaoLiquida
+
+            return {
+                id: ag.id,
+                servico: ag.servicos.map(s => s.servico.nome).join(', ') || 'Serviço não identificado',
+                data: ag.dataHoraInicio,
+                bruto,
+                insumos,
+                comissaoLiquida,
+                taxa,
+            }
+        })
+
+        return { sucesso: true, data: { extrato, totalReceber } }
+    } catch (error) {
+        console.error('[Extrato] Erro ao carregar extrato:', error)
+        return { sucesso: false, erro: 'Falha técnica ao carregar o extrato financeiro.' }
+    }
+}
+
+// ── 5. Alteração de Senha ─────────────────────────────────────────────────────
 export async function alterarSenhaProfissional(novaSenha: string): Promise<ActionResult> {
     try {
         const sessao = await verificarSessaoFuncionario()

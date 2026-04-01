@@ -7,13 +7,15 @@ import { Menu, X } from 'lucide-react'
 interface AdminHeaderProps {
     titulo: string
     subtitulo: string
-    abaAtiva: 'Equipe' | 'Financeiro' | 'Estoque' | 'Serviços' | 'Agendamentos' | 'Clientes' | 'Avaliações'
+    // Adicionamos Auditoria e Galeria aos tipos permitidos
+    abaAtiva: 'Equipe' | 'Financeiro' | 'Estoque' | 'Serviços' | 'Agendamentos' | 'Clientes' | 'Avaliações' | 'Auditoria' | 'Galeria'
     botaoAcao?: React.ReactNode
 }
 
 export default function AdminHeader({ titulo, subtitulo, abaAtiva, botaoAcao }: AdminHeaderProps) {
     const [isMenuOpen, setIsMenuOpen] = useState(false)
 
+    // Lista atualizada com os novos módulos
     const links = [
         { href: '/admin/dashboard', label: 'Equipe' },
         { href: '/admin/financeiro', label: 'Financeiro' },
@@ -22,6 +24,8 @@ export default function AdminHeader({ titulo, subtitulo, abaAtiva, botaoAcao }: 
         { href: '/admin/agendamentos', label: 'Agendamentos' },
         { href: '/admin/clientes', label: 'Clientes' },
         { href: '/admin/avaliacoes', label: 'Avaliações' },
+        { href: '/admin/auditoria', label: 'Auditoria' },
+        { href: '/admin/galeria', label: 'Galeria' },
     ]
 
     return (

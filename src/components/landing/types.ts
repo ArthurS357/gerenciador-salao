@@ -19,9 +19,10 @@ export interface Servico {
 export interface ItemPortfolio {
     id: string
     titulo: string
-    imagemUrl: string
+    descricao: string | null
+    imagensJson: string           // JSON array: '["url1","url2","url3","url4"]'
     valor: number | null
-    linkSocial: string | null
+    linkInstagram: string | null
 }
 
 export type SessaoRole = 'CLIENTE' | 'PROFISSIONAL' | 'ADMIN'

@@ -1,14 +1,14 @@
 {
   "permissions": {
     "allow": [
-      "Bash(claude login:*)",
-      "Bash(npm install:*)",
+      "Bash(ls \"C:\\\\Users\\\\TR\\\\Desktop\\\\gerenciador-salao\\\\src\\\\app\\\\admin\"\" 2>/dev/null && ls \"C:UsersTRDesktopgerenciador-salaosrcappprofissional\"\")",
+      "Bash(dir /b \"C:\\\\Users\\\\TR\\\\Desktop\\\\gerenciador-salao\\\\src\\\\app\\\\admin\")",
+      "Bash(dir /b \"C:\\\\Users\\\\TR\\\\Desktop\\\\gerenciador-salao\\\\src\\\\app\\\\profissional\")",
       "Bash(npx prisma:*)",
-      "Bash(npx tsc:*)",
-      "Bash(\"G:\\\\Meu Drive\\\\Meu_Workspace\\\\Cerebro_IA\\\\Projetos\\\\GerenciadorSalao\\\\Fluxo_Financeiro.md\":*)",
-      "Bash(\"G:\\\\Meu Drive\\\\Meu_Workspace\\\\Cerebro_IA\\\\Projetos\\\\GerenciadorSalao\\\\Integracao_WhatsApp.md\":*)",
-      "Bash(\"G:\\\\Meu Drive\\\\Meu_Workspace\\\\Cerebro_IA\\\\Projetos\\\\GerenciadorSalao\\\\Defense_in_Depth.md\":*)",
-      "Bash(ls -lh \"G:\\\\Meu Drive\\\\Meu_Workspace\\\\Cerebro_IA\\\\Projetos\\\\GerenciadorSalao\"/*.md)"
+      "Bash(git -C \"C:\\\\Users\\\\TR\\\\Desktop\\\\gerenciador-salao\" diff --name-only HEAD)",
+      "Bash(git -C \"C:\\\\Users\\\\TR\\\\Desktop\\\\gerenciador-salao\" ls-files --others --exclude-standard src/)",
+      "Bash(ls \"G:\\\\Meu Drive\\\\Meu_Workspace\\\\Cerebro_IA\\\\Projetos\\\\GerenciadorSalao\"/*.md)",
+      "Bash(npx tsc:*)"
     ]
   }
 }

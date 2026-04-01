@@ -1,9 +1,10 @@
 // src/components/admin/metric-card.tsx
+import React from "react";
 import { cn } from "@/lib/utils";
 import { Card } from "@/components/ui/card"; // Assumindo Shadcn Card base
 
 interface MetricCardProps {
-    label: string;
+    label: string | React.ReactNode;
     value: string | number;
     subText?: string;
     trend?: number; // ex: 8.5 ou -3.2
