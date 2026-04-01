@@ -68,7 +68,7 @@ export async function calcularFechamentoComanda(
         if (!agendamento) return { sucesso: false, erro: 'Agendamento não encontrado.' }
         if (agendamento.concluido) return { sucesso: false, erro: 'Esta comanda já foi fechada.' }
 
-        // ── Blindagem IDOR: Apenas o dono ou um ADMIN podem fechar a comanda
+        // ── Blindagem IDOR: Apenas o dono ou Gestão podem fechar a comanda
         if (sessao.role !== 'ADMIN' && sessao.id !== agendamento.funcionarioId && sessao.role !== 'RECEPCIONISTA') {
             return { sucesso: false, erro: 'Acesso negado. Não tem permissão para fechar esta comanda.' }
         }
@@ -179,6 +179,10 @@ export async function calcularFechamentoComanda(
                     baseReal: baseLiquidaComissao,
                     comissao: valorComissao,
                     lucroSalao,
+                    // ── Propriedades Adicionadas Corrigindo o Erro do TS ──
+                    valorPago,
+                    valorPendente,
+                    comissaoLiberada
                 },
             }
         }

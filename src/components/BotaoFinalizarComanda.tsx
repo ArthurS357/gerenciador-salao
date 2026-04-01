@@ -1,63 +1,222 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { finalizarComanda } from '@/app/actions/comanda'
+import {
+    Plus,
+    Trash2,
+    AlertTriangle,
+    CheckCircle2,
+    Loader2,
+    CreditCard,
+    Banknote,
+    Smartphone,
+} from 'lucide-react'
+import { finalizarComanda, listarMetodosPagamento } from '@/app/actions/comanda'
+import { Button } from '@/components/ui/button'
+import type { PagamentoComandaInput, MetodoPagamento, MetodoPagamentoConfig } from '@/types/domain'
+
+// ── Constantes e Helpers de UI ────────────────────────────────────────────────
+
+const METODO_LABELS: Record<MetodoPagamento, string> = {
+    DINHEIRO: 'Dinheiro',
+    PIX: 'PIX',
+    CARTAO_DEBITO: 'Cartão de Débito',
+    CARTAO_CREDITO: 'Cartão de Crédito',
+    CORTESIA: 'Cortesia',
+    VOUCHER: 'Voucher',
+    PERMUTA: 'Permuta',
+}
+
+const METODO_ICONES: Record<MetodoPagamento, React.ReactNode> = {
+    DINHEIRO: <Banknote className="w-3.5 h-3.5" />,
+    PIX: <Smartphone className="w-3.5 h-3.5" />,
+    CARTAO_DEBITO: <CreditCard className="w-3.5 h-3.5" />,
+    CARTAO_CREDITO: <CreditCard className="w-3.5 h-3.5" />,
+    CORTESIA: <CheckCircle2 className="w-3.5 h-3.5" />,
+    VOUCHER: <Banknote className="w-3.5 h-3.5" />,
+    PERMUTA: <Banknote className="w-3.5 h-3.5" />,
+}
+
+const METODOS_FALLBACK: MetodoPagamento[] = [
+    'DINHEIRO',
+    'PIX',
+    'CARTAO_DEBITO',
+    'CARTAO_CREDITO',
+]
+
+function fmt(valor: number): string {
+    return valor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
+// ── Tipos internos ────────────────────────────────────────────────────────────
+
+/** Tipo seguro local para os estados manipulados no formulário */
+type PagamentoRow = {
+    _key: number;
+    metodo: MetodoPagamento;
+    valor: number;
+    parcelas: number;
+}
+
+/** Interface auxiliar segura para leitura do config vindo do DB */
+type ConfigMetodoSegura = MetodoPagamentoConfig & {
+    id?: string;
+    taxaBase?: number;
+}
+
+// ── Props ─────────────────────────────────────────────────────────────────────
 
 interface BotaoFinalizarComandaProps {
-    agendamentoId: string;
-    valorBruto: number;
-    custoInsumosEstimado?: number;
+    agendamentoId: string
+    valorBruto: number
+    custoInsumosEstimado?: number
 }
+
+// ── Componente Principal ──────────────────────────────────────────────────────
 
 export default function BotaoFinalizarComanda({
     agendamentoId,
     valorBruto,
     custoInsumosEstimado = 0,
 }: BotaoFinalizarComandaProps) {
-    const [carregando, setCarregando] = useState(false)
-    const [mostrarModal, setMostrarModal] = useState(false)
-    const [custoInsumos, setCustoInsumos] = useState(custoInsumosEstimado)
-
-    // Pagamentos mistos
-    const [valorDinheiro, setValorDinheiro] = useState(0)
-    const [valorCartao, setValorCartao] = useState(0)
-    const [valorPix, setValorPix] = useState(0)
-    const [tipoCartao, setTipoCartao] = useState<'CREDITO' | 'DEBITO'>('CREDITO')
-
     const router = useRouter()
 
-    const totalAlocado = valorDinheiro + valorCartao + valorPix
-    const diferenca = valorBruto - totalAlocado
-    const totalValido = Math.abs(diferenca) < 0.01
+    // ── Estado do Modal ───────────────────────────────────────────────────────
+    const [mostrarModal, setMostrarModal] = useState(false)
+    const [carregando, setCarregando] = useState(false)
+    const [carregandoMetodos, setCarregandoMetodos] = useState(true)
 
+    // ── Estado do Formulário ──────────────────────────────────────────────────
+    const [custoInsumos, setCustoInsumos] = useState(custoInsumosEstimado)
+    const [metodosConfig, setMetodosConfig] = useState<ConfigMetodoSegura[]>([])
+    const [metodosAtivos, setMetodosAtivos] = useState<MetodoPagamento[]>(METODOS_FALLBACK)
+    const [pagamentos, setPagamentos] = useState<PagamentoRow[]>([
+        { _key: 0, metodo: 'DINHEIRO', valor: 0, parcelas: 1 }
+    ])
+    const [keyCounter, setKeyCounter] = useState(1)
+
+    // ── Cálculos em Tempo Real ────────────────────────────────────────────────
+    const totalPago = pagamentos.reduce((sum, p) => sum + (p.valor || 0), 0)
+    const restante = valorBruto - totalPago
+    const temDivida = restante > 0.009
+    const temExcesso = totalPago > valorBruto + 0.009
+    const emDia = Math.abs(restante) < 0.01
+
+    // ── Taxa estimada de maquininha (apenas informativo) ──────────────────────
+    const taxaEstimada = pagamentos.reduce((sum, p) => {
+        const cfg = metodosConfig.find(m => m.metodo === p.metodo)
+        return sum + (p.valor * ((cfg?.taxaBase ?? 0) / 100))
+    }, 0)
+
+    // ── Carrega Métodos de Pagamento ao Abrir o Modal ─────────────────────────
+    useEffect(() => {
+        if (!mostrarModal) return
+        let cancelado = false
+
+        listarMetodosPagamento()
+            .then(res => {
+                if (cancelado) return
+                if (res.sucesso && res.data.metodos.length > 0) {
+                    setMetodosConfig(res.data.metodos as ConfigMetodoSegura[])
+                    setMetodosAtivos(res.data.metodos.map(m => m.metodo))
+                }
+            })
+            .catch(() => { /* mantém os defaults */ })
+            .finally(() => {
+                if (!cancelado) setCarregandoMetodos(false)
+            })
+
+        return () => { cancelado = true }
+    }, [mostrarModal])
+
+    // ── Reset ao fechar modal ─────────────────────────────────────────────────
+    const fecharModal = useCallback(() => {
+        setMostrarModal(false)
+        setCarregando(false)
+        setCarregandoMetodos(true)
+        setPagamentos([{ _key: 0, metodo: 'DINHEIRO', valor: 0, parcelas: 1 }])
+        setKeyCounter(1)
+        setCustoInsumos(custoInsumosEstimado)
+    }, [custoInsumosEstimado])
+
+    // ── Manipulação da Lista de Pagamentos ────────────────────────────────────
+    const adicionarMetodo = () => {
+        const jaUsados = new Set(pagamentos.map(p => p.metodo))
+        const proximo = metodosAtivos.find(m => !jaUsados.has(m)) ?? metodosAtivos[0]
+        if (!proximo) return
+
+        setPagamentos(prev => [
+            ...prev,
+            { _key: keyCounter, metodo: proximo, valor: 0, parcelas: 1 }
+        ])
+        setKeyCounter(c => c + 1)
+    }
+
+    const removerMetodo = (key: number) => {
+        if (pagamentos.length === 1) return
+        setPagamentos(prev => prev.filter(p => p._key !== key))
+    }
+
+    const atualizarPagamento = (key: number, delta: Partial<Omit<PagamentoRow, '_key'>>) => {
+        setPagamentos(prev =>
+            prev.map(p => {
+                if (p._key !== key) return p
+                const atualizado = { ...p, ...delta }
+                if ('metodo' in delta && delta.metodo !== 'CARTAO_CREDITO') {
+                    atualizado.parcelas = 1
+                }
+                return atualizado
+            })
+        )
+    }
+
+    // ── Submissão ─────────────────────────────────────────────────────────────
     const handleFinalizar = async () => {
-        if (!totalValido) {
-            toast.error(`Distribua o valor total: faltam R$ ${diferenca.toFixed(2)}`)
+        if (temExcesso) {
+            toast.error('O total informado excede o valor da comanda.')
+            return
+        }
+        if (pagamentos.some(p => p.valor <= 0)) {
+            toast.error('Todos os métodos adicionados precisam ter um valor maior que zero.')
             return
         }
 
         setCarregando(true)
         try {
-            const res = await finalizarComanda(
-                agendamentoId,
-                custoInsumos,
-                valorDinheiro,
-                valorCartao,
-                valorPix,
-                valorCartao > 0 ? tipoCartao : undefined
-            )
+            // Mapeamos unindo os inputs do utilizador com os IDs e Taxas do config na base de dados
+            const payload = pagamentos.map(p => {
+                const cfg = metodosConfig.find(m => m.metodo === p.metodo)
+
+                return {
+                    metodo: p.metodo,
+                    valor: p.valor,
+                    parcelas: p.metodo === 'CARTAO_CREDITO' ? p.parcelas : 1,
+                    taxaBase: cfg?.taxaBase ?? 0,
+                    taxaMetodoId: cfg?.id,
+                } as PagamentoComandaInput
+            })
+
+            const res = await finalizarComanda(agendamentoId, custoInsumos, payload)
 
             if (res.sucesso) {
                 const f = res.data.financeiro
-                toast.success(
-                    `Comanda faturada! Lucro líquido: R$ ${f.lucroSalao.toFixed(2)}`,
-                    { description: `Bruto R$ ${f.bruto.toFixed(2)} — Repasse prof. R$ ${f.comissao.toFixed(2)}` }
-                )
+
+                if (f.valorPendente > 0.01) {
+                    toast.warning('Comanda registrada com dívida pendente!', {
+                        description: `Saldo de R$ ${fmt(f.valorPendente)} registrado como dívida. Comissão retida até quitação.`,
+                        duration: 6000,
+                    })
+                } else {
+                    toast.success(`Comanda faturada! Lucro líquido: R$ ${fmt(f.lucroSalao)}`, {
+                        description: `Bruto R$ ${fmt(f.bruto)} — Repasse profissional R$ ${fmt(f.comissao)}`,
+                    })
+                }
+
                 router.push('/profissional/agenda')
             } else {
-                toast.error(res.erro ?? 'Erro ao processar comanda.')
+                toast.error(res.erro ?? 'Erro ao processar a comanda.')
                 setCarregando(false)
             }
         } catch {
@@ -66,154 +225,311 @@ export default function BotaoFinalizarComanda({
         }
     }
 
+    // ── Render ────────────────────────────────────────────────────────────────
     return (
         <>
-            <button
+            <Button
                 onClick={() => setMostrarModal(true)}
                 disabled={carregando}
-                className="w-full md:w-auto bg-green-600 text-white px-6 py-3 rounded-lg font-bold hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm flex items-center justify-center gap-2"
+                className="w-full md:w-auto bg-green-600 hover:bg-green-700 text-white font-bold shadow-sm"
             >
                 Concluir Agendamento e Faturar
-            </button>
+            </Button>
 
+            {/* ── Backdrop ── */}
             {mostrarModal && (
-                <div style={{
-                    position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    zIndex: 9999, padding: '1rem'
-                }}>
-                    <div style={{
-                        background: 'white', borderRadius: '12px', padding: '2rem',
-                        maxWidth: '460px', width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
-                        maxHeight: '90vh', overflowY: 'auto'
-                    }}>
-                        <h3 style={{ margin: '0 0 0.25rem', fontSize: '1.1rem', fontWeight: 700, color: '#1a1a1a' }}>
-                            Confirmar Fechamento de Comanda
-                        </h3>
-                        <p style={{ margin: '0 0 1.5rem', fontSize: '0.85rem', color: '#666' }}>
-                            Valor bruto: <strong>R$ {valorBruto.toFixed(2)}</strong>. Informe como foi o pagamento.
-                        </p>
+                <div
+                    className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4"
+                    onClick={(e) => { if (e.target === e.currentTarget) fecharModal() }}
+                >
+                    {/* ── Card do Modal ── */}
+                    <div className="bg-white w-full sm:max-w-lg rounded-t-2xl sm:rounded-2xl shadow-2xl max-h-[95vh] flex flex-col">
 
-                        {/* Custo de insumos */}
-                        <div style={{ marginBottom: '1rem' }}>
-                            <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: '#555', marginBottom: '0.35rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                                Custo de Insumos (R$)
-                            </label>
-                            <input
-                                type="number" min="0" step="0.01" value={custoInsumos}
-                                onChange={e => setCustoInsumos(Math.max(0, parseFloat(e.target.value) || 0))}
-                                style={{ width: '100%', padding: '0.6rem 0.8rem', border: '1.5px solid #ddd', borderRadius: '6px', fontSize: '0.95rem', boxSizing: 'border-box' }}
-                            />
-                            {custoInsumosEstimado > 0 && (
-                                <p style={{ fontSize: '0.72rem', color: '#888', marginTop: '0.3rem' }}>
-                                    Estimativa pela ficha técnica: R$ {custoInsumosEstimado.toFixed(2)}
-                                </p>
-                            )}
+                        {/* ── Cabeçalho ── */}
+                        <div className="px-6 pt-6 pb-4 border-b border-gray-100 shrink-0">
+                            <div className="flex items-start justify-between gap-4">
+                                <div>
+                                    <h3 className="text-lg font-black text-gray-900 leading-tight">
+                                        Confirmar Fechamento de Comanda
+                                    </h3>
+                                    <p className="text-sm text-gray-500 mt-1">
+                                        Valor total da comanda:{' '}
+                                        <strong className="text-gray-800 font-bold">R$ {fmt(valorBruto)}</strong>
+                                    </p>
+                                </div>
+                                {/* Alça visual mobile */}
+                                <div className="sm:hidden w-12 h-1.5 rounded-full bg-gray-200 mx-auto mt-1 shrink-0" />
+                            </div>
                         </div>
 
-                        {/* Divisão do pagamento */}
-                        <div style={{ background: '#f8f9fa', borderRadius: '8px', padding: '1rem', marginBottom: '1rem', border: '1px solid #e9ecef' }}>
-                            <p style={{ fontSize: '0.75rem', fontWeight: 700, color: '#555', marginBottom: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                                Divisão do Pagamento
-                            </p>
+                        {/* ── Corpo com scroll ── */}
+                        <div className="overflow-y-auto p-6 space-y-5 flex-1">
 
-                            {/* Dinheiro */}
-                            <div style={{ marginBottom: '0.75rem' }}>
-                                <label style={{ display: 'block', fontSize: '0.72rem', color: '#666', marginBottom: '0.3rem', fontWeight: 600 }}>
-                                    Dinheiro (R$)
+                            {/* Custo de Insumos */}
+                            <div>
+                                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">
+                                    Custo de Insumos (R$)
                                 </label>
                                 <input
-                                    type="number" min="0" step="0.01" value={valorDinheiro || ''}
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    value={custoInsumos || ''}
                                     placeholder="0,00"
-                                    onChange={e => setValorDinheiro(Math.max(0, parseFloat(e.target.value) || 0))}
-                                    style={{ width: '100%', padding: '0.5rem 0.75rem', border: '1.5px solid #ddd', borderRadius: '6px', fontSize: '0.9rem', boxSizing: 'border-box' }}
+                                    onChange={e =>
+                                        setCustoInsumos(Math.max(0, parseFloat(e.target.value) || 0))
+                                    }
+                                    className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-shadow"
                                 />
+                                {custoInsumosEstimado > 0 && (
+                                    <p className="text-xs text-gray-400 mt-1.5">
+                                        Estimativa pela ficha técnica:{' '}
+                                        <span className="font-semibold">R$ {fmt(custoInsumosEstimado)}</span>
+                                    </p>
+                                )}
                             </div>
 
-                            {/* Cartão */}
-                            <div style={{ marginBottom: '0.75rem' }}>
-                                <label style={{ display: 'block', fontSize: '0.72rem', color: '#666', marginBottom: '0.3rem', fontWeight: 600 }}>
-                                    Cartão (R$)
-                                </label>
-                                <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                    <input
-                                        type="number" min="0" step="0.01" value={valorCartao || ''}
-                                        placeholder="0,00"
-                                        onChange={e => setValorCartao(Math.max(0, parseFloat(e.target.value) || 0))}
-                                        style={{ flex: 1, padding: '0.5rem 0.75rem', border: '1.5px solid #ddd', borderRadius: '6px', fontSize: '0.9rem', boxSizing: 'border-box' }}
-                                    />
-                                    {valorCartao > 0 && (
-                                        <select
-                                            value={tipoCartao}
-                                            onChange={e => setTipoCartao(e.target.value as 'CREDITO' | 'DEBITO')}
-                                            style={{ padding: '0.5rem', border: '1.5px solid #ddd', borderRadius: '6px', fontSize: '0.85rem', background: 'white', cursor: 'pointer' }}
+                            {/* ── Seção de Pagamentos ── */}
+                            <div>
+                                <div className="flex items-center justify-between mb-3">
+                                    <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">
+                                        Formas de Pagamento
+                                    </span>
+                                    {pagamentos.length < metodosAtivos.length && (
+                                        <button
+                                            type="button"
+                                            onClick={adicionarMetodo}
+                                            disabled={carregandoMetodos}
+                                            className="flex items-center gap-1 text-xs font-bold text-green-600 hover:text-green-700 transition-colors disabled:opacity-40"
                                         >
-                                            <option value="CREDITO">Crédito</option>
-                                            <option value="DEBITO">Débito</option>
-                                        </select>
+                                            <Plus className="w-3.5 h-3.5" />
+                                            Adicionar método
+                                        </button>
                                     )}
+                                </div>
+
+                                <div className="space-y-2.5">
+                                    {pagamentos.map((pag) => (
+                                        <div
+                                            key={pag._key}
+                                            className="p-3.5 bg-gray-50 rounded-xl border border-gray-100 space-y-2.5"
+                                        >
+                                            {/* Linha: método + valor + remover */}
+                                            <div className="flex gap-2 items-center">
+                                                {/* Ícone do método */}
+                                                <span className="text-gray-400 shrink-0">
+                                                    {METODO_ICONES[pag.metodo]}
+                                                </span>
+
+                                                {/* Select de Método */}
+                                                <select
+                                                    value={pag.metodo}
+                                                    onChange={e =>
+                                                        atualizarPagamento(pag._key, {
+                                                            metodo: e.target.value as MetodoPagamento,
+                                                        })
+                                                    }
+                                                    className="flex-1 min-w-0 px-2.5 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500 cursor-pointer"
+                                                >
+                                                    {metodosAtivos.map(m => (
+                                                        <option key={m} value={m}>
+                                                            {METODO_LABELS[m]}
+                                                        </option>
+                                                    ))}
+                                                </select>
+
+                                                {/* Input de Valor */}
+                                                <div className="relative w-28 shrink-0">
+                                                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-gray-400 font-semibold pointer-events-none">
+                                                        R$
+                                                    </span>
+                                                    <input
+                                                        type="number"
+                                                        min="0"
+                                                        step="0.01"
+                                                        value={pag.valor || ''}
+                                                        placeholder="0,00"
+                                                        onChange={e =>
+                                                            atualizarPagamento(pag._key, {
+                                                                valor: Math.max(0, parseFloat(e.target.value) || 0),
+                                                            })
+                                                        }
+                                                        className="w-full pl-8 pr-2 py-2 border border-gray-200 rounded-lg text-sm text-right focus:outline-none focus:ring-2 focus:ring-green-500"
+                                                    />
+                                                </div>
+
+                                                {/* Botão Remover */}
+                                                <button
+                                                    type="button"
+                                                    onClick={() => removerMetodo(pag._key)}
+                                                    disabled={pagamentos.length === 1}
+                                                    className="p-1.5 text-gray-300 hover:text-red-500 transition-colors disabled:opacity-0 disabled:cursor-default shrink-0"
+                                                    aria-label="Remover este método de pagamento"
+                                                >
+                                                    <Trash2 className="w-4 h-4" />
+                                                </button>
+                                            </div>
+
+                                            {/* Linha de Parcelas — apenas para Cartão de Crédito */}
+                                            {pag.metodo === 'CARTAO_CREDITO' && (
+                                                <div className="flex items-center gap-2 pl-5">
+                                                    <label className="text-xs text-gray-500 font-semibold whitespace-nowrap">
+                                                        Parcelas:
+                                                    </label>
+                                                    <select
+                                                        value={pag.parcelas}
+                                                        onChange={e =>
+                                                            atualizarPagamento(pag._key, {
+                                                                parcelas: parseInt(e.target.value, 10),
+                                                            })
+                                                        }
+                                                        className="flex-1 px-2.5 py-1.5 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
+                                                    >
+                                                        {Array.from({ length: 12 }, (_, i) => i + 1).map(n => (
+                                                            <option key={n} value={n}>
+                                                                {n === 1
+                                                                    ? '1x (à vista)'
+                                                                    : `${n}x de R$ ${fmt(pag.valor > 0 ? pag.valor / n : 0)}`
+                                                                }
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
                                 </div>
                             </div>
 
-                            {/* PIX */}
-                            <div style={{ marginBottom: '0.5rem' }}>
-                                <label style={{ display: 'block', fontSize: '0.72rem', color: '#666', marginBottom: '0.3rem', fontWeight: 600 }}>
-                                    PIX (R$)
-                                </label>
-                                <input
-                                    type="number" min="0" step="0.01" value={valorPix || ''}
-                                    placeholder="0,00"
-                                    onChange={e => setValorPix(Math.max(0, parseFloat(e.target.value) || 0))}
-                                    style={{ width: '100%', padding: '0.5rem 0.75rem', border: '1.5px solid #ddd', borderRadius: '6px', fontSize: '0.9rem', boxSizing: 'border-box' }}
-                                />
+                            {/* ── Resumo em Tempo Real ── */}
+                            <div className="rounded-xl border border-gray-200 overflow-hidden">
+                                <div className="bg-gray-50 px-4 py-2.5 border-b border-gray-200">
+                                    <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">
+                                        Resumo do Fechamento
+                                    </span>
+                                </div>
+                                <div className="divide-y divide-gray-100 text-sm">
+                                    <div className="flex justify-between items-center px-4 py-2.5">
+                                        <span className="text-gray-600">Valor da comanda</span>
+                                        <span className="font-bold text-gray-900">R$ {fmt(valorBruto)}</span>
+                                    </div>
+                                    {taxaEstimada > 0.001 && (
+                                        <div className="flex justify-between items-center px-4 py-2.5">
+                                            <span className="text-gray-400 text-xs">Taxas estimadas (maquininha)</span>
+                                            <span className="text-xs text-gray-400">- R$ {fmt(taxaEstimada)}</span>
+                                        </div>
+                                    )}
+                                    <div className="flex justify-between items-center px-4 py-2.5">
+                                        <span className="text-gray-600">Total informado</span>
+                                        <span className="font-bold text-gray-900">R$ {fmt(totalPago)}</span>
+                                    </div>
+
+                                    {/* Linha de saldo — cor muda conforme status */}
+                                    <div className={`flex justify-between items-center px-4 py-3 ${temExcesso ? 'bg-red-50' :
+                                        temDivida ? 'bg-amber-50' :
+                                            emDia && totalPago > 0 ? 'bg-green-50' : ''
+                                        }`}>
+                                        <span className={`font-bold ${temExcesso ? 'text-red-700' :
+                                            temDivida ? 'text-amber-700' :
+                                                'text-green-700'
+                                            }`}>
+                                            {temExcesso ? 'Excesso' : temDivida ? 'Restante (dívida)' : 'Restante'}
+                                        </span>
+                                        <span className={`font-black text-base ${temExcesso ? 'text-red-700' :
+                                            temDivida ? 'text-amber-700' :
+                                                'text-green-700'
+                                            }`}>
+                                            R$ {fmt(Math.abs(restante))}
+                                        </span>
+                                    </div>
+                                </div>
                             </div>
 
-                            {/* Indicador de total alocado */}
-                            <div style={{
-                                marginTop: '0.75rem', padding: '0.5rem 0.75rem', borderRadius: '6px',
-                                background: totalValido ? '#d1fae5' : Math.abs(diferenca) < 0.001 ? '#d1fae5' : '#fef9c3',
-                                color: totalValido ? '#065f46' : '#78350f',
-                                fontSize: '0.8rem', fontWeight: 700, display: 'flex', justifyContent: 'space-between'
-                            }}>
-                                <span>Total alocado:</span>
-                                <span>R$ {totalAlocado.toFixed(2)} / R$ {valorBruto.toFixed(2)}</span>
-                            </div>
-                            {!totalValido && totalAlocado > 0 && (
-                                <p style={{ fontSize: '0.72rem', color: '#ef4444', marginTop: '0.3rem' }}>
-                                    {diferenca > 0 ? `Faltam R$ ${diferenca.toFixed(2)} para completar.` : `Excesso de R$ ${Math.abs(diferenca).toFixed(2)}.`}
-                                </p>
+                            {/* ── Banner: Aviso de Dívida Pendente ── */}
+                            {temDivida && (
+                                <div className="flex gap-3 p-4 bg-amber-50 border border-amber-200 rounded-xl">
+                                    <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+                                    <div className="space-y-1">
+                                        <p className="text-sm font-bold text-amber-800">
+                                            Pagamento parcial detectado
+                                        </p>
+                                        <p className="text-xs text-amber-700 leading-relaxed">
+                                            A diferença de{' '}
+                                            <strong>R$ {fmt(restante)}</strong> será registrada como{' '}
+                                            <strong>Dívida Pendente</strong> vinculada ao cliente.
+                                            A comissão do profissional ficará{' '}
+                                            <strong>retida</strong> até a quitação total.
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* ── Banner: Aviso de Excesso ── */}
+                            {temExcesso && (
+                                <div className="flex gap-3 p-4 bg-red-50 border border-red-200 rounded-xl">
+                                    <AlertTriangle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+                                    <p className="text-sm text-red-800">
+                                        O total informado excede o valor da comanda em{' '}
+                                        <strong>R$ {fmt(totalPago - valorBruto)}</strong>. Ajuste os valores antes de continuar.
+                                    </p>
+                                </div>
                             )}
                         </div>
 
-                        <div style={{ display: 'flex', gap: '0.75rem' }}>
-                            <button
-                                onClick={() => { setMostrarModal(false); setCarregando(false) }}
+                        {/* ── Rodapé com Ações ── */}
+                        <div className="px-6 pb-6 pt-4 border-t border-gray-100 flex gap-3 shrink-0">
+                            <Button
+                                variant="outline"
+                                onClick={fecharModal}
                                 disabled={carregando}
-                                style={{ flex: 1, padding: '0.75rem', background: '#f5f5f5', border: '1px solid #ddd', borderRadius: '8px', cursor: 'pointer', fontWeight: 600, fontSize: '0.9rem' }}
+                                className="flex-1 font-semibold"
                             >
                                 Cancelar
-                            </button>
-                            <button
-                                onClick={handleFinalizar}
-                                disabled={carregando || !totalValido}
-                                style={{ flex: 1, padding: '0.75rem', background: carregando || !totalValido ? '#ccc' : '#16a34a', color: 'white', border: 'none', borderRadius: '8px', cursor: carregando || !totalValido ? 'not-allowed' : 'pointer', fontWeight: 700, fontSize: '0.9rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
-                            >
-                                {carregando ? (
-                                    <>
-                                        <svg style={{ width: '16px', height: '16px', animation: 'spin 1s linear infinite' }} viewBox="0 0 24 24" fill="none">
-                                            <circle style={{ opacity: 0.25 }} cx="12" cy="12" r="10" stroke="white" strokeWidth="4" />
-                                            <path style={{ opacity: 0.75 }} fill="white" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                                        </svg>
-                                        A Processar...
-                                    </>
-                                ) : 'Confirmar e Faturar'}
-                            </button>
+                            </Button>
+
+                            {temDivida ? (
+                                /* Botão âmbar — pagamento parcial com geração de dívida */
+                                <Button
+                                    onClick={handleFinalizar}
+                                    disabled={carregando || temExcesso || pagamentos.some(p => p.valor <= 0)}
+                                    className="flex-1 bg-amber-500 hover:bg-amber-600 text-white font-bold disabled:opacity-50"
+                                >
+                                    {carregando ? (
+                                        <>
+                                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                            Processando...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <AlertTriangle className="w-4 h-4 mr-2" />
+                                            Registrar com Dívida
+                                        </>
+                                    )}
+                                </Button>
+                            ) : (
+                                /* Botão verde — pagamento integral */
+                                <Button
+                                    onClick={handleFinalizar}
+                                    disabled={carregando || !emDia || temExcesso}
+                                    className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold disabled:opacity-50"
+                                >
+                                    {carregando ? (
+                                        <>
+                                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                            Processando...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <CheckCircle2 className="w-4 h-4 mr-2" />
+                                            Confirmar e Faturar
+                                        </>
+                                    )}
+                                </Button>
+                            )}
                         </div>
                     </div>
                 </div>
             )}
-
-            <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
         </>
     )
 }

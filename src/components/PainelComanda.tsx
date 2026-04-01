@@ -8,7 +8,7 @@ import { adicionarProdutoNaComanda, finalizarComanda } from '@/app/actions/coman
 
 type ServicoDaComanda = {
     id: string;
-    precoCobrado: number | null; // Pode ser nulo, tratado no código com || 0
+    precoCobrado: number | null;
     servico: {
         nome: string;
     };
@@ -92,7 +92,8 @@ export default function PainelComanda({ agendamento, produtosDisponiveis, podeVe
         setIsFinalizando(true)
         setErro('')
 
-        const res = await finalizarComanda(agendamento.id, 3, 0)
+        const res = await finalizarComanda(agendamento.id, 0, [])
+
         if (res.sucesso) {
             startTransition(() => {
                 router.push('/profissional/agenda')
@@ -109,39 +110,40 @@ export default function PainelComanda({ agendamento, produtosDisponiveis, podeVe
         <div className="bg-white rounded-2xl shadow-xl border border-[#e5d9c5] overflow-hidden">
             {/* Modal Customizado - Mudado para FIXED */}
             {confirmModalOpen && (
-                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-9999 p-4 transition-opacity">
-                    <div 
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[9999] p-4 transition-opacity">
+                    <div
                         className="bg-white p-8 rounded-2xl shadow-2xl max-w-sm w-full text-center border border-[#e5d9c5] transform scale-100 transition-transform"
                         role="dialog"
                         aria-modal="true"
                     >
-                        <h4 className="text-2xl font-serif text-marrom-medio mb-3">Faturar Comanda?</h4>
+                        <h4 className="text-2xl font-serif text-marrom-medio mb-3">Enviar ao Caixa?</h4>
                         <p className="text-sm text-gray-600 mb-8 leading-relaxed">
-                            {podeVerFinancas 
-                                ? `Confirmar faturamento de R$ ${valorTotalRevisado.toFixed(2)}? Esta ação não pode ser desfeita.`
+                            {podeVerFinancas
+                                ? `Confirmar envio da comanda de R$ ${valorTotalRevisado.toFixed(2)} ao caixa? Esta ação não pode ser desfeita.`
                                 : `Confirmar encerramento e envio ao caixa? Após isso, não será possível alterar os itens.`}
                         </p>
                         <div className="flex gap-4 justify-center">
-                            <button 
-                                onClick={() => setConfirmModalOpen(false)} 
+                            <button
+                                onClick={() => setConfirmModalOpen(false)}
                                 disabled={isFinalizando || isPending}
                                 className="flex-1 py-3 bg-gray-100 rounded-lg font-bold text-gray-700 hover:bg-gray-200 transition-colors text-sm uppercase tracking-wider disabled:opacity-50"
                             >
                                 Cancelar
                             </button>
-                            <button 
-                                onClick={handleFinalizar} 
+                            <button
+                                onClick={handleFinalizar}
                                 disabled={isFinalizando || isPending}
                                 className="flex-1 py-3 bg-marrom-claro text-white rounded-lg font-bold hover:bg-[#704620] transition-colors text-sm uppercase tracking-wider shadow-md disabled:opacity-50 flex justify-center items-center"
                             >
                                 {(isFinalizando || isPending) ? (
-                                    <span className="animate-pulse">Processando...</span>
+                                    <span className="animate-pulse">A Processar...</span>
                                 ) : 'Confirmar'}
                             </button>
                         </div>
                     </div>
                 </div>
             )}
+
             {/* Cabeçalho da Comanda */}
             <div className="bg-marrom-medio p-8 text-white flex justify-between items-center">
                 <div>
@@ -152,9 +154,9 @@ export default function PainelComanda({ agendamento, produtosDisponiveis, podeVe
                 <div className="text-right">
                     <p className="text-xs uppercase tracking-wider opacity-70 mb-1">Status</p>
                     {agendamento.concluido ? (
-                        <span className="px-3 py-1 bg-green-500/20 border border-green-400 text-green-300 font-bold rounded">FATURADO</span>
+                        <span className="px-3 py-1 bg-green-500/20 border border-green-400 text-green-300 font-bold rounded">ENVIADO AO CAIXA</span>
                     ) : (
-                        <span className="px-3 py-1 bg-orange-500/20 border border-orange-400 text-orange-300 font-bold rounded">EM ABERTO</span>
+                        <span className="px-3 py-1 bg-orange-500/20 border border-orange-400 text-orange-300 font-bold rounded">EM ATENDIMENTO</span>
                     )}
                 </div>
             </div>
@@ -173,12 +175,11 @@ export default function PainelComanda({ agendamento, produtosDisponiveis, podeVe
                         Serviços Realizados
                     </h3>
                     <div className="space-y-3">
-                        {/* Removido 'any', usando o tipo da interface */}
                         {agendamento.servicos.map((item: ServicoDaComanda) => (
                             <div key={item.id} className="flex justify-between items-center p-4 bg-gray-50 rounded-lg border border-gray-100">
                                 <span className="font-medium text-gray-700">{item.servico.nome}</span>
                                 <span className="font-bold text-marrom-medio">
-                                    {podeVerFinancas ? `R$ ${item.precoCobrado?.toFixed(2)}` : 'R$ ***'}
+                                    {podeVerFinancas ? `R$ ${(item.precoCobrado || 0).toFixed(2)}` : 'R$ ***'}
                                 </span>
                             </div>
                         ))}
@@ -195,7 +196,6 @@ export default function PainelComanda({ agendamento, produtosDisponiveis, podeVe
                         <p className="text-sm text-gray-500 italic">Nenhum produto adicionado nesta comanda.</p>
                     ) : (
                         <div className="space-y-3">
-                            {/* Removido 'any', usando o tipo da interface */}
                             {agendamento.produtos.map((item: ProdutoDaComanda) => (
                                 <div key={item.id} className="flex justify-between items-center p-4 bg-orange-50/50 rounded-lg border border-orange-100">
                                     <div>
@@ -265,7 +265,7 @@ export default function PainelComanda({ agendamento, produtosDisponiveis, podeVe
                             disabled={isFinalizando}
                             className="w-full py-4 bg-marrom-claro text-white font-bold rounded-xl text-lg uppercase tracking-widest hover:bg-[#704620] transition-colors shadow-lg disabled:opacity-70 disabled:cursor-not-allowed"
                         >
-                            {isFinalizando ? 'A Processar...' : 'Concluir Atendimento'}
+                            {isFinalizando ? 'A Processar...' : 'Enviar Atendimento ao Caixa'}
                         </button>
                     )}
                 </div>

@@ -7,6 +7,8 @@ import { ActionResult } from '@/types/domain'
 import { schemaCliente } from '@/lib/schemas'
 import { revalidatePath } from 'next/cache'
 
+// ── TIPAGENS ─────────────────────────────────────────────────────────────────
+
 export type HistoricoAgendamentoItem = {
     id: string
     dataHoraInicio: Date
@@ -31,6 +33,7 @@ export type ClienteResumo = {
     email: string | null
     cpf: string | null
     anonimizado: boolean
+    temDividaPendente: boolean
     _count: { agendamentos: number }
 }
 
@@ -50,12 +53,30 @@ type DadosCliente = {
     cpf?: string | null
 }
 
-// ── AUXILIARES DE SEGURANÇA (Guards Funcionais) ──────────────────────────────
+// Interface exigida pela nova UI de listagem do painel Administrativo
+export interface ClienteAdminView {
+    id: string
+    nome: string
+    telefone: string
+    email: string | null
+    createdAt: Date
+    temDividaPendente: boolean
+}
+
+// ── AUXILIARES DE SEGURANÇA (Guards Funcionais com RBAC) ─────────────────────
 
 async function checarPermissaoAdmin(): Promise<string | null> {
     const sessao = await verificarSessaoFuncionario()
     if (!sessao.logado || sessao.role !== 'ADMIN') {
         return 'Acesso negado. Requer privilégios de administrador.'
+    }
+    return null
+}
+
+async function checarPermissaoGestao(): Promise<string | null> {
+    const sessao = await verificarSessaoFuncionario()
+    if (!sessao.logado || (sessao.role !== 'ADMIN' && sessao.role !== 'RECEPCIONISTA')) {
+        return 'Acesso negado. Requer privilégios de gestão.'
     }
     return null
 }
@@ -67,16 +88,30 @@ async function checarPermissaoDonoOuAdmin(clienteIdAlvo: string): Promise<string
     const isDono = sessaoCli.logado && sessaoCli.id === clienteIdAlvo
     const isAdmin = sessaoFunc.logado && sessaoFunc.role === 'ADMIN'
 
+    // Recepcionista NÃO pode excluir contas. Apenas ADMIN ou o próprio cliente.
     if (!isDono && !isAdmin) {
+        return 'Acesso negado. Você só pode excluir os seus próprios dados.'
+    }
+    return null
+}
+
+async function checarPermissaoDonoOuGestao(clienteIdAlvo: string): Promise<string | null> {
+    const sessaoCli = await verificarSessaoCliente()
+    const sessaoFunc = await verificarSessaoFuncionario()
+
+    const isDono = sessaoCli.logado && sessaoCli.id === clienteIdAlvo
+    const isGestao = sessaoFunc.logado && (sessaoFunc.role === 'ADMIN' || sessaoFunc.role === 'RECEPCIONISTA')
+
+    if (!isDono && !isGestao) {
         return 'Acesso negado. Você só pode visualizar ou alterar os seus próprios dados.'
     }
     return null
 }
 
-// ── CRIAR CLIENTE (Admin) ────────────────────────────────────────────────────
+// ── CRIAR CLIENTE (Admin e Recepcionista) ────────────────────────────────────
 
 export async function criarCliente(dados: DadosCliente): Promise<ActionResult<{ cliente: ClienteDados }>> {
-    const erroAuth = await checarPermissaoAdmin()
+    const erroAuth = await checarPermissaoGestao()
     if (erroAuth) return { sucesso: false, erro: erroAuth }
 
     const telefoneLimpo = dados.telefone.replace(/\D/g, '')
@@ -109,7 +144,6 @@ export async function criarCliente(dados: DadosCliente): Promise<ActionResult<{ 
         })
         revalidatePath('/admin/clientes')
 
-        // Correção Crítica: Encapsula no objeto `data`
         return { sucesso: true, data: { cliente } }
     } catch (error) {
         console.error('[Cliente] Erro ao criar cliente:', error)
@@ -117,10 +151,10 @@ export async function criarCliente(dados: DadosCliente): Promise<ActionResult<{ 
     }
 }
 
-// ── EDITAR CLIENTE (Híbrido) ─────────────────────────────────────────────────
+// ── EDITAR CLIENTE (Híbrido - Dono, Admin ou Recepcionista) ──────────────────
 
 export async function editarCliente(id: string, dados: DadosCliente): Promise<ActionResult> {
-    const erroAuth = await checarPermissaoDonoOuAdmin(id)
+    const erroAuth = await checarPermissaoDonoOuGestao(id)
     if (erroAuth) return { sucesso: false, erro: erroAuth }
 
     const telefoneLimpo = dados.telefone.replace(/\D/g, '')
@@ -153,6 +187,7 @@ export async function editarCliente(id: string, dados: DadosCliente): Promise<Ac
                 cpf: dados.cpf ? dados.cpf.replace(/\D/g, '') : null,
             }
         })
+        revalidatePath('/admin/clientes')
 
         return { sucesso: true }
     } catch (error) {
@@ -161,7 +196,7 @@ export async function editarCliente(id: string, dados: DadosCliente): Promise<Ac
     }
 }
 
-// ── EXCLUSÃO / LGPD (Híbrido) ────────────────────────────────────────────────
+// ── EXCLUSÃO / LGPD (Dono ou Admin apenas) ───────────────────────────────────
 
 export async function excluirContaCliente(clienteId: string): Promise<ActionResult> {
     const erroAuth = await checarPermissaoDonoOuAdmin(clienteId)
@@ -189,6 +224,7 @@ export async function excluirContaCliente(clienteId: string): Promise<ActionResu
             cookieStore.delete('cliente_session')
         }
 
+        revalidatePath('/admin/clientes')
         return { sucesso: true }
     } catch (error) {
         console.error(`[Cliente] Erro ao anonimizar cliente ${clienteId}:`, error)
@@ -196,32 +232,42 @@ export async function excluirContaCliente(clienteId: string): Promise<ActionResu
     }
 }
 
-// ── LISTAGEM GLOBAL (Apenas Admin) ───────────────────────────────────────────
+// ── LISTAGEM GLOBAL (Admin e Recepcionista com Paginação Opcional) ───────────
 
 export async function listarTodosClientes(
     pagina: number = 1,
     limite: number = 50
 ): Promise<ActionResult<{ clientes: ClienteResumo[]; total: number }>> {
-    const erroAuth = await checarPermissaoAdmin()
+    const erroAuth = await checarPermissaoGestao()
     if (erroAuth) return { sucesso: false, erro: erroAuth }
 
     const skip = (pagina - 1) * limite
 
     try {
-        const [clientes, total] = await Promise.all([
+        const [clientesRaw, total] = await Promise.all([
             prisma.cliente.findMany({
                 orderBy: { nome: 'asc' },
                 skip,
                 take: limite,
                 select: {
                     id: true, nome: true, telefone: true, email: true, cpf: true, anonimizado: true,
-                    _count: { select: { agendamentos: true } }
+                    _count: { select: { agendamentos: true } },
+                    dividas: {
+                        where: { status: { in: ['PENDENTE', 'PARCIAL'] } },
+                        select: { id: true },
+                        take: 1,
+                    }
                 }
             }),
             prisma.cliente.count()
         ])
 
-        // Correção Crítica: Encapsula no objeto `data`
+        // Mapeia o campo de dívidas para um boolean limpo e remove o array bruto
+        const clientes: ClienteResumo[] = clientesRaw.map(({ dividas, ...c }) => ({
+            ...c,
+            temDividaPendente: dividas.length > 0,
+        }))
+
         return { sucesso: true, data: { clientes, total } }
     } catch (error) {
         console.error('[Cliente] Erro ao listar todos os clientes:', error)
@@ -229,10 +275,49 @@ export async function listarTodosClientes(
     }
 }
 
-// ── HISTÓRICO INDIVIDUAL (Híbrido) ───────────────────────────────────────────
+// ── LISTAGEM PARA A NOVA UI DE CLIENTES (Admin e Recepcionista) ──────────────
+
+export async function listarClientesAdmin(): Promise<ActionResult<{ clientes: ClienteAdminView[] }>> {
+    const erroAuth = await checarPermissaoGestao()
+    if (erroAuth) return { sucesso: false, erro: erroAuth }
+
+    try {
+        const clientes = await prisma.cliente.findMany({
+            select: {
+                id: true,
+                nome: true,
+                telefone: true,
+                email: true,
+                createdAt: true,
+                dividas: {
+                    where: { status: { in: ['PENDENTE', 'PARCIAL'] } },
+                    select: { id: true },
+                    take: 1
+                }
+            },
+            orderBy: { nome: 'asc' }
+        })
+
+        const formatados: ClienteAdminView[] = clientes.map(c => ({
+            id: c.id,
+            nome: c.nome,
+            telefone: c.telefone,
+            email: c.email,
+            createdAt: c.createdAt,
+            temDividaPendente: c.dividas.length > 0 // Flag booleana reativa baseada no array
+        }))
+
+        return { sucesso: true, data: { clientes: formatados } }
+    } catch (error) {
+        console.error('[Cliente] Erro ao listar clientes admin:', error)
+        return { sucesso: false, erro: 'Falha ao carregar lista de clientes.' }
+    }
+}
+
+// ── HISTÓRICO INDIVIDUAL (Dono, Admin ou Recepcionista) ──────────────────────
 
 export async function obterHistoricoCliente(clienteId: string): Promise<ActionResult<{ dados: HistoricoClienteData }>> {
-    const erroAuth = await checarPermissaoDonoOuAdmin(clienteId)
+    const erroAuth = await checarPermissaoDonoOuGestao(clienteId)
     if (erroAuth) return { sucesso: false, erro: erroAuth }
 
     try {
@@ -259,7 +344,6 @@ export async function obterHistoricoCliente(clienteId: string): Promise<ActionRe
             .filter(ag => ag.concluido)
             .reduce((acc, ag) => acc + ag.valorBruto, 0)
 
-        // Correção Crítica: Encapsula no objeto `data`
         return {
             sucesso: true,
             data: {
@@ -286,9 +370,9 @@ export async function excluirClientePermanente(id: string): Promise<ActionResult
 
     try {
         await prisma.cliente.delete({ where: { id } })
+        revalidatePath('/admin/clientes')
         return { sucesso: true }
     } catch (error) {
-        // Correção Crítica: Não silenciar os erros de banco silenciosamente
         console.error(`[Cliente] Erro ao excluir permanentemente o cliente ${id}:`, error)
         return { sucesso: false, erro: 'Não é possível excluir clientes com histórico financeiro atrelado. Utilize a anonimização.' }
     }

@@ -24,6 +24,7 @@ export interface Cliente {
     nome: string
     telefone: string
     anonimizado: boolean
+    temDividaPendente?: boolean          // flag para indicador visual de inadimplência
     _count?: { agendamentos: number }
     agendamentos?: AgendamentoCliente[]
 }
@@ -167,6 +168,85 @@ export interface FechamentoComanda {
     baseReal: number
     comissao: number
     lucroSalao: number
+    valorPago: number           // total efetivamente recebido
+    valorPendente: number       // saldo que virou dívida (0 se pagamento integral)
+    comissaoLiberada: boolean   // false quando há dívida pendente
+}
+
+// ── PAGAMENTOS MÚLTIPLOS ─────────────────────────────────────────────────────
+
+/**
+ * Métodos de pagamento suportados pelo motor financeiro.
+ * Mapeados para TaxaMetodoPagamento.metodo no banco de dados.
+ */
+export type MetodoPagamento =
+    | 'DINHEIRO'
+    | 'PIX'
+    | 'CARTAO_DEBITO'
+    | 'CARTAO_CREDITO'
+    | 'CORTESIA'
+    | 'VOUCHER'
+    | 'PERMUTA'
+
+/** Configuração de taxa lida do banco (TaxaMetodoPagamento). */
+export interface MetodoPagamentoConfig {
+    id: string
+    metodo: MetodoPagamento
+    descricao: string | null
+    taxaBase: number
+    ativo: boolean
+}
+
+/**
+ * Item de pagamento enviado pelo cliente ao fechar a comanda.
+ * `parcelas` é relevante apenas para CARTAO_CREDITO (padrão: 1).
+ */
+export interface PagamentoComandaInput {
+    metodo: MetodoPagamento
+    valor: number
+    parcelas: number
+}
+
+// ── DÍVIDAS DE CLIENTE ───────────────────────────────────────────────────────
+
+export type StatusDivida = 'PENDENTE' | 'PARCIAL' | 'QUITADA'
+
+export interface DividaCliente {
+    id: string
+    clienteId: string
+    agendamentoId: string | null
+    valorOriginal: number
+    valorQuitado: number
+    status: StatusDivida
+    observacao: string | null
+    criadoEm: Date
+    quitadoEm: Date | null
+}
+
+// ── PACOTES DE SERVIÇOS ──────────────────────────────────────────────────────
+
+export interface Pacote {
+    id: string
+    nome: string
+    descricao: string | null
+    valorBase: number
+    valorFinal: number
+    desconto: number        // percentual calculado automaticamente
+    ativo: boolean
+    criadoEm: Date
+    atualizadoEm: Date
+}
+
+export interface PacoteServicoItem {
+    id: string
+    servicoId: string
+    quantidade: number
+    servico: ServicoResumo
+}
+
+export interface PacoteComServicos extends Pacote {
+    servicos: PacoteServicoItem[]
+    _count?: { vendas: number }
 }
 
 // ── UTILITÁRIOS ──────────────────────────────────────────────────────────────
