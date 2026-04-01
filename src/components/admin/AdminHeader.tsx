@@ -7,7 +7,7 @@ import { Menu, X } from 'lucide-react'
 interface AdminHeaderProps {
     titulo: string
     subtitulo: string
-    abaAtiva: 'Equipe' | 'Financeiro' | 'Estoque' | 'Serviços' | 'Agendamentos' | 'Clientes' | 'Avaliações'
+    abaAtiva: 'Equipe' | 'Financeiro' | 'Estoque' | 'Serviços' | 'Agendamentos' | 'Clientes' | 'Avaliações' | 'Auditoria'
     botaoAcao?: React.ReactNode
 }
 
@@ -22,6 +22,7 @@ export default function AdminHeader({ titulo, subtitulo, abaAtiva, botaoAcao }: 
         { href: '/admin/agendamentos', label: 'Agendamentos' },
         { href: '/admin/clientes', label: 'Clientes' },
         { href: '/admin/avaliacoes', label: 'Avaliações' },
+        { href: '/admin/auditoria', label: 'Auditoria' },
     ]
 
     return (

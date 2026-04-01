@@ -199,3 +199,32 @@ model RateLimit {
 
   @@map("rate_limits") // Opcional: padroniza o nome da tabela no banco
 }
+
+// 7. AUDITORIA E RASTREABILIDADE (Camada 6 de Defense in Depth)
+model AuditLog {
+  id               String    @id @default(uuid())
+
+  // ── Identificação da Ação ──────────────────────────────────────────
+  acao             String    // Ex: "FECHAMENTO_COMANDA", "ALTERACAO_COMISSAO", "EXCLUSAO_CLIENTE"
+  tabelaAfetada    String    // Ex: "Agendamento", "Funcionario", "Cliente", "Produto"
+  registroId       String    // ID do registro afetado
+
+  // ── Quem fez ────────────────────────────────────────────────────────
+  usuarioId        String    // FK → Funcionario.id (quem executou a ação)
+
+  // ── Contexto do que mudou ────────────────────────────────────────────
+  dadosAntes       Json?     // Snapshot imutável: estado ANTES da mutação
+  dadosDepois      Json?     // Snapshot imutável: estado DEPOIS da mutação
+  motivo           String?   // Contexto operacional: "Fechamento automático", "Aumento por desempenho", etc
+
+  // ── Timestamp (servidor, imutável) ──────────────────────────────────
+  criadoEm         DateTime  @default(now())
+
+  // ── Conformidade GDPR ────────────────────────────────────────────────
+  archivalDate     DateTime? // Quando foi arquivado (NULL = ativo, data = archived)
+
+  // ── Índices de performance ──────────────────────────────────────────
+  @@index([registroId, tabelaAfetada])  // Buscar histórico de um entity específico
+  @@index([usuarioId, criadoEm])        // Timeline de ações de um usuário
+  @@index([tabelaAfetada, criadoEm])    // Relatórios por tipo de entidade
+}
