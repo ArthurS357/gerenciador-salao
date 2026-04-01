@@ -21,21 +21,6 @@ export type ItemPortfolioDb = {
     criadoEm: Date
 }
 
-/** Helper: extrai o array de URLs do campo JSON */
-export function parsearImagens(imagensJson: string): string[] {
-    try {
-        const parsed = JSON.parse(imagensJson) as unknown
-        return Array.isArray(parsed) ? parsed.filter((u): u is string => typeof u === 'string') : [imagensJson]
-    } catch {
-        return [imagensJson] // Fallback: trata como URL directa
-    }
-}
-
-/** Helper: retorna a primeira imagem (para exibição principal) */
-export function primeiraImagem(imagensJson: string): string {
-    return parsearImagens(imagensJson)[0] ?? ''
-}
-
 // ── Schemas de Validação (Runtime Safety) ────────────────────────────────────
 
 const SchemaPortfolio = z.object({
