@@ -105,7 +105,11 @@ export async function excluirTaxaMetodoPagamento(id: string): Promise<ActionResu
     if (!id) return { sucesso: false, erro: 'ID inválido.' }
 
     try {
-        await prisma.taxaMetodoPagamento.delete({ where: { id } })
+        // deleteMany evita P2025 (record not found) quando a UI dispara cliques duplos
+        const resultado = await prisma.taxaMetodoPagamento.deleteMany({ where: { id } })
+        if (resultado.count === 0) {
+            return { sucesso: false, erro: 'Taxa não encontrada ou já removida.' }
+        }
         revalidatePath('/admin/financeiro')
         return { sucesso: true }
     } catch (error) {

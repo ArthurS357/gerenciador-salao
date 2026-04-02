@@ -23,8 +23,11 @@ export type EventoAuditoria = {
 
 /**
  * Registra uma ação sensível no banco de dados para fins de auditoria.
+ * Função interna — não exportada intencionalmente para não expor um endpoint
+ * HTTP que permitisse a qualquer funcionário logado escrever logs arbitrários.
+ * Chame-a apenas a partir de outras Server Actions neste módulo.
  */
-export async function registrarAcaoAuditoria(
+async function registrarAcaoAuditoria(
     acao: string,
     entidade: string,
     entidadeId: string,
@@ -63,12 +66,16 @@ export async function registrarAcaoAuditoria(
  * Permite filtrar por entidade (ex: COMANDA) e intervalo de datas.
  */
 export async function buscarAuditoriaGlobal(filtros: {
-    entidade?: string; // Passo 2: Ajustado para bater com seu schema real
+    entidade?: string;
     dataInicio?: Date;
     dataFim?: Date;
 }) {
     try {
-        // Passo 3: Trocamos o 'any' pelo AuditLogWhereInput gerado pelo Prisma
+        const sessao = await verificarSessaoFuncionario()
+        if (!sessao.logado || (sessao.role !== 'ADMIN' && sessao.role !== 'RECEPCIONISTA')) {
+            return { sucesso: false, erro: 'Acesso negado.' }
+        }
+
         const whereClause: Prisma.AuditLogWhereInput = {};
 
         // Aplica filtro de entidade se fornecido
@@ -202,6 +209,11 @@ export async function buscarEventosDoDia(
  */
 export async function buscarHistoricoComanda(comandaId: string) {
     try {
+        const sessao = await verificarSessaoFuncionario()
+        if (!sessao.logado || (sessao.role !== 'ADMIN' && sessao.role !== 'RECEPCIONISTA')) {
+            return { sucesso: false, erro: 'Acesso negado.' }
+        }
+
         const logs = await prisma.auditLog.findMany({
             where: {
                 entidade: 'COMANDA', // Usa a nomenclatura do seu banco
