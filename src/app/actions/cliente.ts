@@ -124,14 +124,50 @@ export async function criarCliente(dados: DadosCliente): Promise<ActionResult<{ 
 
     try {
         const existente = await prisma.cliente.findUnique({ where: { telefone: telefoneLimpo } })
-        if (existente) return { sucesso: false, erro: 'Já existe um cliente com este telefone.' }
+        if (existente) {
+            if (!existente.ativo) {
+                // Reativar cliente
+                const cliente = await prisma.cliente.update({
+                    where: { id: existente.id },
+                    data: {
+                        ativo: true,
+                        nome: dados.nome.trim(),
+                        email: dados.email?.trim() || null,
+                        cpf: dados.cpf ? dados.cpf.replace(/\D/g, '') : null,
+                        dataNascimento: validacao.data.dataNascimento ?? null,
+                    },
+                    select: { id: true, nome: true, telefone: true, email: true, cpf: true, anonimizado: true }
+                })
+                revalidatePath('/admin/clientes')
+                return { sucesso: true, data: { cliente } }
+            }
+            return { sucesso: false, erro: 'Já existe um cliente ativo com este telefone.' }
+        }
 
         if (dados.cpf) {
             const cpfLimpo = dados.cpf.replace(/\D/g, '')
             if (cpfLimpo.length !== 11) return { sucesso: false, erro: 'CPF inválido. Informe os 11 dígitos.' }
 
             const cpfExistente = await prisma.cliente.findUnique({ where: { cpf: cpfLimpo } })
-            if (cpfExistente) return { sucesso: false, erro: 'Já existe um cliente com este CPF.' }
+            if (cpfExistente) {
+                if (!cpfExistente.ativo) {
+                    // Reativar cliente
+                    const cliente = await prisma.cliente.update({
+                        where: { id: cpfExistente.id },
+                        data: {
+                            ativo: true,
+                            nome: dados.nome.trim(),
+                            telefone: telefoneLimpo,
+                            email: dados.email?.trim() || null,
+                            dataNascimento: validacao.data.dataNascimento ?? null,
+                        },
+                        select: { id: true, nome: true, telefone: true, email: true, cpf: true, anonimizado: true }
+                    })
+                    revalidatePath('/admin/clientes')
+                    return { sucesso: true, data: { cliente } }
+                }
+                return { sucesso: false, erro: 'Já existe um cliente ativo com este CPF.' }
+            }
         }
 
         const cliente = await prisma.cliente.create({
@@ -217,6 +253,7 @@ export async function excluirContaCliente(clienteId: string): Promise<ActionResu
                 email: null,
                 cpf: null,
                 anonimizado: true,
+                ativo: false,
                 senhaHash: null,
             }
         })
@@ -249,6 +286,7 @@ export async function listarTodosClientes(
     try {
         const [clientesRaw, total] = await Promise.all([
             prisma.cliente.findMany({
+                where: { ativo: true },
                 orderBy: { nome: 'asc' },
                 skip,
                 take: limite,
@@ -286,6 +324,7 @@ export async function listarClientesAdmin(): Promise<ActionResult<{ clientes: Cl
 
     try {
         const clientes = await prisma.cliente.findMany({
+            where: { ativo: true },
             select: {
                 id: true,
                 nome: true,
@@ -372,7 +411,10 @@ export async function excluirClientePermanente(id: string): Promise<ActionResult
     if (erroAuth) return { sucesso: false, erro: erroAuth }
 
     try {
-        await prisma.cliente.delete({ where: { id } })
+        await prisma.cliente.update({
+            where: { id },
+            data: { ativo: false }
+        })
         revalidatePath('/admin/clientes')
         return { sucesso: true }
     } catch (error) {

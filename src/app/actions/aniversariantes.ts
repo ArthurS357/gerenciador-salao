@@ -29,8 +29,8 @@ export async function listarAniversariantesMes(
     mes?: number
 ): Promise<ActionResult<{ clientes: AniversarianteItem[]; mes: number }>> {
     const sessao = await verificarSessaoFuncionario()
-    if (!sessao.logado || sessao.role !== 'ADMIN') {
-        return { sucesso: false, erro: 'Acesso negado. Recurso restrito a administradores.' }
+    if (!sessao.logado || (sessao.role !== 'ADMIN' && sessao.role !== 'RECEPCIONISTA')) {
+        return { sucesso: false, erro: 'Acesso negado. Recurso restrito à gestão.' }
     }
 
     const mesAlvo = mes != null && mes >= 1 && mes <= 12

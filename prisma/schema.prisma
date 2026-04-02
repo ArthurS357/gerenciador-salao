@@ -19,6 +19,7 @@ model Cliente {
   cpf            String?       @unique
   senhaHash      String?
   anonimizado    Boolean       @default(false)
+  ativo          Boolean       @default(true)
   dataNascimento DateTime?                        // ← Feature: Aniversariantes do Mês
   createdAt      DateTime      @default(now())
 
