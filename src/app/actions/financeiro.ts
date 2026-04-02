@@ -30,7 +30,7 @@ export async function obterResumoFinanceiro(
 ): Promise<ActionResult<FinanceiroResumo>> {
     try {
         const sessao = await verificarSessaoFuncionario()
-        if (!sessao.logado || (sessao.role !== 'ADMIN' && sessao.role !== 'RECEPCIONISTA')) {
+        if (!sessao.logado || !sessao.podeVerFinanceiroGlobal) {
             return { sucesso: false, erro: 'Acesso negado. Relatórios restritos à gestão.' }
         }
 
@@ -75,7 +75,7 @@ export async function obterResumoFinanceiro(
             historicoRecente,
             prisma.funcionario.findMany({
                 where: { role: 'PROFISSIONAL', ativo: true },
-                select: { id: true, nome: true, comissao: true, podeVerComissao: true, podeAgendar: true, podeVerHistorico: true, podeCancelar: true },
+                select: { id: true, nome: true, comissao: true, podeVerComissao: true, podeAgendar: true, podeVerHistorico: true, podeCancelar: true, podeGerenciarClientes: true, podeVerFinanceiroGlobal: true },
             })
         ])
 
@@ -97,6 +97,8 @@ export async function obterResumoFinanceiro(
             podeAgendar: p.podeAgendar,
             podeVerHistorico: p.podeVerHistorico,
             podeCancelar: p.podeCancelar,
+            podeGerenciarClientes: p.podeGerenciarClientes,
+            podeVerFinanceiroGlobal: p.podeVerFinanceiroGlobal,
             totalComissaoRecebida: mapaComissoes.get(p.id) ?? 0,
         }))
 
@@ -143,6 +145,8 @@ export async function atualizarRegrasFuncionario(
         podeAgendar: boolean
         podeVerHistorico: boolean
         podeCancelar: boolean
+        podeGerenciarClientes: boolean
+        podeVerFinanceiroGlobal: boolean
     }
 ): Promise<ActionResult> {
     try {
@@ -162,6 +166,8 @@ export async function atualizarRegrasFuncionario(
                 podeAgendar: validacao.data.podeAgendar,
                 podeVerHistorico: validacao.data.podeVerHistorico,
                 podeCancelar: validacao.data.podeCancelar,
+                podeGerenciarClientes: validacao.data.podeGerenciarClientes,
+                podeVerFinanceiroGlobal: validacao.data.podeVerFinanceiroGlobal,
             },
         })
         return { sucesso: true }

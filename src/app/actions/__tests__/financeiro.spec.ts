@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { reabrirComanda } from '../financeiro'
+import { reabrirComanda, obterResumoFinanceiro } from '../financeiro'
 import { prisma } from '@/lib/prisma'
 import { verificarSessaoFuncionario } from '@/app/actions/auth'
-import type { Agendamento } from '@prisma/client'
+import type { Agendamento, Funcionario } from '@prisma/client'
 
 // ── Tipagem Estrita para os Mocks ─────────────────────────────────────────────
 type AgendamentoEstornoMock = Agendamento & {
@@ -22,6 +22,10 @@ type SessaoAdminMock = {
     id: string
     role: 'ADMIN'
     nome: string
+    podeGerenciarClientes: boolean
+    podeVerFinanceiroGlobal: boolean
+    podeAgendar: boolean
+    podeCancelar: boolean
 }
 
 type SessaoProfissionalMock = {
@@ -29,6 +33,21 @@ type SessaoProfissionalMock = {
     id: string
     role: 'PROFISSIONAL'
     nome: string
+    podeGerenciarClientes: boolean
+    podeVerFinanceiroGlobal: boolean
+    podeAgendar: boolean
+    podeCancelar: boolean
+}
+
+type SessaoRecepcionistaMock = {
+    logado: true
+    id: string
+    role: 'RECEPCIONISTA'
+    nome: string
+    podeGerenciarClientes: boolean
+    podeVerFinanceiroGlobal: boolean
+    podeAgendar: boolean
+    podeCancelar: boolean
 }
 
 // ── Mocking dependencies ──────────────────────────────────────────────────────
@@ -37,6 +56,9 @@ vi.mock('@/lib/prisma', () => ({
         agendamento: {
             findUnique: vi.fn(),
             update: vi.fn(),
+            aggregate: vi.fn(),
+            groupBy: vi.fn(),
+            findMany: vi.fn(),
         },
         pagamentoComanda: {
             deleteMany: vi.fn(),
@@ -76,6 +98,8 @@ describe('Módulo Financeiro — Regras de Negócio', () => {
                 id: 'admin-id',
                 role: 'ADMIN',
                 nome: 'Diretor Teste',
+                podeGerenciarClientes: true,
+                podeVerFinanceiroGlobal: true,
             } as SessaoAdminMock)
 
             vi.mocked(prisma.agendamento.findUnique).mockResolvedValue({
@@ -113,6 +137,8 @@ describe('Módulo Financeiro — Regras de Negócio', () => {
                 id: 'admin-id',
                 role: 'ADMIN',
                 nome: 'Diretor Teste',
+                podeGerenciarClientes: true,
+                podeVerFinanceiroGlobal: true,
             } as SessaoAdminMock)
 
             vi.mocked(prisma.agendamento.findUnique).mockResolvedValue({
@@ -156,6 +182,8 @@ describe('Módulo Financeiro — Regras de Negócio', () => {
                 id: 'prof-1',
                 role: 'PROFISSIONAL',
                 nome: 'Profissional Teste',
+                podeGerenciarClientes: false,
+                podeVerFinanceiroGlobal: false,
             } as SessaoProfissionalMock)
 
             const resultado = await reabrirComanda('ag-1', 'Tentativa não autorizada')
@@ -164,6 +192,47 @@ describe('Módulo Financeiro — Regras de Negócio', () => {
             if (!resultado.sucesso) {
                 expect(resultado.erro).toContain('Acesso negado')
             }
+        })
+    })
+
+    describe('obterResumoFinanceiro', () => {
+        it('deve bloquear acesso com erro (403 equivalente) se o profissional logado nao tiver a flag podeVerFinanceiroGlobal', async () => {
+            vi.mocked(verificarSessaoFuncionario).mockResolvedValue({
+                logado: true,
+                id: 'prof-2',
+                role: 'RECEPCIONISTA',
+                nome: 'Recepção Teste',
+                podeGerenciarClientes: false,
+                podeVerFinanceiroGlobal: false,
+            } as SessaoRecepcionistaMock)
+
+            const resultado = await obterResumoFinanceiro()
+
+            expect(resultado.sucesso).toBe(false)
+            if (!resultado.sucesso) {
+                expect(resultado.erro).toContain('Acesso negado. Relatórios restritos à gestão.')
+            }
+        })
+
+        it('deve permitir acesso se a sessao for valida e tiver a flag podeVerFinanceiroGlobal', async () => {
+            vi.mocked(verificarSessaoFuncionario).mockResolvedValue({
+                logado: true,
+                id: 'admin-1',
+                role: 'ADMIN',
+                nome: 'Admin Teste',
+                podeGerenciarClientes: true,
+                podeVerFinanceiroGlobal: true,
+            } as SessaoAdminMock)
+
+            vi.mocked(prisma.agendamento.aggregate).mockResolvedValue({
+                _sum: { valorBruto: 0, taxas: 0, custoInsumos: 0, custoRevenda: 0, valorComissao: 0, valorDinheiro: 0, valorCartao: 0, valorPix: 0, valorPago: 0, valorPendente: 0 }
+            } as never)
+            vi.mocked(prisma.agendamento.groupBy).mockResolvedValue([] as never[])
+            vi.mocked(prisma.agendamento.findMany).mockResolvedValue([] as Agendamento[])
+            vi.mocked(prisma.funcionario.findMany).mockResolvedValue([] as Funcionario[])
+
+            const resultado = await obterResumoFinanceiro()
+            expect(resultado.sucesso).toBe(true)
         })
     })
 })

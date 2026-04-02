@@ -41,7 +41,7 @@ export function ModalCriarCliente({ onClose, onSuccess }: Props) {
 
     return (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-            <div className="bg-card rounded-2xl shadow-2xl w-full max-w-md p-6 border-t-4 border-t-primary animate-in fade-in slide-in-from-bottom-4 duration-300">
+            <div className="bg-card rounded-2xl shadow-2xl w-[95%] sm:w-[90%] md:w-full md:max-w-md max-h-[85vh] overflow-y-auto p-6 border-t-4 border-t-primary animate-in fade-in slide-in-from-bottom-4 duration-300">
                 <h2 className="text-2xl font-bold text-foreground">Novo Cliente</h2>
                 <p className="text-sm text-muted-foreground mt-1">Cadastre um novo cliente manualmente.</p>
 

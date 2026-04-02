@@ -79,7 +79,7 @@ export default function AvaliacoesPage() {
                 abaAtiva="Avaliações"
             />
 
-            <div className="px-4 md:px-8 max-w-7xl mx-auto space-y-6 pb-12">
+            <div className="px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto space-y-6 pb-12">
 
                 {loading ? (
                     <div className="flex items-center justify-center py-32 text-gray-400 gap-3">
@@ -227,3 +227,4 @@ export default function AvaliacoesPage() {
         </div>
     )
 }
+

@@ -395,7 +395,7 @@ export default function GestaoPacksAdminPage() {
                 }
             />
 
-            <div className="max-w-7xl mx-auto px-4 md:px-8 pb-12 space-y-5">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12 space-y-5">
 
                 {/* ── Estatísticas + Filtros ── */}
                 <div className="flex flex-col sm:flex-row gap-3">
@@ -626,3 +626,4 @@ export default function GestaoPacksAdminPage() {
         </div>
     )
 }
+

@@ -78,10 +78,10 @@ async function checarPermissaoAdmin(): Promise<string | null> {
 
 async function checarPermissaoGestao(): Promise<string | null> {
     const sessao = await verificarSessaoFuncionario()
-    if (!sessao.logado || (sessao.role !== 'ADMIN' && sessao.role !== 'RECEPCIONISTA')) {
-        return 'Acesso negado. Requer privilégios de gestão.'
-    }
-    return null
+    if (!sessao.logado) return 'Acesso negado.'
+    // ADMIN sempre passa; demais roles precisam da flag explícita
+    if (sessao.role === 'ADMIN' || sessao.podeGerenciarClientes) return null
+    return 'Acesso negado. Requer privilégios de gestão de clientes.'
 }
 
 async function checarPermissaoDonoOuAdmin(clienteIdAlvo: string): Promise<string | null> {
@@ -91,7 +91,8 @@ async function checarPermissaoDonoOuAdmin(clienteIdAlvo: string): Promise<string
     const isDono = sessaoCli.logado && sessaoCli.id === clienteIdAlvo
     const isAdmin = sessaoFunc.logado && sessaoFunc.role === 'ADMIN'
 
-    // Recepcionista NÃO pode excluir contas. Apenas ADMIN ou o próprio cliente.
+    // Anonimização/exclusão permanente: apenas ADMIN ou o próprio cliente (LGPD).
+    // podeGerenciarClientes NÃO concede exclusão — mantém privilégio mínimo.
     if (!isDono && !isAdmin) {
         return 'Acesso negado. Você só pode excluir os seus próprios dados.'
     }
@@ -103,7 +104,7 @@ async function checarPermissaoDonoOuGestao(clienteIdAlvo: string): Promise<strin
     const sessaoFunc = await verificarSessaoFuncionario()
 
     const isDono = sessaoCli.logado && sessaoCli.id === clienteIdAlvo
-    const isGestao = sessaoFunc.logado && (sessaoFunc.role === 'ADMIN' || sessaoFunc.role === 'RECEPCIONISTA')
+    const isGestao = sessaoFunc.logado && (sessaoFunc.role === 'ADMIN' || sessaoFunc.podeGerenciarClientes)
 
     if (!isDono && !isGestao) {
         return 'Acesso negado. Você só pode visualizar ou alterar os seus próprios dados.'

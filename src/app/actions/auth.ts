@@ -18,7 +18,16 @@ type SessaoClienteResult =
     | { logado: false }
 
 type SessaoFuncionarioResult =
-    | { logado: true; id: string; nome: string; role: 'ADMIN' | 'PROFISSIONAL' | 'RECEPCIONISTA' }
+    | {
+        logado: true
+        id: string
+        nome: string
+        role: 'ADMIN' | 'PROFISSIONAL' | 'RECEPCIONISTA'
+        podeGerenciarClientes: boolean
+        podeVerFinanceiroGlobal: boolean
+        podeAgendar: boolean
+        podeCancelar: boolean
+      }
     | { logado: false }
 
 // ── SCHEMAS ──────────────────────────────────────────────────────────────────
@@ -125,12 +134,23 @@ export const verificarSessaoFuncionario = cache(async (): Promise<SessaoFunciona
 
         const funcionario = await prisma.funcionario.findUnique({
             where: { id: sub },
-            select: { nome: true, ativo: true },
+            select: { nome: true, ativo: true, podeGerenciarClientes: true, podeVerFinanceiroGlobal: true, podeAgendar: true, podeCancelar: true },
         })
 
         if (!funcionario || !funcionario.ativo) return { logado: false }
 
-        return { logado: true, id: sub, nome: funcionario.nome, role }
+        // ADMIN tem acesso total independente das flags individuais
+        const isAdmin = role === 'ADMIN'
+        return {
+            logado: true,
+            id: sub,
+            nome: funcionario.nome,
+            role,
+            podeGerenciarClientes: isAdmin || funcionario.podeGerenciarClientes,
+            podeVerFinanceiroGlobal: isAdmin || funcionario.podeVerFinanceiroGlobal,
+            podeAgendar: isAdmin || funcionario.podeAgendar,
+            podeCancelar: isAdmin || funcionario.podeCancelar,
+        }
     } catch (error) {
         if (error instanceof Error && error.name !== 'JWTExpired') {
             console.warn('[Auth Warning] Falha na verificação da sessão de funcionário:', error.message)

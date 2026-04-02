@@ -185,7 +185,7 @@ export default function PainelServicosPage() {
                 }
             />
 
-            <div className="max-w-7xl mx-auto px-4 md:px-8 space-y-6 pb-12 mt-6">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6 pb-12 mt-6">
 
                 {/* Campo de Pesquisa Premium */}
                 <div className="relative bg-white rounded-xl shadow-sm border border-border p-1">

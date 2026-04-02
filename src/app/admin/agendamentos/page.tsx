@@ -318,7 +318,7 @@ export default function AgendamentosGlobaisPage() {
                 }
             />
 
-            <div className="max-w-7xl mx-auto px-4 md:px-8 space-y-6 pb-12 mt-6">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6 pb-12 mt-6">
 
                 {mensagem && (
                     <div className={`flex items-center gap-3 p-4 rounded-xl text-sm font-bold shadow-sm border animate-in fade-in ${mensagem.tipo === 'sucesso' ? 'bg-green-50 text-green-800 border-green-200' : 'bg-destructive/10 text-destructive border-destructive/20'}`}>

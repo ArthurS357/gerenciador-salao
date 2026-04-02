@@ -231,7 +231,7 @@ export default function TorreControleDashboard() {
                 }
             />
 
-            <div className="px-4 md:px-8 space-y-6 max-w-7xl mx-auto pb-12 mt-6">
+            <div className="px-4 sm:px-6 lg:px-8 space-y-6 max-w-7xl mx-auto pb-12 mt-6">
 
                 {/* ── FEEDBACK E NOTIFICAÇÕES ── */}
                 {mensagem.texto && (

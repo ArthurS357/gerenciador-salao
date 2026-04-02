@@ -35,10 +35,13 @@ model Funcionario {
   senhaHash        String
   role             String       @default("PROFISSIONAL")
   comissao         Float        @default(40.0)
-  podeVerComissao  Boolean      @default(true)
-  podeAgendar      Boolean      @default(false)
-  podeVerHistorico Boolean      @default(false)
-  podeCancelar     Boolean      @default(false)
+  // FLAGS DE CONTROLE DE ACESSO (RBAC)
+  podeVerComissao         Boolean      @default(true)
+  podeAgendar             Boolean      @default(false)
+  podeVerHistorico        Boolean      @default(false)
+  podeCancelar            Boolean      @default(false)
+  podeGerenciarClientes   Boolean      @default(false) // Recepcionista: criar/editar/anonimizar clientes
+  podeVerFinanceiroGlobal Boolean      @default(false) // Recepcionista: ver resumo bruto e taxas (sem alterar config)
   cpf              String?      @unique
   telefone         String?
   descricao        String?

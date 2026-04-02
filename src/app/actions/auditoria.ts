@@ -22,46 +22,6 @@ export type EventoAuditoria = {
 }
 
 /**
- * Registra uma ação sensível no banco de dados para fins de auditoria.
- * Função interna — não exportada intencionalmente para não expor um endpoint
- * HTTP que permitisse a qualquer funcionário logado escrever logs arbitrários.
- * Chame-a apenas a partir de outras Server Actions neste módulo.
- */
-async function registrarAcaoAuditoria(
-    acao: string,
-    entidade: string,
-    entidadeId: string,
-    detalhes?: string
-) {
-    try {
-        // 2. Verificamos a sessão usando a sua função que já possui cache do React
-        const sessao = await verificarSessaoFuncionario();
-
-        // 3. Validamos se o funcionário está realmente logado
-        if (!sessao.logado) {
-            console.warn("Tentativa de auditoria sem usuário logado.");
-            return { sucesso: false, erro: "Não autorizado" };
-        }
-
-        // 4. Registramos a ação usando o ID recuperado da sessão validada
-        await prisma.auditLog.create({
-            data: {
-                usuarioId: sessao.id,
-                acao,
-                entidade,
-                entidadeId,
-                detalhes: detalhes || null,
-            },
-        });
-
-        return { sucesso: true };
-    } catch (error) {
-        console.error("Erro ao registrar log de auditoria:", error);
-        return { sucesso: false, erro: "Falha interna no log" };
-    }
-}
-
-/**
  * Busca o histórico global de auditoria para o painel de administração geral.
  * Permite filtrar por entidade (ex: COMANDA) e intervalo de datas.
  */
@@ -83,7 +43,7 @@ export async function buscarAuditoriaGlobal(filtros: {
             whereClause.entidade = filtros.entidade;
         }
 
-        // Passo 4: Filtro de datas seguro e tipado usando 'timestamp'
+        // Filtro de datas seguro e tipado usando 'timestamp'
         if (filtros.dataInicio || filtros.dataFim) {
             whereClause.timestamp = {
                 ...(filtros.dataInicio && { gte: filtros.dataInicio }),
@@ -93,7 +53,7 @@ export async function buscarAuditoriaGlobal(filtros: {
 
         const logs = await prisma.auditLog.findMany({
             where: whereClause,
-            orderBy: { timestamp: 'desc' }, // Passo 5: Ordena por 'timestamp'
+            orderBy: { timestamp: 'desc' },
             take: 100,
         });
 
@@ -216,11 +176,11 @@ export async function buscarHistoricoComanda(comandaId: string) {
 
         const logs = await prisma.auditLog.findMany({
             where: {
-                entidade: 'COMANDA', // Usa a nomenclatura do seu banco
+                entidade: 'COMANDA',
                 entidadeId: comandaId
             },
             orderBy: {
-                timestamp: 'desc' // Mais recentes primeiro
+                timestamp: 'desc'
             }
         });
 

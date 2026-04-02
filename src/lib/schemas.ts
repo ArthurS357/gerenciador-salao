@@ -283,6 +283,8 @@ export const schemaAtualizarRegrasFuncionario = z.object({
     podeAgendar: z.boolean(),
     podeVerHistorico: z.boolean(),
     podeCancelar: z.boolean(),
+    podeGerenciarClientes: z.boolean(),
+    podeVerFinanceiroGlobal: z.boolean(),
 })
 
 // ── TIPOS INFERIDOS ──────────────────────────────────────────────────────────

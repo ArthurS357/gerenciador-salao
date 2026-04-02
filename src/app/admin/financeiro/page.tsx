@@ -28,6 +28,8 @@ type EditState = Record<string, {
     podeAgendar: boolean
     podeVerHistorico: boolean
     podeCancelar: boolean
+    podeGerenciarClientes: boolean
+    podeVerFinanceiroGlobal: boolean
 }>
 type PeriodoFiltro = 'hoje' | 'semana' | 'mes' | 'tudo'
 type ChartData = { data: string; 'Faturamento (R$)': number; Atendimentos: number }
@@ -112,6 +114,8 @@ export default function PainelFinanceiroPage() {
                     podeAgendar: p.podeAgendar,
                     podeVerHistorico: p.podeVerHistorico,
                     podeCancelar: p.podeCancelar,
+                    podeGerenciarClientes: p.podeGerenciarClientes,
+                    podeVerFinanceiroGlobal: p.podeVerFinanceiroGlobal,
                 }
             })
             setEditState(estado)
@@ -157,6 +161,8 @@ export default function PainelFinanceiroPage() {
             podeAgendar: estado.podeAgendar,
             podeVerHistorico: estado.podeVerHistorico,
             podeCancelar: estado.podeCancelar,
+            podeGerenciarClientes: estado.podeGerenciarClientes,
+            podeVerFinanceiroGlobal: estado.podeVerFinanceiroGlobal,
         })
 
         if (isSuccessResponse(res)) {
@@ -184,6 +190,12 @@ export default function PainelFinanceiroPage() {
 
     const setPodeCancelar = (id: string, podeCancelar: boolean) =>
         setEditState((prev) => ({ ...prev, [id]: { ...prev[id]!, podeCancelar } }))
+
+    const setPodeGerenciarClientes = (id: string, podeGerenciarClientes: boolean) =>
+        setEditState((prev) => ({ ...prev, [id]: { ...prev[id]!, podeGerenciarClientes } }))
+
+    const setPodeVerFinanceiroGlobal = (id: string, podeVerFinanceiroGlobal: boolean) =>
+        setEditState((prev) => ({ ...prev, [id]: { ...prev[id]!, podeVerFinanceiroGlobal } }))
 
     const handleSalvarTaxas = async () => {
         setSalvandoConfig(true)
@@ -270,7 +282,7 @@ export default function PainelFinanceiroPage() {
     }
 
     return (
-        <div className="min-h-screen bg-background p-4 md:p-8 font-sans">
+        <div className="min-h-screen bg-background p-4 sm:p-6 lg:p-8 font-sans">
             <AdminHeader
                 titulo="Visão Financeira"
                 subtitulo="Análise de métricas, lucros e evolução do seu salão."
@@ -411,7 +423,7 @@ export default function PainelFinanceiroPage() {
 
                         {/* Tabela de taxas existentes */}
                         {taxasBandeira.length > 0 && (
-                            <div className="overflow-x-auto">
+                            <div className="w-full overflow-x-auto whitespace-nowrap md:whitespace-normal">
                                 <table className="w-full min-w-[500px] text-sm border-collapse">
                                     <thead>
                                         <tr className="bg-muted/30">
@@ -483,7 +495,7 @@ export default function PainelFinanceiroPage() {
 
                 {/* BREAKDOWN POR MÉTODO DE PAGAMENTO */}
                 {dados && (
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-10">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mb-10">
                         {[
                             { label: 'Recebido em Dinheiro', value: dados.metodosPagamento.totalDinheiro, cor: 'text-emerald-700', bg: 'bg-emerald-50 border-emerald-200' },
                             { label: 'Recebido em Cartão', value: dados.metodosPagamento.totalCartao, cor: 'text-blue-700', bg: 'bg-blue-50 border-blue-200' },
@@ -555,7 +567,7 @@ export default function PainelFinanceiroPage() {
                         <h2 className="text-xl font-bold text-foreground tracking-tight">Regras de Comissão</h2>
                         <p className="text-sm text-muted-foreground mt-1">Configuração de repasse financeiro por profissional na equipe.</p>
                     </div>
-                    <div className="overflow-x-auto -mx-6 md:mx-0">
+                    <div className="w-full overflow-x-auto whitespace-nowrap md:whitespace-normal">
                         <div className="min-w-[1100px] inline-block align-middle w-full">
                             <table className="w-full text-left border-collapse">
                                 <thead>
@@ -567,6 +579,8 @@ export default function PainelFinanceiroPage() {
                                         <th className="p-5 text-xs font-bold text-center text-muted-foreground uppercase tracking-widest border-b border-border">Pode Agendar</th>
                                         <th className="p-5 text-xs font-bold text-center text-muted-foreground uppercase tracking-widest border-b border-border">Ver Histórico</th>
                                         <th className="p-5 text-xs font-bold text-center text-muted-foreground uppercase tracking-widest border-b border-border">Cancelar</th>
+                                        <th className="p-5 text-xs font-bold text-center text-muted-foreground uppercase tracking-widest border-b border-border">Gerir Clientes</th>
+                                        <th className="p-5 text-xs font-bold text-center text-muted-foreground uppercase tracking-widest border-b border-border">Ver Financeiro</th>
                                         <th className="p-5 text-xs font-bold text-right text-muted-foreground uppercase tracking-widest border-b border-border">Ações</th>
                                     </tr>
                                 </thead>
@@ -614,6 +628,12 @@ export default function PainelFinanceiroPage() {
                                                     </td>
                                                     <td className="p-4 text-center">
                                                         <Toggle checked={estado.podeCancelar} onChange={v => setPodeCancelar(p.id, v)} />
+                                                    </td>
+                                                    <td className="p-4 text-center">
+                                                        <Toggle checked={estado.podeGerenciarClientes} onChange={v => setPodeGerenciarClientes(p.id, v)} />
+                                                    </td>
+                                                    <td className="p-4 text-center">
+                                                        <Toggle checked={estado.podeVerFinanceiroGlobal} onChange={v => setPodeVerFinanceiroGlobal(p.id, v)} />
                                                     </td>
                                                     <td className="p-4 text-right">
                                                         <button

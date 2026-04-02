@@ -71,7 +71,7 @@ export default async function AuditoriaGlobalPage() {
                 abaAtiva="Auditoria"
             />
 
-            <div className="max-w-7xl mx-auto px-4 md:px-8 pb-12 mt-6 space-y-6">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12 mt-6 space-y-6">
 
                 {/* Resumo do dia */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -113,3 +113,4 @@ export default async function AuditoriaGlobalPage() {
         </div>
     )
 }
+

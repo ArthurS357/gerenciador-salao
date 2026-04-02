@@ -187,7 +187,7 @@ export function ModalAgendamento({
             aria-modal="true"
             aria-label="Selecionar horário"
         >
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col gap-0 animate-in fade-in zoom-in duration-200 overflow-hidden max-h-[92vh]">
+            <div className="bg-white rounded-2xl shadow-2xl w-[95%] sm:w-[90%] md:w-full md:max-w-lg max-h-[85vh] overflow-y-auto flex flex-col gap-0 animate-in fade-in zoom-in duration-200 overflow-hidden max-h-[92vh]">
 
                 {/* ── Cabeçalho ── */}
                 <div className="flex justify-between items-start border-b border-[rgba(197,168,124,0.2)] p-6 pb-4 flex-shrink-0">

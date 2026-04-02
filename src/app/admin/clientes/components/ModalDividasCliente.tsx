@@ -51,7 +51,7 @@ export function ModalDividasCliente({ cliente, onClose, onSuccess }: Props) {
 
     return (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-            <div className="bg-card rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col border-t-4 border-t-red-500">
+            <div className="bg-card rounded-2xl shadow-2xl w-[95%] sm:w-[90%] md:w-full md:max-w-lg max-h-[85vh] overflow-y-auto max-h-[90vh] flex flex-col border-t-4 border-t-red-500">
                 <div className="p-6 border-b border-border shrink-0">
                     <div className="flex items-start justify-between gap-4">
                         <div>

@@ -141,7 +141,7 @@ export default function GestaoClientesAdminPage() {
                 }
             />
 
-            <div className="max-w-7xl mx-auto px-4 md:px-8 space-y-4 pb-12 mt-6">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-4 pb-12 mt-6">
                 <div className="flex flex-col sm:flex-row gap-3 mb-6">
                     <div className="relative flex-1 bg-white rounded-xl shadow-sm border border-border p-1">
                         <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" />

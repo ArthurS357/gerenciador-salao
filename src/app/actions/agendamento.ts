@@ -159,7 +159,11 @@ export async function criarAgendamentoMultiplo(
         verificarSessaoFuncionario(),
     ])
 
-    if (!sessaoFunc.logado) {
+    if (sessaoFunc.logado) {
+        if (sessaoFunc.role !== 'ADMIN' && !sessaoFunc.podeAgendar) {
+            return { sucesso: false, erro: 'Acesso negado. Você não tem permissão para criar agendamentos.' }
+        }
+    } else {
         if (!sessaoCli.logado) return { sucesso: false, erro: 'Acesso negado. Faça login para agendar.' }
         if (sessaoCli.id !== clienteId) return { sucesso: false, erro: 'Operação não permitida (Violação de Identidade).' }
     }
@@ -359,6 +363,10 @@ export async function cancelarAgendamentoPendente(id: string): Promise<ActionRes
 
         if (!autorizarAcessoAgendamento(agendamento.clienteId, agendamento.funcionarioId, sessaoCli, sessaoFunc)) {
             return { sucesso: false, erro: 'Acesso negado. Você não tem permissão para cancelar este agendamento.' }
+        }
+
+        if (sessaoFunc.logado && sessaoFunc.role !== 'ADMIN' && !sessaoFunc.podeCancelar) {
+            return { sucesso: false, erro: 'Acesso negado. Você não tem permissão para cancelar agendamentos.' }
         }
 
         if (agendamento.concluido) {

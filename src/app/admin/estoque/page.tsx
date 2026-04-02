@@ -176,7 +176,7 @@ export default function PainelEstoquePage() {
                 }
             />
 
-            <div className="max-w-7xl mx-auto px-4 md:px-8 space-y-6 pb-12 mt-6">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6 pb-12 mt-6">
 
                 {mensagem && (
                     <div className={`flex items-center gap-3 p-4 rounded-xl text-sm font-bold shadow-sm border animate-in fade-in ${mensagem.tipo === 'sucesso' ? 'bg-green-50 text-green-800 border-green-200' : 'bg-destructive/10 text-destructive border-destructive/20'}`}>
@@ -288,7 +288,7 @@ export default function PainelEstoquePage() {
             {/* ── MODAL: Criar Produto ── */}
             {modalCriar && (
                 <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
-                    <div className="bg-card rounded-2xl shadow-2xl w-full max-w-lg border-t-4 border-t-primary animate-in zoom-in-95 duration-200 overflow-hidden max-h-[95vh] flex flex-col">
+                    <div className="bg-card rounded-2xl shadow-2xl w-[95%] sm:w-[90%] md:w-full md:max-w-lg border-t-4 border-t-primary max-h-[85vh] animate-in zoom-in-95 duration-200 overflow-hidden max-h-[95vh] flex flex-col">
                         <div className="px-6 py-5 border-b border-border flex justify-between items-start bg-muted/30">
                             <div>
                                 <h2 className="text-xl font-bold text-foreground tracking-tight">Cadastrar Produto</h2>
@@ -371,7 +371,7 @@ export default function PainelEstoquePage() {
             {/* ── MODAL: Entrada em Lote ── */}
             {modalEntrada && (
                 <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
-                    <div className="bg-card rounded-2xl shadow-2xl w-full max-w-sm border-t-4 border-t-blue-500 animate-in zoom-in-95 duration-200">
+                    <div className="bg-card rounded-2xl shadow-2xl w-[95%] sm:w-[90%] md:w-full md:max-w-sm border-t-4 border-t-blue-500 max-h-[85vh] overflow-y-auto animate-in zoom-in-95 duration-200">
                         <div className="px-6 py-5 border-b border-border flex items-start justify-between bg-muted/30">
                             <div>
                                 <p className="text-[10px] font-bold text-blue-600 uppercase tracking-widest mb-1">Entrada de Mercadoria</p>
@@ -415,3 +415,4 @@ export default function PainelEstoquePage() {
         </div>
     )
 }
+

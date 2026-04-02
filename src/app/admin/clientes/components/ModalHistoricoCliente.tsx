@@ -29,7 +29,7 @@ export function ModalHistoricoCliente({ clienteId, onClose }: Props) {
 
     return (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-            <div className="bg-card rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] flex flex-col">
+            <div className="bg-card rounded-2xl shadow-2xl w-[95%] sm:w-[90%] md:w-full md:max-w-lg max-h-[85vh] overflow-y-auto max-h-[85vh] flex flex-col">
                 <div className="p-6 border-b border-border flex items-center justify-between shrink-0">
                     <div>
                         <h2 className="text-xl font-bold text-foreground">Histórico do Cliente</h2>
