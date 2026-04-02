@@ -12,6 +12,13 @@ import type {
     PagamentoComandaInput,
 } from '@/types/domain';
 import { schemaAdicionarProdutoComanda } from '@/lib/schemas';
+import {
+    calcularCustoRevenda,
+    calcularTaxasEPagamentos,
+    calcularSnapshotFinanceiro,
+    calcularCamposLegado,
+    type TaxaConfigInput,
+} from '@/domain/financeiro/calculadora';
 
 // ── Schemas internos para finalização V2 ─────────────────────────────────────
 
@@ -231,10 +238,6 @@ export async function finalizarComanda(
                 tx.configuracaoSalao.findFirst(),
             ]);
 
-            // Chave composta "METODO:bandeira" — permite lookup exato por bandeira
-            // com fallback automático para a taxa genérica ("METODO:")
-            const taxasMap = new Map(taxasConfigs.map(t => [`${t.metodo}:${t.bandeira}`, t]));
-
             // 4. Processamento Físico: Baixa de Insumos da Ficha Técnica
             const consumoTotalInsumos = new Map<string, number>();
             for (const itemServico of agendamento.servicos) {
@@ -256,84 +259,27 @@ export async function finalizarComanda(
                 })
             );
 
-            // 5. Processamento Financeiro: Custo de Revenda de Produtos
-            let custoRevenda = 0;
-            for (const item of agendamento.produtos) {
-                const custoUnitario = item.produto?.precoCusto ?? (item.precoCobrado * 0.5);
-                custoRevenda += custoUnitario * item.quantidade;
-            }
+            // 5. Custo de Revenda — função pura de domínio
+            const custoRevenda = calcularCustoRevenda(agendamento.produtos);
 
-            // 6. Cálculo de taxas por método — usa TaxaMetodoPagamento ou fallback legado
-            let totalTaxas = 0;
+            // 6. Taxas e pagamentos enriquecidos — função pura de domínio
+            // O taxasMap é reindexado para TaxaConfigInput (subconjunto seguro de tipo)
+            const taxasConfigMap = new Map<string, TaxaConfigInput>(
+                taxasConfigs.map(t => [`${t.metodo}:${t.bandeira}`, { id: t.id, metodo: t.metodo, bandeira: t.bandeira, taxaBase: t.taxaBase }])
+            );
+            const { pagamentosCalculados: pagamentosComTaxa, totalTaxas } =
+                calcularTaxasEPagamentos(input.pagamentos, taxasConfigMap, config);
 
-            type PagamentoComTaxa = {
-                metodo: string;
-                valor: number;
-                parcelas: number;
-                taxaAplicada: number;
-                taxaMetodoId: string | null;
-                bandeira: string;
-            };
-
-            const pagamentosComTaxa: PagamentoComTaxa[] = input.pagamentos.map(pag => {
-                // Tenta taxa específica da bandeira; cai no genérico se não encontrar
-                const configMetodo = taxasMap.get(`${pag.metodo}:${pag.bandeira}`)
-                    ?? taxasMap.get(`${pag.metodo}:`);
-                let taxaBase = configMetodo?.taxaBase;
-
-                // Fallback para configuração legada
-                if (taxaBase === undefined) {
-                    if (pag.metodo === 'CARTAO_CREDITO') taxaBase = config?.taxaCredito ?? 3.0;
-                    else if (pag.metodo === 'CARTAO_DEBITO') taxaBase = config?.taxaDebito ?? 1.5;
-                    else if (pag.metodo === 'PIX') taxaBase = config?.taxaPix ?? 0.0;
-                    else taxaBase = 0; // DINHEIRO, CORTESIA, VOUCHER, PERMUTA não têm taxa
-                }
-
-                // Resolve a quantidade de parcelas garantindo no mínimo 1
-                const parcelas = pag.metodo === 'CARTAO_CREDITO' ? (pag.parcelas ?? 1) : 1;
-
-                // REQUISITO FINANCEIRO CRÍTICO: Multiplica a taxa pelo número de parcelas
-                const taxaAplicadaReal = (pag.metodo === 'CARTAO_CREDITO' && parcelas > 1)
-                    ? taxaBase * parcelas
-                    : taxaBase;
-
-                // Calcula as taxas da comanda usando a taxa escalonada
-                totalTaxas += pag.valor * (taxaAplicadaReal / 100);
-
-                return {
-                    metodo: pag.metodo,
-                    valor: pag.valor,
-                    parcelas,
-                    taxaAplicada: taxaAplicadaReal, // Registra o valor fiel cobrado
-                    taxaMetodoId: configMetodo?.id ?? null,
-                    bandeira: pag.bandeira,
-                };
-            });
-
-            // 7. Motor Financeiro: Snapshot imutável
-            const deducoesTotais = totalTaxas + input.custoInsumos + custoRevenda;
-            const baseLiquidaComissao = Math.max(0, valorBruto - deducoesTotais);
-            const valorComissao = baseLiquidaComissao * (comissaoSnap / 100);
-            const lucroSalao = valorBruto - deducoesTotais - valorComissao;
-
-            // 8. Calcula saldo do pagamento
+            // 7+8. Snapshot financeiro imutável — função pura de domínio
             const totalRecebido = input.pagamentos.reduce((sum, p) => sum + p.valor, 0);
-            const valorPago = Math.min(totalRecebido, valorBruto); // nunca supera o bruto
-            const valorPendente = Math.max(0, valorBruto - totalRecebido);
-            const comissaoLiberada = valorPendente < 0.01;
+            const snapshot = calcularSnapshotFinanceiro(
+                valorBruto, totalTaxas, input.custoInsumos, custoRevenda, comissaoSnap, totalRecebido
+            );
+            const { comissao: valorComissao, valorPago, valorPendente, comissaoLiberada } = snapshot;
 
-            // 9. Campos legado para compatibilidade com relatórios existentes
-            const valorDinheiro = input.pagamentos
-                .filter(p => p.metodo === 'DINHEIRO')
-                .reduce((sum, p) => sum + p.valor, 0);
-            const valorCartao = input.pagamentos
-                .filter(p => p.metodo === 'CARTAO_CREDITO' || p.metodo === 'CARTAO_DEBITO')
-                .reduce((sum, p) => sum + p.valor, 0);
-            const valorPix = input.pagamentos
-                .filter(p => p.metodo === 'PIX')
-                .reduce((sum, p) => sum + p.valor, 0);
-            const metodosUsados = input.pagamentos.map(p => p.metodo);
-            const metodoPagamento = metodosUsados.length === 1 ? metodosUsados[0] : 'MISTO';
+            // 9. Campos legado — função pura de domínio
+            const { valorDinheiro, valorCartao, valorPix, metodoPagamento } =
+                calcularCamposLegado(input.pagamentos);
 
             // 10. Cria os registros de PagamentoComanda
             await Promise.all(
@@ -387,16 +333,7 @@ export async function finalizarComanda(
                 }
             });
 
-            return {
-                bruto: valorBruto,
-                deducoes: deducoesTotais,
-                baseReal: valorBruto - deducoesTotais,
-                comissao: valorComissao,
-                lucroSalao,
-                valorPago,
-                valorPendente,
-                comissaoLiberada,
-            };
+            return snapshot;
         });
 
         revalidatePath('/profissional/agenda');

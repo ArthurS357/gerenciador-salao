@@ -125,6 +125,13 @@ export const schemaCliente = z.object({
         .refine(validarCPF, 'CPF inválido.')
         .nullable()
         .optional(),
+    dataNascimento: z
+        .coerce
+        .date()
+        .refine(d => !isNaN(d.getTime()), 'Data de nascimento inválida.')
+        .refine(d => d < new Date(), 'Data de nascimento não pode ser no futuro.')
+        .nullable()
+        .optional(),
 })
 
 // ── SCHEMAS de AVALIAÇÃO ─────────────────────────────────────────────────────

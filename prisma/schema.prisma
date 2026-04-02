@@ -12,18 +12,19 @@ datasource db {
 // ============================================================
 
 model Cliente {
-  id           String        @id @default(uuid())
-  nome         String
-  telefone     String        @unique
-  email        String?
-  cpf          String?       @unique
-  senhaHash    String?
-  anonimizado  Boolean       @default(false)
-  createdAt    DateTime      @default(now())  // ← NOVO: obrigatório por requisito
+  id             String        @id @default(uuid())
+  nome           String
+  telefone       String        @unique
+  email          String?
+  cpf            String?       @unique
+  senhaHash      String?
+  anonimizado    Boolean       @default(false)
+  dataNascimento DateTime?                        // ← Feature: Aniversariantes do Mês
+  createdAt      DateTime      @default(now())
 
   agendamentos Agendamento[]
-  dividas      DividaCliente[]  // ← NOVO: relação com dívidas
-  pacoteVendas PacoteVenda[]    // ← NOVO: relação com pacotes adquiridos
+  dividas      DividaCliente[]
+  pacoteVendas PacoteVenda[]
 }
 
 model Funcionario {

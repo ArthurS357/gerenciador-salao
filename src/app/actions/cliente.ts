@@ -51,6 +51,7 @@ type DadosCliente = {
     telefone: string
     email?: string | null
     cpf?: string | null
+    dataNascimento?: Date | string | null
 }
 
 // Interface exigida pela nova UI de listagem do painel Administrativo
@@ -139,6 +140,7 @@ export async function criarCliente(dados: DadosCliente): Promise<ActionResult<{ 
                 telefone: telefoneLimpo,
                 email: dados.email?.trim() || null,
                 cpf: dados.cpf ? dados.cpf.replace(/\D/g, '') : null,
+                dataNascimento: validacao.data.dataNascimento ?? null,
             },
             select: { id: true, nome: true, telefone: true, email: true, cpf: true, anonimizado: true }
         })
@@ -185,6 +187,7 @@ export async function editarCliente(id: string, dados: DadosCliente): Promise<Ac
                 telefone: telefoneLimpo,
                 email: dados.email?.trim() || null,
                 cpf: dados.cpf ? dados.cpf.replace(/\D/g, '') : null,
+                dataNascimento: validacao.data.dataNascimento ?? null,
             }
         })
         revalidatePath('/admin/clientes')

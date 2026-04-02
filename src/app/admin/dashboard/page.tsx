@@ -17,6 +17,11 @@ import {
 import { listarServicosAdmin } from '@/app/actions/servico'
 import AdminHeader from '@/components/admin/AdminHeader'
 import { ProfissionalRow } from '@/components/admin/profissional-row'
+import dynamic from 'next/dynamic'
+const AniversariantesWidget = dynamic(
+    () => import('@/components/admin/AniversariantesWidget').then(mod => mod.AniversariantesWidget),
+    { ssr: false, loading: () => <Skeleton className="h-72 w-full rounded-xl" /> }
+)
 import { Skeleton } from '@/components/ui/skeleton'
 import { UserPlus, Search, AlertCircle, X, Loader2 } from 'lucide-react'
 
@@ -313,6 +318,9 @@ export default function TorreControleDashboard() {
                             ))}
                         </div>
 
+                        {/* ── ANIVERSARIANTES DO MÊS ── */}
+                        <AniversariantesWidget />
+
                         {/* ── PESQUISA ── */}
                         <div className="relative bg-card rounded-xl shadow-sm border border-border p-1">
                             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" />
@@ -359,7 +367,7 @@ export default function TorreControleDashboard() {
                                             onEditar={() => { setModalAcessos(prof); setAbaAtiva('permissoes') }}
                                             onEditarEscala={() => { setModalAcessos(prof); setAbaAtiva('escala') }}
                                             onEditarPortifolio={() => setModalServicos({ id: prof.id, nome: prof.nome, servicosIds: prof.servicos.map(s => s.id) })}
-                                            onAlternarStatus={(id, atual) => handleAlternarStatus(id, atual)}
+                                            onAlternarStatus={(id: string, atual: boolean) => handleAlternarStatus(id, atual)}
                                         />
                                     ))
                                 )}

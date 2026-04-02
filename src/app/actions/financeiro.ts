@@ -48,9 +48,10 @@ export async function obterResumoFinanceiro(
             }
         })
 
+        // CORREÇÃO: filtra apenas comissões já liberadas para não vazar caixa em comandas com dívida
         const comissoesPorProfissional = prisma.agendamento.groupBy({
             by: ['funcionarioId'],
-            where: whereClause,
+            where: { ...whereClause, comissaoLiberada: true },
             _sum: { valorComissao: true }
         })
 
@@ -58,7 +59,11 @@ export async function obterResumoFinanceiro(
             where: whereClause,
             select: {
                 id: true, dataHoraInicio: true, valorBruto: true, valorComissao: true,
-                cliente: { select: { nome: true } }, funcionario: { select: { nome: true } }
+                comissaoLiberada: true,
+                cliente: { select: { nome: true } },
+                funcionario: { select: { nome: true } },
+                servicos: { select: { servico: { select: { nome: true } }, precoCobrado: true } },
+                produtos: { select: { quantidade: true, produto: { select: { nome: true } } } }
             },
             orderBy: { dataHoraInicio: 'desc' },
             take: 100
@@ -77,14 +82,19 @@ export async function obterResumoFinanceiro(
         const faturamentoBruto = agregacao._sum.valorBruto || 0
         const totalTaxas = agregacao._sum.taxas || 0
         const custoProdutos = (agregacao._sum.custoInsumos || 0) + (agregacao._sum.custoRevenda || 0)
-        const totalComissoes = agregacao._sum.valorComissao || 0
+        // Usa a soma das comissões liberadas (alinhado com o groupBy filtrado acima)
+        const totalComissoes = distribuicaoComissoes.reduce((acc, d) => acc + (d._sum.valorComissao || 0), 0)
         const lucroLiquido = faturamentoBruto - custoProdutos - totalComissoes - totalTaxas
 
         const mapaComissoes = new Map(distribuicaoComissoes.map(d => [d.funcionarioId, d._sum.valorComissao || 0]))
 
-        const equipeComValores = equipe.map(p => ({
-            ...p,
-            totalComissaoRecebida: mapaComissoes.get(p.id) || 0
+        // Mapeamento explícito — remove o type-cast forçado `as FuncionarioResumo[]`
+        const equipeComValores: FuncionarioResumo[] = equipe.map(p => ({
+            id: p.id,
+            nome: p.nome,
+            comissao: p.comissao,
+            podeVerComissao: p.podeVerComissao,
+            totalComissaoRecebida: mapaComissoes.get(p.id) ?? 0,
         }))
 
         const historico = agendamentos.map(ag => ({
@@ -93,7 +103,10 @@ export async function obterResumoFinanceiro(
             clienteNome: ag.cliente?.nome || 'Não identificado',
             profissionalNome: ag.funcionario?.nome || 'Não identificado',
             valorBruto: ag.valorBruto,
-            valorComissao: ag.valorComissao
+            // Zera a comissão no display quando há dívida pendente
+            valorComissao: ag.comissaoLiberada ? ag.valorComissao : 0,
+            detalheServicos: ag.servicos.map(s => s.servico.nome).join(', '),
+            detalheProdutos: ag.produtos.map(p => `${p.quantidade}x ${p.produto.nome}`).join(', '),
         }))
 
         return {
@@ -103,7 +116,7 @@ export async function obterResumoFinanceiro(
                 custoProdutos,
                 totalComissoes,
                 lucroLiquido,
-                equipe: equipeComValores as FuncionarioResumo[],
+                equipe: equipeComValores,
                 historico,
                 metodosPagamento: {
                     totalDinheiro: agregacao._sum.valorDinheiro || 0,

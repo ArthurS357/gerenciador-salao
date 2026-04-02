@@ -24,6 +24,7 @@ export interface Cliente {
     nome: string
     telefone: string
     anonimizado: boolean
+    dataNascimento?: Date | null
     temDividaPendente?: boolean          // flag para indicador visual de inadimplência
     _count?: { agendamentos: number }
     agendamentos?: AgendamentoCliente[]
@@ -138,6 +139,8 @@ export interface AgendamentoHistoricoFinanceiro {
     profissionalNome: string
     valorBruto: number
     valorComissao: number
+    detalheServicos: string
+    detalheProdutos: string
 }
 
 export interface ResumoMetodosPagamento {
