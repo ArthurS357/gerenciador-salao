@@ -24,6 +24,7 @@ type SessaoAdminMock = {
     nome: string
     podeGerenciarClientes: boolean
     podeVerFinanceiroGlobal: boolean
+    podeGerenciarEstoque: boolean
     podeAgendar: boolean
     podeCancelar: boolean
 }
@@ -35,6 +36,7 @@ type SessaoProfissionalMock = {
     nome: string
     podeGerenciarClientes: boolean
     podeVerFinanceiroGlobal: boolean
+    podeGerenciarEstoque: boolean
     podeAgendar: boolean
     podeCancelar: boolean
 }
@@ -46,6 +48,7 @@ type SessaoRecepcionistaMock = {
     nome: string
     podeGerenciarClientes: boolean
     podeVerFinanceiroGlobal: boolean
+    podeGerenciarEstoque: boolean
     podeAgendar: boolean
     podeCancelar: boolean
 }
@@ -100,6 +103,7 @@ describe('Módulo Financeiro — Regras de Negócio', () => {
                 nome: 'Diretor Teste',
                 podeGerenciarClientes: true,
                 podeVerFinanceiroGlobal: true,
+                podeGerenciarEstoque: true,
             } as SessaoAdminMock)
 
             vi.mocked(prisma.agendamento.findUnique).mockResolvedValue({
@@ -139,6 +143,7 @@ describe('Módulo Financeiro — Regras de Negócio', () => {
                 nome: 'Diretor Teste',
                 podeGerenciarClientes: true,
                 podeVerFinanceiroGlobal: true,
+                podeGerenciarEstoque: true,
             } as SessaoAdminMock)
 
             vi.mocked(prisma.agendamento.findUnique).mockResolvedValue({
@@ -184,6 +189,7 @@ describe('Módulo Financeiro — Regras de Negócio', () => {
                 nome: 'Profissional Teste',
                 podeGerenciarClientes: false,
                 podeVerFinanceiroGlobal: false,
+                podeGerenciarEstoque: false,
             } as SessaoProfissionalMock)
 
             const resultado = await reabrirComanda('ag-1', 'Tentativa não autorizada')
@@ -204,6 +210,7 @@ describe('Módulo Financeiro — Regras de Negócio', () => {
                 nome: 'Recepção Teste',
                 podeGerenciarClientes: false,
                 podeVerFinanceiroGlobal: false,
+                podeGerenciarEstoque: false,
             } as SessaoRecepcionistaMock)
 
             const resultado = await obterResumoFinanceiro()
@@ -222,6 +229,7 @@ describe('Módulo Financeiro — Regras de Negócio', () => {
                 nome: 'Admin Teste',
                 podeGerenciarClientes: true,
                 podeVerFinanceiroGlobal: true,
+                podeGerenciarEstoque: true,
             } as SessaoAdminMock)
 
             vi.mocked(prisma.agendamento.aggregate).mockResolvedValue({

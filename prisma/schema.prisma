@@ -42,6 +42,7 @@ model Funcionario {
   podeCancelar            Boolean      @default(false)
   podeGerenciarClientes   Boolean      @default(false) // Recepcionista: criar/editar/anonimizar clientes
   podeVerFinanceiroGlobal Boolean      @default(false) // Recepcionista: ver resumo bruto e taxas (sem alterar config)
+  podeGerenciarEstoque    Boolean      @default(false)
   cpf              String?      @unique
   telefone         String?
   descricao        String?

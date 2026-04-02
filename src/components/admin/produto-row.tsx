@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { ChevronDown, Package, Plus, Minus, Trash2, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { ChevronDown, Package, Plus, Minus, Trash2, AlertTriangle, CheckCircle2, Edit2 } from "lucide-react";
 import type { Produto } from "@/types/domain";
 
 // ── Utilitários de Estoque Exportados ────────────────────────────────────────
@@ -44,10 +44,11 @@ interface ProdutoRowProps {
     isLoading: boolean;
     onBaixa: (id: string, tamanho: number) => void;
     onEntrada: (produto: Produto) => void;
+    onEditar: (produto: Produto) => void;
     onRemover: (id: string, nome: string) => void;
 }
 
-export function ProdutoRow({ produto, isLoading, onBaixa, onEntrada, onRemover }: ProdutoRowProps) {
+export function ProdutoRow({ produto, isLoading, onBaixa, onEntrada, onEditar, onRemover }: ProdutoRowProps) {
     const [expanded, setExpanded] = useState(false);
 
     const status = obterStatusEstoque(produto.estoque, produto.tamanhoUnidade);
@@ -115,6 +116,15 @@ export function ProdutoRow({ produto, isLoading, onBaixa, onEntrada, onRemover }
                             className="h-8 border-destructive/20 bg-destructive/5 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive font-bold"
                         >
                             <Minus className="mr-1.5 h-3.5 w-3.5" /> Retirar 1 Frasco
+                        </Button>
+
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => onEditar(produto)}
+                            className="h-8 border-border bg-card text-xs text-foreground hover:bg-muted font-bold"
+                        >
+                            <Edit2 className="mr-1.5 h-3.5 w-3.5" /> Editar
                         </Button>
 
                         <div className="flex-1" />

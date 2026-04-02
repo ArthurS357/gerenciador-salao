@@ -120,11 +120,17 @@ export const schemaCliente = z.object({
         .optional(),
     cpf: z
         .string()
-        .length(11, 'CPF deve ter 11 dígitos.')
-        .regex(/^\d{11}$/, 'CPF deve conter apenas números.')
-        .refine(validarCPF, 'CPF inválido.')
         .nullable()
-        .optional(),
+        .optional()
+        .transform(v => v ? v.replace(/\D/g, '') : v)
+        .pipe(
+             z.string()
+                 .length(11, 'CPF deve ter 11 dígitos.')
+                 .refine(validarCPF, 'CPF inválido.')
+                 .or(z.literal('').transform(() => null))
+                 .nullable()
+                 .optional()
+        ),
     dataNascimento: z
         .coerce
         .date()

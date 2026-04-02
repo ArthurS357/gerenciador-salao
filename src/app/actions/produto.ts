@@ -38,6 +38,9 @@ const SchemaEdicaoProduto = z.object({
     descricao: z.string().optional().nullable(),
     precoCusto: z.coerce.number().min(0, 'Custo não pode ser negativo.').optional(),
     precoVenda: z.coerce.number().min(0, 'Preço de venda não pode ser negativo.').optional(),
+    estoque: z.coerce.number().min(0, 'O estoque não pode ser negativo.').optional(),
+    unidadeMedida: z.string().optional(),
+    tamanhoUnidade: z.coerce.number().min(1, 'Tamanho deve ser maior que 0.').optional(),
 })
 
 export type DadosEditarProduto = z.infer<typeof SchemaEdicaoProduto>
@@ -49,8 +52,12 @@ export type DadosEditarProduto = z.infer<typeof SchemaEdicaoProduto>
  */
 async function checarPermissaoAdmin(): Promise<string | null> {
     const sessao = await verificarSessaoFuncionario()
-    if (!sessao.logado || sessao.role !== 'ADMIN') {
-        return 'Acesso negado. Apenas a gerência pode gerir o catálogo de inventário.'
+    if (!sessao.logado) {
+        return 'Acesso negado. Faça login.'
+    }
+    // Apenas ADMIN ou funcionário com a capability podeGerenciarEstoque
+    if (sessao.role !== 'ADMIN' && !sessao.podeGerenciarEstoque) {
+        return 'Acesso negado. Você não tem permissão para gerenciar o estoque.'
     }
     return null
 }

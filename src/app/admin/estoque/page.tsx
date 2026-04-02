@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import {
     listarProdutosAdmin,
-    criarProdutoAdmin,
+    criarProdutoAdmin, editarProduto,
     baixarEstoqueAbsoluto,
     adicionarEstoqueFrascos,
     excluirProdutoLogico,
@@ -49,6 +49,8 @@ export default function PainelEstoquePage() {
     const [criando, setCriando] = useState(false)
 
     const [modalEntrada, setModalEntrada] = useState<ModalEntrada>(null)
+    const [modalEditar, setModalEditar] = useState<Produto | null>(null)
+    const [editando, setEditando] = useState(false)
     const [entradando, setEntradando] = useState(false)
 
     const [loadingId, setLoadingId] = useState<string | null>(null)
@@ -83,6 +85,33 @@ export default function PainelEstoquePage() {
             setMensagem({ texto: res.erro, tipo: 'erro' })
         }
         setCriando(false)
+        setTimeout(() => setMensagem(null), 4000)
+    }
+
+        const handleSalvarEdicao = async (e: React.FormEvent<HTMLFormElement>) => {
+        e.preventDefault()
+        if (!modalEditar || editando) return
+        setEditando(true)
+
+        const payload = {
+            nome: modalEditar.nome,
+            descricao: modalEditar.descricao || '',
+            precoCusto: Number(modalEditar.precoCusto) || 0,
+            precoVenda: Number(modalEditar.precoVenda),
+            estoque: Number(modalEditar.estoque),
+            unidadeMedida: modalEditar.unidadeMedida,
+            tamanhoUnidade: Number(modalEditar.tamanhoUnidade)
+        }
+
+        const res = await editarProduto(modalEditar.id, payload)
+        if (res.sucesso) {
+            setMensagem({ texto: "Produto atualizado com sucesso.", tipo: 'sucesso' })
+            setModalEditar(null)
+            recarregarDados()
+        } else {
+            setMensagem({ texto: res.erro, tipo: 'erro' })
+        }
+        setEditando(false)
         setTimeout(() => setMensagem(null), 4000)
     }
 
@@ -273,6 +302,7 @@ export default function PainelEstoquePage() {
                                     produto={p}
                                     isLoading={loadingId === p.id}
                                     onBaixa={handleAjusteBaixa}
+                                    onEditar={(prod) => setModalEditar(prod)}
                                     onEntrada={(prod) => setModalEntrada({
                                         produtoId: prod.id, nomeProduto: prod.nome, quantidadeFrascos: 1,
                                         tamanhoUnidade: prod.tamanhoUnidade, unidadeMedida: prod.unidadeMedida
@@ -368,6 +398,83 @@ export default function PainelEstoquePage() {
                 </div>
             )}
 
+                        {/* ── MODAL: Editar Produto ── */}
+            {modalEditar && (
+                <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
+                    <div className="bg-card rounded-2xl shadow-2xl w-[95%] sm:w-[90%] md:w-full md:max-w-lg border-t-4 border-t-orange-500 animate-in zoom-in-95 duration-200 overflow-hidden max-h-[85vh] flex flex-col">
+                         <div className="px-6 py-5 border-b border-border flex justify-between items-start bg-muted/30">
+                             <div>
+                                 <h2 className="text-xl font-bold text-foreground tracking-tight">Editar Produto</h2>
+                                 <p className="text-xs text-muted-foreground mt-1">Altere insumos manuais e valores base.</p>
+                             </div>
+                             <button disabled={editando} onClick={() => setModalEditar(null)} className="p-2 text-muted-foreground hover:bg-muted rounded-full transition-colors">
+                                 <X className="w-5 h-5" />
+                             </button>
+                         </div>
+
+                         <div className="overflow-y-auto p-6">
+                            <form id="form-editar" onSubmit={handleSalvarEdicao} className="space-y-6">
+                                <div className="space-y-4">
+                                    <div>
+                                        <label className="block text-[11px] font-bold text-muted-foreground uppercase tracking-widest mb-2">Nome do Produto *</label>
+                                        <input required disabled={editando} type="text" value={modalEditar.nome} onChange={e => setModalEditar({...modalEditar, nome: e.target.value})} className="w-full border border-border bg-card rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-orange-500/20 font-medium text-foreground transition-all" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[11px] font-bold text-muted-foreground uppercase tracking-widest mb-2">Descrição (Opcional)</label>
+                                        <input disabled={editando} type="text" value={modalEditar.descricao || ''} onChange={e => setModalEditar({...modalEditar, descricao: e.target.value})} className="w-full border border-border bg-card rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-orange-500/20 font-medium text-foreground transition-all" />
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                     <div>
+                                         <label className="block text-[11px] font-bold text-muted-foreground uppercase tracking-widest mb-2">Custo (R$) *</label>
+                                         <div className="relative">
+                                             <span className="absolute left-3 top-1/2 -translate-y-1/2 font-bold text-muted-foreground text-sm">R$</span>
+                                             <input required disabled={editando} type="number" step="0.01" min="0" value={modalEditar.precoCusto || 0} onChange={e => setModalEditar({...modalEditar, precoCusto: Number(e.target.value)})} className="w-full border border-border bg-card rounded-lg pl-9 pr-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-orange-500/20 font-bold text-foreground transition-all" />
+                                         </div>
+                                     </div>
+                                     <div>
+                                         <label className="block text-[11px] font-bold text-muted-foreground uppercase tracking-widest mb-2">Venda (R$) *</label>
+                                         <div className="relative">
+                                             <span className="absolute left-3 top-1/2 -translate-y-1/2 font-bold text-muted-foreground text-sm">R$</span>
+                                             <input required disabled={editando} type="number" step="0.01" min="0" value={modalEditar.precoVenda} onChange={e => setModalEditar({...modalEditar, precoVenda: Number(e.target.value)})} className="w-full border border-border bg-card rounded-lg pl-9 pr-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-orange-500/20 font-bold text-primary transition-all" />
+                                         </div>
+                                     </div>
+                                 </div>
+                                 <div className="p-4 bg-orange-50/50 border border-orange-100 rounded-xl space-y-4">
+                                     <div className="grid grid-cols-3 gap-3">
+                                         <div className="col-span-1">
+                                             <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Medida</label>
+                                             <select disabled={editando} value={modalEditar.unidadeMedida} onChange={e => setModalEditar({...modalEditar, unidadeMedida: e.target.value})} className="w-full border border-border bg-card rounded-lg px-2 py-2.5 text-sm font-semibold outline-none focus:ring-2 focus:ring-orange-500/20 transition-colors">
+                                                 <option value="ml">Volume (ml)</option>
+                                                 <option value="g">Peso (g)</option>
+                                                 <option value="un">Inteiro (un)</option>
+                                             </select>
+                                         </div>
+                                         <div className="col-span-2">
+                                             <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Tamanho Frasco</label>
+                                             <div className="flex items-center gap-2">
+                                                 <input disabled={editando} required type="number" min="1" value={modalEditar.tamanhoUnidade} onChange={e => setModalEditar({...modalEditar, tamanhoUnidade: Number(e.target.value)})} className="w-full border border-border bg-card rounded-lg px-3 py-2.5 outline-none focus:ring-2 focus:ring-orange-500/20 font-bold text-sm" />
+                                                 <span className="text-xs font-black text-primary w-6">{modalEditar.unidadeMedida}</span>
+                                             </div>
+                                         </div>
+                                         <div className="col-span-3 border-t border-border/50 pt-3">
+                                             <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-2">Estoque Manual Absoluto</label>
+                                             <input disabled={editando} required type="number" min="0" value={modalEditar.estoque} onChange={e => setModalEditar({...modalEditar, estoque: Number(e.target.value)})} className="w-full border border-border bg-card rounded-lg px-4 py-2.5 outline-none focus:ring-2 focus:ring-orange-500/20 font-black text-lg transition-colors" />
+                                         </div>
+                                     </div>
+                                 </div>
+                            </form>
+                         </div>
+                         <div className="px-6 py-4 bg-muted/30 border-t border-border flex gap-3">
+                             <button type="button" onClick={() => setModalEditar(null)} className="flex-1 py-2.5 text-muted-foreground font-bold rounded-xl hover:bg-muted text-sm transition-colors">Cancelar</button>
+                             <button type="submit" form="form-editar" disabled={editando} className="flex-1 py-2.5 bg-orange-600 text-white font-bold rounded-xl hover:bg-orange-700 disabled:opacity-60 text-sm transition-colors flex justify-center items-center gap-2">
+                                 {editando ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Salvar Propriedades'}
+                             </button>
+                         </div>
+                    </div>
+                </div>
+            )}
+
             {/* ── MODAL: Entrada em Lote ── */}
             {modalEntrada && (
                 <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
@@ -415,4 +522,5 @@ export default function PainelEstoquePage() {
         </div>
     )
 }
+
 

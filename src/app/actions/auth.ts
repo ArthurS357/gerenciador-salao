@@ -27,6 +27,7 @@ type SessaoFuncionarioResult =
         podeVerFinanceiroGlobal: boolean
         podeAgendar: boolean
         podeCancelar: boolean
+        podeGerenciarEstoque: boolean
       }
     | { logado: false }
 
@@ -134,7 +135,7 @@ export const verificarSessaoFuncionario = cache(async (): Promise<SessaoFunciona
 
         const funcionario = await prisma.funcionario.findUnique({
             where: { id: sub },
-            select: { nome: true, ativo: true, podeGerenciarClientes: true, podeVerFinanceiroGlobal: true, podeAgendar: true, podeCancelar: true },
+            select: { nome: true, ativo: true, podeGerenciarClientes: true, podeVerFinanceiroGlobal: true, podeAgendar: true, podeCancelar: true, podeGerenciarEstoque: true },
         })
 
         if (!funcionario || !funcionario.ativo) return { logado: false }
@@ -150,6 +151,7 @@ export const verificarSessaoFuncionario = cache(async (): Promise<SessaoFunciona
             podeVerFinanceiroGlobal: isAdmin || funcionario.podeVerFinanceiroGlobal,
             podeAgendar: isAdmin || funcionario.podeAgendar,
             podeCancelar: isAdmin || funcionario.podeCancelar,
+            podeGerenciarEstoque: isAdmin || funcionario.podeGerenciarEstoque,
         }
     } catch (error) {
         if (error instanceof Error && error.name !== 'JWTExpired') {
