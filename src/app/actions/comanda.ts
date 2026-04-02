@@ -242,12 +242,15 @@ export async function finalizarComanda(
             }
 
             await Promise.all(
-                Array.from(consumoTotalInsumos.entries()).map(([produtoId, quantidadeGasta]) =>
-                    tx.produto.update({
-                        where: { id: produtoId },
-                        data: { estoque: { decrement: quantidadeGasta } }
-                    })
-                )
+                Array.from(consumoTotalInsumos.entries()).map(async ([produtoId, quantidadeGasta]) => {
+                    const resultado = await tx.produto.updateMany({
+                        where: { id: produtoId, estoque: { gte: quantidadeGasta } },
+                        data: { estoque: { decrement: quantidadeGasta } },
+                    });
+                    if (resultado.count === 0) {
+                        throw new Error(`Estoque insuficiente para o insumo (id: ${produtoId}) no momento do fechamento.`);
+                    }
+                })
             );
 
             // 5. Processamento Financeiro: Custo de Revenda de Produtos

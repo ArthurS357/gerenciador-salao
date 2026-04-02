@@ -1,21 +1,20 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { calcularFechamentoComanda, reabrirComanda } from '../financeiro'
+import { reabrirComanda } from '../financeiro'
 import { prisma } from '@/lib/prisma'
 import { verificarSessaoFuncionario } from '@/app/actions/auth'
 import type { Agendamento } from '@prisma/client'
 
-// ── Tipagem Estrita para os Mocks (Evita o erro "Unexpected any") ────────────
-type AgendamentoComissoesMock = Agendamento & {
-    funcionario: { comissao: number }
-    produtos: Array<{
-        quantidade: number
-        precoCobrado: number
-        produto: { precoCusto: number | null } | null
-    }>
-}
-
-type AgendamentoClienteMock = Agendamento & {
+// ── Tipagem Estrita para os Mocks ─────────────────────────────────────────────
+type AgendamentoEstornoMock = Agendamento & {
     cliente: { nome: string }
+    servicos: Array<{
+        servico: { insumos: Array<{ produtoId: string; quantidadeUsada: number }> }
+    }>
+    produtos: Array<{
+        produtoId: string
+        quantidade: number
+        produto: { tamanhoUnidade: number } | null
+    }>
 }
 
 type SessaoAdminMock = {
@@ -37,6 +36,15 @@ vi.mock('@/lib/prisma', () => ({
     prisma: {
         agendamento: {
             findUnique: vi.fn(),
+            update: vi.fn(),
+        },
+        pagamentoComanda: {
+            deleteMany: vi.fn(),
+        },
+        dividaCliente: {
+            deleteMany: vi.fn(),
+        },
+        produto: {
             update: vi.fn(),
         },
         notificacao: {
@@ -61,74 +69,6 @@ describe('Módulo Financeiro — Regras de Negócio', () => {
         vi.clearAllMocks()
     })
 
-    describe('calcularFechamentoComanda', () => {
-        it('deve garantir que a comissão nunca seja negativa mesmo com prejuízo no salão', async () => {
-            // Setup session: Logged as admin
-            vi.mocked(verificarSessaoFuncionario).mockResolvedValue({
-                logado: true,
-                id: 'admin-id',
-                role: 'ADMIN',
-                nome: 'Diretor Teste',
-            } as SessaoAdminMock)
-
-            // Mock agendamento: R$ 100 bruto, 40% comissão, mas R$ 120 de custos totais
-            vi.mocked(prisma.agendamento.findUnique).mockResolvedValue({
-                id: 'ag-1',
-                valorBruto: 100,
-                concluido: false,
-                funcionario: { comissao: 40 },
-                produtos: [],
-            } as unknown as AgendamentoComissoesMock)
-
-            const resultado = await calcularFechamentoComanda('ag-1', 3, 117)
-            expect(resultado.sucesso).toBe(true)
-
-            // Validamos a matemática pelo valor que a Action tentou salvar no Prisma!
-            // Base de cálculo = 100 - 120 = -20. Comissão = Math.max(0, -20) * 0.4 = 0
-            expect(prisma.agendamento.update).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    where: { id: 'ag-1' },
-                    data: expect.objectContaining({
-                        valorComissao: 0,
-                        concluido: true,
-                    }),
-                })
-            )
-        })
-
-        it('deve calcular corretamente em cenário de lucro padrão', async () => {
-            vi.mocked(verificarSessaoFuncionario).mockResolvedValue({
-                logado: true,
-                id: 'admin-id',
-                role: 'ADMIN',
-                nome: 'Diretor Teste',
-            } as SessaoAdminMock)
-
-            // R$ 200 bruto, 50% comissão, R$ 20 custos
-            vi.mocked(prisma.agendamento.findUnique).mockResolvedValue({
-                id: 'ag-2',
-                valorBruto: 200,
-                concluido: false,
-                funcionario: { comissao: 50 },
-                produtos: [],
-            } as unknown as AgendamentoComissoesMock)
-
-            const resultado = await calcularFechamentoComanda('ag-2', 3, 14)
-            expect(resultado.sucesso).toBe(true)
-
-            // Deduções = 20. Base Líquida = 180. Comissão = 180 * 0.5 = 90
-            expect(prisma.agendamento.update).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    where: { id: 'ag-2' },
-                    data: expect.objectContaining({
-                        valorComissao: 90,
-                        concluido: true,
-                    }),
-                })
-            )
-        })
-    })
-
     describe('reabrirComanda', () => {
         it('deve zerar todos os campos de snapshot ao reabrir uma comanda', async () => {
             vi.mocked(verificarSessaoFuncionario).mockResolvedValue({
@@ -144,7 +84,9 @@ describe('Módulo Financeiro — Regras de Negócio', () => {
                 canceladoEm: null,
                 valorBruto: 100,
                 cliente: { nome: 'Maria' },
-            } as unknown as AgendamentoClienteMock)
+                servicos: [],
+                produtos: [],
+            } as unknown as AgendamentoEstornoMock)
 
             const resultado = await reabrirComanda('ag-1', 'Erro de digitação')
 
@@ -161,6 +103,49 @@ describe('Módulo Financeiro — Regras de Negócio', () => {
                         valorComissao: 0,
                         comissaoSnap: 0,
                     }),
+                })
+            )
+        })
+
+        it('deve restaurar estoque dos insumos e produtos ao reabrir', async () => {
+            vi.mocked(verificarSessaoFuncionario).mockResolvedValue({
+                logado: true,
+                id: 'admin-id',
+                role: 'ADMIN',
+                nome: 'Diretor Teste',
+            } as SessaoAdminMock)
+
+            vi.mocked(prisma.agendamento.findUnique).mockResolvedValue({
+                id: 'ag-2',
+                concluido: true,
+                canceladoEm: null,
+                valorBruto: 200,
+                cliente: { nome: 'João' },
+                servicos: [
+                    { servico: { insumos: [{ produtoId: 'prod-1', quantidadeUsada: 5 }] } },
+                ],
+                produtos: [
+                    { produtoId: 'prod-2', quantidade: 2, produto: { tamanhoUnidade: 100 } },
+                ],
+            } as unknown as AgendamentoEstornoMock)
+
+            const resultado = await reabrirComanda('ag-2', 'Correção de serviço')
+
+            expect(resultado.sucesso).toBe(true)
+
+            // prod-1: insumo de serviço → devolver 5 unidades
+            expect(prisma.produto.update).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    where: { id: 'prod-1' },
+                    data: { estoque: { increment: 5 } },
+                })
+            )
+
+            // prod-2: produto revendido → devolver 2 * 100 = 200 unidades
+            expect(prisma.produto.update).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    where: { id: 'prod-2' },
+                    data: { estoque: { increment: 200 } },
                 })
             )
         })

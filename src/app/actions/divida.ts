@@ -122,30 +122,28 @@ export async function quitarDivida(
     const input = validacao.data
 
     try {
-        const divida = await prisma.dividaCliente.findUnique({ where: { id: dividaId } })
-        if (!divida) return { sucesso: false, erro: 'Dívida não encontrada.' }
-        if (divida.status === 'QUITADA') return { sucesso: false, erro: 'Esta dívida já foi integralmente quitada.' }
+        const { novoStatus, saldoRestante } = await prisma.$transaction(async (tx) => {
+            // Leitura dentro da transação — elimina a race condition de Lost Update
+            const divida = await tx.dividaCliente.findUnique({ where: { id: dividaId } })
+            if (!divida) throw new Error('Dívida não encontrada.')
+            if (divida.status === 'QUITADA') throw new Error('Esta dívida já foi integralmente quitada.')
 
-        const saldoPendente = divida.valorOriginal - divida.valorQuitado
-        if (input.valorQuitado > saldoPendente + 0.01) {
-            return {
-                sucesso: false,
-                erro: `Valor excede o saldo pendente de R$ ${saldoPendente.toFixed(2)}.`
+            const saldoPendente = divida.valorOriginal - divida.valorQuitado
+            if (input.valorQuitado > saldoPendente + 0.01) {
+                throw new Error(`Valor excede o saldo pendente de R$ ${saldoPendente.toFixed(2)}.`)
             }
-        }
 
-        const novoValorQuitado = Math.min(
-            divida.valorQuitado + input.valorQuitado,
-            divida.valorOriginal
-        )
-        const saldoRestante = Math.max(0, divida.valorOriginal - novoValorQuitado)
+            const novoValorQuitado = Math.min(
+                divida.valorQuitado + input.valorQuitado,
+                divida.valorOriginal
+            )
+            const saldoRestante = Math.max(0, divida.valorOriginal - novoValorQuitado)
 
-        const novoStatus: StatusDivida =
-            saldoRestante < 0.01 ? 'QUITADA'
-            : novoValorQuitado > 0 ? 'PARCIAL'
-            : 'PENDENTE'
+            const novoStatus: StatusDivida =
+                saldoRestante < 0.01 ? 'QUITADA'
+                : novoValorQuitado > 0 ? 'PARCIAL'
+                : 'PENDENTE'
 
-        await prisma.$transaction(async (tx) => {
             await tx.dividaCliente.update({
                 where: { id: dividaId },
                 data: {
@@ -162,12 +160,13 @@ export async function quitarDivida(
                     where: { id: divida.agendamentoId },
                     data: {
                         comissaoLiberada: true,
-                        // Zera o saldo pendente no agendamento também
                         valorPendente: 0,
                         valorPago: { increment: input.valorQuitado },
                     }
                 })
             }
+
+            return { novoStatus, saldoRestante }
         })
 
         revalidatePath('/admin/clientes')
@@ -175,6 +174,15 @@ export async function quitarDivida(
 
         return { sucesso: true, data: { novoStatus, saldoRestante } }
     } catch (error) {
+        if (error instanceof Error) {
+            const errosNegocio = [
+                'Dívida não encontrada.',
+                'Esta dívida já foi integralmente quitada.',
+            ]
+            if (errosNegocio.includes(error.message) || error.message.startsWith('Valor excede o saldo pendente')) {
+                return { sucesso: false, erro: error.message }
+            }
+        }
         console.error('[Divida] Erro ao quitar dívida:', error)
         return { sucesso: false, erro: 'Falha técnica ao processar a quitação.' }
     }

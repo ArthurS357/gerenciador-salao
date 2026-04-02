@@ -112,13 +112,11 @@ export default function GestaoClientesAdminPage() {
         const termo = (busca || '').toLowerCase()
         if (!termo) return true
 
-        // Estendemos o tipo para os campos extras que a Action pode ter enviado
-        const ext = c as ClienteResumo & { email?: string | null; cpf?: string | null }
         return (
             (c.nome || '').toLowerCase().includes(termo) ||
             (c.telefone && c.telefone.includes(termo)) ||
-            (ext.email || '').toLowerCase().includes(termo) ||
-            (ext.cpf || '').includes(termo.replace(/\D/g, ''))
+            (c.email || '').toLowerCase().includes(termo) ||
+            (c.cpf || '').includes(termo.replace(/\D/g, ''))
         )
     })
 
@@ -184,7 +182,6 @@ export default function GestaoClientesAdminPage() {
                         <div className="flex flex-col">
                             {clientesFiltrados.map((cliente) => {
                                 const isAnonimizado = cliente.anonimizado
-                                const ext = cliente as ClienteResumo & { email?: string | null; cpf?: string | null }
                                 return (
                                     <ClienteRow
                                         key={cliente.id}
@@ -198,7 +195,7 @@ export default function GestaoClientesAdminPage() {
                                         }}
                                         onAgendar={!isAnonimizado ? () => setClienteAgendar({ id: cliente.id, nome: cliente.nome }) : undefined}
                                         onHistorico={() => setClienteHistorico(cliente.id)}
-                                        onEditar={!isAnonimizado ? () => setClienteEditar({ id: cliente.id, nome: cliente.nome, telefone: exibirTelefone(cliente.telefone), email: ext.email, cpf: ext.cpf }) : undefined}
+                                        onEditar={!isAnonimizado ? () => setClienteEditar({ id: cliente.id, nome: cliente.nome, telefone: exibirTelefone(cliente.telefone), email: cliente.email, cpf: cliente.cpf }) : undefined}
                                         onLgpd={!isAnonimizado ? () => handleAnonimizar(cliente.id, cliente.nome) : undefined}
                                         onExcluir={!isAnonimizado ? () => handleExcluir(cliente.id, cliente.nome) : undefined}
                                         onDividas={cliente.temDividaPendente ? () => setClienteDividas({ id: cliente.id, nome: cliente.nome }) : undefined}

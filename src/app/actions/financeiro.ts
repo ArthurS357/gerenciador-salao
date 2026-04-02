@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { Prisma } from '@prisma/client'
 import { formatInTimeZone } from 'date-fns-tz'
 import { subDays, startOfDay } from 'date-fns'
-import { FinanceiroResumo, FuncionarioResumo, FechamentoComanda, ActionResult, ConfiguracaoSalao } from '@/types/domain'
+import { FinanceiroResumo, FuncionarioResumo, ActionResult, ConfiguracaoSalao } from '@/types/domain'
 import { verificarSessaoFuncionario } from '@/app/actions/auth'
 import { schemaAtualizarComissao } from '@/lib/schemas'
 import { z } from 'zod'
@@ -13,20 +13,6 @@ import { z } from 'zod'
 const TZ = 'America/Sao_Paulo'
 
 // ── Schemas de Validação Estrita (Runtime Safety) ─────────────────────────────
-const SchemaPagamento = z.object({
-    metodo: z.string().min(1, 'Método de pagamento inválido.'),
-    valor: z.number().min(0.01, 'Valor deve ser maior que zero.'),
-    parcelas: z.number().int().min(1).default(1),
-    taxaBase: z.number().min(0).default(0),
-    taxaMetodoId: z.string().optional(),
-})
-
-const SchemaFechamentoNovo = z.object({
-    agendamentoId: z.string().min(1, 'ID do agendamento inválido.'),
-    pagamentos: z.array(SchemaPagamento).min(1, 'É necessário informar pelo menos um método de pagamento.'),
-    custoInsumos: z.number().min(0, 'Custo de insumos não pode ser negativo.'),
-})
-
 const SchemaConfiguracaoSalao = z.object({
     taxaCredito: z.coerce.number().min(0, 'Taxa não pode ser negativa.').max(20, 'Taxa não pode exceder 20%.'),
     taxaDebito: z.coerce.number().min(0, 'Taxa não pode ser negativa.').max(20, 'Taxa não pode exceder 20%.'),
@@ -38,161 +24,7 @@ const SchemaEstorno = z.object({
     motivo: z.string().trim().min(5, 'É obrigatório informar um motivo válido.'),
 })
 
-// ── 1. Fechamento de Comanda ──────────────────────────────────────────────────
-export async function calcularFechamentoComanda(
-    agendamentoId: string,
-    pagamentos: z.infer<typeof SchemaPagamento>[],
-    custoInsumos: number
-): Promise<ActionResult<{ financeiro: FechamentoComanda }>> {
-    try {
-        const sessao = await verificarSessaoFuncionario()
-        if (!sessao.logado) {
-            return { sucesso: false, erro: 'Sessão expirada ou acesso negado.' }
-        }
-
-        const validacao = SchemaFechamentoNovo.safeParse({ agendamentoId, pagamentos, custoInsumos })
-        if (!validacao.success) {
-            return { sucesso: false, erro: validacao.error.issues[0]?.message ?? 'Dados inválidos.' }
-        }
-
-        const input = validacao.data
-
-        const agendamento = await prisma.agendamento.findUnique({
-            where: { id: input.agendamentoId },
-            include: {
-                funcionario: { select: { comissao: true } },
-                produtos: { include: { produto: { select: { precoCusto: true } } } },
-            },
-        })
-
-        if (!agendamento) return { sucesso: false, erro: 'Agendamento não encontrado.' }
-        if (agendamento.concluido) return { sucesso: false, erro: 'Esta comanda já foi fechada.' }
-
-        // ── Blindagem IDOR: Apenas o dono ou Gestão podem fechar a comanda
-        if (sessao.role !== 'ADMIN' && sessao.id !== agendamento.funcionarioId && sessao.role !== 'RECEPCIONISTA') {
-            return { sucesso: false, erro: 'Acesso negado. Não tem permissão para fechar esta comanda.' }
-        }
-
-        const valorBruto = agendamento.valorBruto
-        const comissaoSnap = agendamento.funcionario.comissao
-
-        // Processamento de Insumos e Produtos (Revenda)
-        let custoRevenda = 0
-        for (const item of agendamento.produtos) {
-            const custoUnitario = item.produto?.precoCusto ?? (item.precoCobrado * 0.5)
-            custoRevenda += custoUnitario * item.quantidade
-        }
-
-        // Processamento Múltiplos Pagamentos
-        let valorPago = 0
-        let valorTaxasTotais = 0
-
-        // Acumuladores de retrocompatibilidade para o Dashboard antigo
-        let valorDinheiro = 0
-        let valorCartao = 0
-        let valorPix = 0
-
-        for (const pag of input.pagamentos) {
-            valorPago += pag.valor
-
-            // Regra de Parcelamento: Multiplica a taxa de crédito conforme o número de parcelas
-            let taxaAplicada = pag.taxaBase
-            if (pag.metodo === 'CARTAO_CREDITO' && pag.parcelas > 1) {
-                taxaAplicada = pag.taxaBase * pag.parcelas
-            }
-
-            const custoDoMetodo = pag.valor * (taxaAplicada / 100)
-            valorTaxasTotais += custoDoMetodo
-
-            // Retrocompatibilidade
-            if (pag.metodo === 'DINHEIRO') valorDinheiro += pag.valor
-            else if (['CARTAO_CREDITO', 'CARTAO_DEBITO'].includes(pag.metodo)) valorCartao += pag.valor
-            else if (pag.metodo === 'PIX') valorPix += pag.valor
-        }
-
-        const valorPendente = Math.max(0, valorBruto - valorPago)
-        const comissaoLiberada = valorPendente <= 0
-
-        const deducoesTotais = valorTaxasTotais + input.custoInsumos + custoRevenda
-        const baseLiquidaComissao = Math.max(0, valorBruto - deducoesTotais)
-        const valorComissao = baseLiquidaComissao * (comissaoSnap / 100)
-        const lucroSalao = valorBruto - deducoesTotais - valorComissao
-
-        // Transação Atômica
-        await prisma.$transaction(async (tx) => {
-            await tx.agendamento.update({
-                where: { id: input.agendamentoId },
-                data: {
-                    concluido: true,
-                    taxas: valorTaxasTotais,
-                    custoInsumos: input.custoInsumos,
-                    custoRevenda,
-                    valorComissao,
-                    comissaoSnap,
-                    valorPago,
-                    valorPendente,
-                    comissaoLiberada,
-                    // Campos Legado mantidos atualizados
-                    valorDinheiro,
-                    valorCartao,
-                    valorPix
-                },
-            })
-
-            for (const pag of input.pagamentos) {
-                let taxaAplicada = pag.taxaBase
-                if (pag.metodo === 'CARTAO_CREDITO' && pag.parcelas > 1) {
-                    taxaAplicada = pag.taxaBase * pag.parcelas
-                }
-
-                await tx.pagamentoComanda.create({
-                    data: {
-                        agendamentoId: input.agendamentoId,
-                        metodo: pag.metodo,
-                        valor: pag.valor,
-                        parcelas: pag.parcelas,
-                        taxaAplicada,
-                        taxaMetodoId: pag.taxaMetodoId,
-                    }
-                })
-            }
-
-            if (valorPendente > 0) {
-                await tx.dividaCliente.create({
-                    data: {
-                        clienteId: agendamento.clienteId,
-                        agendamentoId: input.agendamentoId,
-                        valorOriginal: valorPendente,
-                        valorQuitado: 0,
-                        status: 'PENDENTE'
-                    }
-                })
-            }
-        })
-
-        return {
-            sucesso: true,
-            data: {
-                financeiro: {
-                    bruto: valorBruto,
-                    deducoes: deducoesTotais,
-                    baseReal: baseLiquidaComissao,
-                    comissao: valorComissao,
-                    lucroSalao,
-                    // ── Propriedades Adicionadas Corrigindo o Erro do TS ──
-                    valorPago,
-                    valorPendente,
-                    comissaoLiberada
-                },
-            }
-        }
-    } catch (error) {
-        console.error('[Financeiro] Erro crítico no processamento financeiro:', error)
-        return { sucesso: false, erro: 'Falha ao processar o fechamento da comanda.' }
-    }
-}
-
-// ── 2. Resumo Financeiro ──────────────────────────────────────────────────────
+// ── 1. Resumo Financeiro ──────────────────────────────────────────────────────
 export async function obterResumoFinanceiro(
     filtro?: { dataInicio: Date; dataFim: Date }
 ): Promise<ActionResult<FinanceiroResumo>> {
@@ -382,6 +214,20 @@ export async function reabrirComanda(
             select: {
                 concluido: true, canceladoEm: true, valorBruto: true,
                 cliente: { select: { nome: true } },
+                servicos: {
+                    include: {
+                        servico: {
+                            select: { insumos: { select: { produtoId: true, quantidadeUsada: true } } },
+                        },
+                    },
+                },
+                produtos: {
+                    select: {
+                        produtoId: true,
+                        quantidade: true,
+                        produto: { select: { tamanhoUnidade: true } },
+                    },
+                },
             },
         })
 
@@ -389,11 +235,39 @@ export async function reabrirComanda(
         if (agendamento.canceladoEm) return { sucesso: false, erro: 'Não é possível reabrir uma comanda cancelada.' }
         if (!agendamento.concluido) return { sucesso: false, erro: 'A comanda já está aberta.' }
 
-        // Remove transações de pagamentos parciais e dívidas relacionadas e zera saldos
-        await prisma.$transaction([
-            prisma.pagamentoComanda.deleteMany({ where: { agendamentoId: input.agendamentoId } }),
-            prisma.dividaCliente.deleteMany({ where: { agendamentoId: input.agendamentoId } }),
-            prisma.agendamento.update({
+        // Monta o mapa de devoluções de estoque (insumos de serviço + produtos revendidos)
+        const estoquesParaRestaurar = new Map<string, number>()
+
+        for (const itemServico of agendamento.servicos) {
+            for (const insumo of itemServico.servico.insumos) {
+                const anterior = estoquesParaRestaurar.get(insumo.produtoId) ?? 0
+                estoquesParaRestaurar.set(insumo.produtoId, anterior + insumo.quantidadeUsada)
+            }
+        }
+
+        for (const item of agendamento.produtos) {
+            if (item.produto) {
+                const unidades = item.quantidade * item.produto.tamanhoUnidade
+                const anterior = estoquesParaRestaurar.get(item.produtoId) ?? 0
+                estoquesParaRestaurar.set(item.produtoId, anterior + unidades)
+            }
+        }
+
+        // Transação de estorno: devolve estoque + apaga registros financeiros + reabre comanda
+        await prisma.$transaction(async (tx) => {
+            await Promise.all(
+                Array.from(estoquesParaRestaurar.entries()).map(([produtoId, qtd]) =>
+                    tx.produto.update({
+                        where: { id: produtoId },
+                        data: { estoque: { increment: qtd } },
+                    })
+                )
+            )
+
+            await tx.pagamentoComanda.deleteMany({ where: { agendamentoId: input.agendamentoId } })
+            await tx.dividaCliente.deleteMany({ where: { agendamentoId: input.agendamentoId } })
+
+            await tx.agendamento.update({
                 where: { id: input.agendamentoId },
                 data: {
                     concluido: false,
@@ -409,13 +283,14 @@ export async function reabrirComanda(
                     valorCartao: 0,
                     valorPix: 0,
                 },
-            }),
-            prisma.notificacao.create({
+            })
+
+            await tx.notificacao.create({
                 data: {
                     mensagem: `⚠️ Estorno Financeiro: A comanda de ${agendamento.cliente.nome} (R$ ${agendamento.valorBruto.toFixed(2)}) foi reaberta por ${sessao.nome}. Motivo: "${input.motivo}"`,
                 },
-            }),
-        ])
+            })
+        })
 
         return { sucesso: true }
     } catch (error) {
