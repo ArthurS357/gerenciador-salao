@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { criarCliente } from '@/app/actions/cliente'
 import { clienteFormSchema, formatarTelefone, formatarCPF, ErrorAlert, logError, type FormClienteType } from './helpers'
+import { CalendarDays } from 'lucide-react'
 
 interface Props {
     onClose: () => void;
@@ -9,7 +10,7 @@ interface Props {
 }
 
 export function ModalCriarCliente({ onClose, onSuccess }: Props) {
-    const [formCriar, setFormCriar] = useState<FormClienteType>({ nome: '', telefone: '', email: '', cpf: '' })
+    const [formCriar, setFormCriar] = useState<FormClienteType>({ nome: '', telefone: '', email: '', cpf: '', dataNascimento: '' })
     const [loadingCriar, setLoadingCriar] = useState(false)
     const [erroCriar, setErroCriar] = useState('')
 
@@ -26,6 +27,7 @@ export function ModalCriarCliente({ onClose, onSuccess }: Props) {
                 telefone: formCriar.telefone,
                 email: formCriar.email || null,
                 cpf: formCriar.cpf || null,
+                dataNascimento: formCriar.dataNascimento || null,
             })
             if (res.sucesso) onSuccess()
             else setErroCriar(res.erro)
@@ -61,6 +63,19 @@ export function ModalCriarCliente({ onClose, onSuccess }: Props) {
                     <div>
                         <label className="block text-sm font-semibold text-foreground mb-2">CPF <span className="text-muted-foreground font-normal">(opcional)</span></label>
                         <input type="text" placeholder="000.000.000-00" value={formCriar.cpf || ''} onChange={(e) => setFormCriar({ ...formCriar, cpf: formatarCPF(e.target.value) })} maxLength={14} className="w-full border border-border rounded-lg px-4 py-2.5 outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 transition-colors bg-white" />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-semibold text-foreground mb-2 flex items-center gap-1.5">
+                            <CalendarDays className="w-4 h-4 text-muted-foreground" />
+                            Data de Nascimento <span className="text-muted-foreground font-normal">(opcional)</span>
+                        </label>
+                        <input
+                            type="date"
+                            max={new Date().toISOString().split('T')[0]}
+                            value={formCriar.dataNascimento || ''}
+                            onChange={(e) => setFormCriar({ ...formCriar, dataNascimento: e.target.value })}
+                            className="w-full border border-border rounded-lg px-4 py-2.5 outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 transition-colors bg-white"
+                        />
                     </div>
                     <div className="flex justify-end gap-3 mt-8 pt-4 border-t border-border">
                         <button type="button" onClick={onClose} className="px-5 py-2.5 text-muted-foreground font-bold hover:bg-muted rounded-lg transition-colors text-sm">Cancelar</button>

@@ -33,6 +33,7 @@ export type ClienteResumo = {
     email: string | null
     cpf: string | null
     anonimizado: boolean
+    dataNascimento: Date | null
     temDividaPendente: boolean
     _count: { agendamentos: number }
 }
@@ -60,6 +61,7 @@ export interface ClienteAdminView {
     nome: string
     telefone: string
     email: string | null
+    dataNascimento: Date | null
     createdAt: Date
     temDividaPendente: boolean
 }
@@ -292,6 +294,7 @@ export async function listarTodosClientes(
                 take: limite,
                 select: {
                     id: true, nome: true, telefone: true, email: true, cpf: true, anonimizado: true,
+                    dataNascimento: true,
                     _count: { select: { agendamentos: true } },
                     dividas: {
                         where: { status: { in: ['PENDENTE', 'PARCIAL'] } },
@@ -330,6 +333,7 @@ export async function listarClientesAdmin(): Promise<ActionResult<{ clientes: Cl
                 nome: true,
                 telefone: true,
                 email: true,
+                dataNascimento: true,
                 createdAt: true,
                 dividas: {
                     where: { status: { in: ['PENDENTE', 'PARCIAL'] } },
@@ -345,6 +349,7 @@ export async function listarClientesAdmin(): Promise<ActionResult<{ clientes: Cl
             nome: c.nome,
             telefone: c.telefone,
             email: c.email,
+            dataNascimento: c.dataNascimento,
             createdAt: c.createdAt,
             temDividaPendente: c.dividas.length > 0 // Flag booleana reativa baseada no array
         }))

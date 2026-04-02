@@ -6,9 +6,18 @@ export const clienteFormSchema = z.object({
     telefone: z.string().min(10, 'Telefone inválido').max(15),
     email: z.string().email('Email inválido').or(z.literal('')).optional(),
     cpf: z.string().regex(/^\d{3}\.\d{3}\.\d{3}-\d{2}$|^$/, 'CPF inválido').optional(),
+    dataNascimento: z.string().optional(),
 })
 
 export type FormClienteType = z.infer<typeof clienteFormSchema>
+
+/** Converte Date | string | null | undefined para o formato YYYY-MM-DD exigido por <input type="date"> */
+export function toDateInputValue(date: Date | string | null | undefined): string {
+    if (!date) return ''
+    const d = new Date(date)
+    if (isNaN(d.getTime())) return ''
+    return d.toISOString().split('T')[0]
+}
 
 export function formatarTelefone(valor: string): string {
     let v = (valor || '').replace(/\D/g, '')

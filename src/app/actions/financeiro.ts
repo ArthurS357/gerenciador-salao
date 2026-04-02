@@ -6,7 +6,7 @@ import { formatInTimeZone } from 'date-fns-tz'
 import { subDays, startOfDay } from 'date-fns'
 import { FinanceiroResumo, FuncionarioResumo, ActionResult, ConfiguracaoSalao } from '@/types/domain'
 import { verificarSessaoFuncionario } from '@/app/actions/auth'
-import { schemaAtualizarComissao } from '@/lib/schemas'
+import { schemaAtualizarRegrasFuncionario } from '@/lib/schemas'
 import { z } from 'zod'
 
 // ── Fuso horário canônico ─────────────────────────────────────────────────────
@@ -30,8 +30,8 @@ export async function obterResumoFinanceiro(
 ): Promise<ActionResult<FinanceiroResumo>> {
     try {
         const sessao = await verificarSessaoFuncionario()
-        if (!sessao.logado || sessao.role !== 'ADMIN') {
-            return { sucesso: false, erro: 'Acesso negado. Relatórios restritos à diretoria.' }
+        if (!sessao.logado || (sessao.role !== 'ADMIN' && sessao.role !== 'RECEPCIONISTA')) {
+            return { sucesso: false, erro: 'Acesso negado. Relatórios restritos à gestão.' }
         }
 
         const whereClause: Prisma.AgendamentoWhereInput = { concluido: true }
@@ -75,7 +75,7 @@ export async function obterResumoFinanceiro(
             historicoRecente,
             prisma.funcionario.findMany({
                 where: { role: 'PROFISSIONAL', ativo: true },
-                select: { id: true, nome: true, comissao: true, podeVerComissao: true },
+                select: { id: true, nome: true, comissao: true, podeVerComissao: true, podeAgendar: true, podeVerHistorico: true, podeCancelar: true },
             })
         ])
 
@@ -94,6 +94,9 @@ export async function obterResumoFinanceiro(
             nome: p.nome,
             comissao: p.comissao,
             podeVerComissao: p.podeVerComissao,
+            podeAgendar: p.podeAgendar,
+            podeVerHistorico: p.podeVerHistorico,
+            podeCancelar: p.podeCancelar,
             totalComissaoRecebida: mapaComissoes.get(p.id) ?? 0,
         }))
 
@@ -131,11 +134,16 @@ export async function obterResumoFinanceiro(
     }
 }
 
-// ── 3. Atualização de Comissão ────────────────────────────────────────────────
-export async function atualizarComissaoFuncionario(
+// ── 3. Atualização de Regras do Profissional ─────────────────────────────────
+export async function atualizarRegrasFuncionario(
     id: string,
-    comissao: number,
-    podeVerComissao: boolean
+    dados: {
+        comissao: number
+        podeVerComissao: boolean
+        podeAgendar: boolean
+        podeVerHistorico: boolean
+        podeCancelar: boolean
+    }
 ): Promise<ActionResult> {
     try {
         const sessao = await verificarSessaoFuncionario()
@@ -143,16 +151,22 @@ export async function atualizarComissaoFuncionario(
             return { sucesso: false, erro: 'Acesso negado.' }
         }
 
-        const validacao = schemaAtualizarComissao.safeParse({ id, comissao, podeVerComissao })
+        const validacao = schemaAtualizarRegrasFuncionario.safeParse({ id, ...dados })
         if (!validacao.success) return { sucesso: false, erro: validacao.error.issues[0]?.message ?? 'Dados inválidos.' }
 
         await prisma.funcionario.update({
             where: { id },
-            data: { comissao: validacao.data.comissao, podeVerComissao: validacao.data.podeVerComissao },
+            data: {
+                comissao: validacao.data.comissao,
+                podeVerComissao: validacao.data.podeVerComissao,
+                podeAgendar: validacao.data.podeAgendar,
+                podeVerHistorico: validacao.data.podeVerHistorico,
+                podeCancelar: validacao.data.podeCancelar,
+            },
         })
         return { sucesso: true }
     } catch (error) {
-        console.error('[Financeiro] Erro ao atualizar comissão:', error)
+        console.error('[Financeiro] Erro ao atualizar regras do profissional:', error)
         return { sucesso: false, erro: 'Erro ao atualizar configurações do profissional.' }
     }
 }

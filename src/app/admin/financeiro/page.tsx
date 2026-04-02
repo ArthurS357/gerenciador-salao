@@ -2,10 +2,12 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import dynamic from 'next/dynamic'
-import { obterResumoFinanceiro, atualizarComissaoFuncionario, obterDadosGraficosFinanceiros, obterConfiguracaoSalao, salvarConfiguracaoSalao } from '@/app/actions/financeiro'
+import { obterResumoFinanceiro, atualizarRegrasFuncionario, obterDadosGraficosFinanceiros, obterConfiguracaoSalao, salvarConfiguracaoSalao } from '@/app/actions/financeiro'
+import { listarTaxasMetodoPagamento, salvarTaxaMetodoPagamento, excluirTaxaMetodoPagamento, type TaxaMetodoView } from '@/app/actions/taxas'
+import { METODOS_PAGAMENTO, BANDEIRAS_CARTAO } from '@/lib/pagamento-constantes'
 import { toast } from 'sonner'
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
-import type { FinanceiroResumo, FuncionarioResumo, ConfiguracaoSalao } from '@/types/domain'
+import type { FinanceiroResumo, FuncionarioResumo, ConfiguracaoSalao, MetodoPagamento } from '@/types/domain'
 import * as XLSX from 'xlsx'
 import { Loader2 } from 'lucide-react'
 import { MetricCard } from '@/components/admin/metric-card'
@@ -18,7 +20,15 @@ const BotaoExportarPDF = dynamic(() => import('@/components/BotaoExportarPDF'), 
     loading: () => <button disabled className="px-5 py-2.5 bg-muted text-muted-foreground rounded-xl text-sm font-bold opacity-50 shadow-sm">PDF a carregar...</button>
 })
 
-type EditState = Record<string, { comissao: number; podeVerComissao: boolean }>
+type FormTaxa = { metodo: string; bandeira: string; taxaBase: number; descricao: string }
+
+type EditState = Record<string, {
+    comissao: number
+    podeVerComissao: boolean
+    podeAgendar: boolean
+    podeVerHistorico: boolean
+    podeCancelar: boolean
+}>
 type PeriodoFiltro = 'hoje' | 'semana' | 'mes' | 'tudo'
 type ChartData = { data: string; 'Faturamento (R$)': number; Atendimentos: number }
 
@@ -38,9 +48,15 @@ export default function PainelFinanceiroPage() {
     const [editState, setEditState] = useState<EditState>({})
     const [loadingIds, setLoadingIds] = useState<Record<string, boolean>>({})
 
-    // Estado para configuração de taxas
+    // Estado para configuração de taxas legado
     const [configuracao, setConfiguracao] = useState<ConfiguracaoSalao>({ taxaCredito: 3.0, taxaDebito: 1.5, taxaPix: 0.0 })
     const [salvandoConfig, setSalvandoConfig] = useState(false)
+
+    // Estado para taxas por método/bandeira
+    const [taxasBandeira, setTaxasBandeira] = useState<TaxaMetodoView[]>([])
+    const [formTaxa, setFormTaxa] = useState<FormTaxa>({ metodo: 'CARTAO_CREDITO', bandeira: '', taxaBase: 0, descricao: '' })
+    const [salvandoTaxa, setSalvandoTaxa] = useState(false)
+    const [excluindoTaxaId, setExcluindoTaxaId] = useState<string | null>(null)
 
     const [periodoAtual, setPeriodoAtual] = useState<PeriodoFiltro>('mes')
     const [isLoadingMetrics, setIsLoadingMetrics] = useState(true)
@@ -78,10 +94,11 @@ export default function PainelFinanceiroPage() {
         setIsLoadingMetrics(true)
         const filtro = obterDatasDoFiltro(periodo)
 
-        const [res, resGraficos, resConfig] = await Promise.all([
+        const [res, resGraficos, resConfig, resTaxas] = await Promise.all([
             obterResumoFinanceiro(filtro),
             obterDadosGraficosFinanceiros(7),
             obterConfiguracaoSalao(),
+            listarTaxasMetodoPagamento(),
         ])
 
         if (isSuccessResponse<FinanceiroResumo>(res)) {
@@ -89,7 +106,13 @@ export default function PainelFinanceiroPage() {
             setDados(dataResumo)
             const estado: EditState = {}
             dataResumo.equipe.forEach((p) => {
-                estado[p.id] = { comissao: p.comissao, podeVerComissao: p.podeVerComissao }
+                estado[p.id] = {
+                    comissao: p.comissao,
+                    podeVerComissao: p.podeVerComissao,
+                    podeAgendar: p.podeAgendar,
+                    podeVerHistorico: p.podeVerHistorico,
+                    podeCancelar: p.podeCancelar,
+                }
             })
             setEditState(estado)
         } else if (isErrorResponse(res)) {
@@ -100,6 +123,10 @@ export default function PainelFinanceiroPage() {
 
         if (isSuccessResponse<{ configuracao: ConfiguracaoSalao }>(resConfig)) {
             setConfiguracao(resConfig.data.configuracao)
+        }
+
+        if (isSuccessResponse<{ taxas: TaxaMetodoView[] }>(resTaxas)) {
+            setTaxasBandeira(resTaxas.data.taxas)
         }
 
         if (isSuccessResponse<{ chartData: ChartData[] }>(resGraficos)) {
@@ -124,7 +151,13 @@ export default function PainelFinanceiroPage() {
 
         setLoadingIds((prev) => ({ ...prev, [prof.id]: true }))
 
-        const res = await atualizarComissaoFuncionario(prof.id, estado.comissao, estado.podeVerComissao)
+        const res = await atualizarRegrasFuncionario(prof.id, {
+            comissao: estado.comissao,
+            podeVerComissao: estado.podeVerComissao,
+            podeAgendar: estado.podeAgendar,
+            podeVerHistorico: estado.podeVerHistorico,
+            podeCancelar: estado.podeCancelar,
+        })
 
         if (isSuccessResponse(res)) {
             toast.success(`Regras de ${prof.nome} atualizadas!`)
@@ -143,6 +176,15 @@ export default function PainelFinanceiroPage() {
     const setPodeVer = (id: string, podeVerComissao: boolean) =>
         setEditState((prev) => ({ ...prev, [id]: { ...prev[id]!, podeVerComissao } }))
 
+    const setPodeAgendar = (id: string, podeAgendar: boolean) =>
+        setEditState((prev) => ({ ...prev, [id]: { ...prev[id]!, podeAgendar } }))
+
+    const setPodeVerHistorico = (id: string, podeVerHistorico: boolean) =>
+        setEditState((prev) => ({ ...prev, [id]: { ...prev[id]!, podeVerHistorico } }))
+
+    const setPodeCancelar = (id: string, podeCancelar: boolean) =>
+        setEditState((prev) => ({ ...prev, [id]: { ...prev[id]!, podeCancelar } }))
+
     const handleSalvarTaxas = async () => {
         setSalvandoConfig(true)
         const res = await salvarConfiguracaoSalao(configuracao.taxaCredito, configuracao.taxaDebito, configuracao.taxaPix)
@@ -152,6 +194,36 @@ export default function PainelFinanceiroPage() {
             toast.error(res.erro)
         }
         setSalvandoConfig(false)
+    }
+
+    const handleSalvarTaxaBandeira = async () => {
+        setSalvandoTaxa(true)
+        const res = await salvarTaxaMetodoPagamento({
+            metodo: formTaxa.metodo as MetodoPagamento,
+            bandeira: formTaxa.bandeira,
+            taxaBase: formTaxa.taxaBase,
+            descricao: formTaxa.descricao || null,
+            ativo: true,
+        })
+        if (isSuccessResponse(res)) {
+            toast.success('Taxa salva com sucesso!')
+            await carregarDados(periodoAtual)
+        } else if (isErrorResponse(res)) {
+            toast.error(res.erro)
+        }
+        setSalvandoTaxa(false)
+    }
+
+    const handleExcluirTaxaBandeira = async (id: string) => {
+        setExcluindoTaxaId(id)
+        const res = await excluirTaxaMetodoPagamento(id)
+        if (isSuccessResponse(res)) {
+            toast.success('Taxa removida.')
+            setTaxasBandeira(prev => prev.filter(t => t.id !== id))
+        } else if (isErrorResponse(res)) {
+            toast.error(res.erro)
+        }
+        setExcluindoTaxaId(null)
     }
 
     const botoesFiltro: { valor: PeriodoFiltro; label: string }[] = [
@@ -281,6 +353,109 @@ export default function PainelFinanceiroPage() {
                     </div>
                 </section>
 
+                {/* TAXAS POR MÉTODO E BANDEIRA */}
+                <section className="bg-card rounded-2xl shadow-sm border border-border mb-8">
+                    <div className="p-6 md:p-8 border-b border-border bg-muted/30">
+                        <h2 className="text-xl font-bold text-foreground tracking-tight">Taxas por Método e Bandeira</h2>
+                        <p className="text-sm text-muted-foreground mt-1">Configure taxas específicas por método de pagamento e bandeira de cartão. Sobrepõe o valor global acima.</p>
+                    </div>
+                    <div className="p-6 md:p-8 space-y-6">
+                        {/* Formulário de adição */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
+                            <div>
+                                <label className="block text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2">Método</label>
+                                <select
+                                    value={formTaxa.metodo}
+                                    onChange={e => setFormTaxa(f => ({ ...f, metodo: e.target.value, bandeira: '' }))}
+                                    className="w-full border border-border rounded-lg px-3 py-2.5 bg-card text-sm outline-none focus:border-primary"
+                                >
+                                    {METODOS_PAGAMENTO.map(m => (
+                                        <option key={m} value={m}>{m.replace('_', ' ')}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2">Bandeira</label>
+                                <select
+                                    value={formTaxa.bandeira}
+                                    onChange={e => setFormTaxa(f => ({ ...f, bandeira: e.target.value }))}
+                                    disabled={!['CARTAO_DEBITO', 'CARTAO_CREDITO'].includes(formTaxa.metodo)}
+                                    className="w-full border border-border rounded-lg px-3 py-2.5 bg-card text-sm outline-none focus:border-primary disabled:opacity-40"
+                                >
+                                    {BANDEIRAS_CARTAO.map(b => (
+                                        <option key={b.valor} value={b.valor}>{b.label}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2">Taxa (%)</label>
+                                <div className="inline-flex items-center border border-border rounded-lg overflow-hidden w-full">
+                                    <input
+                                        type="number" min={0} max={20} step={0.01}
+                                        value={formTaxa.taxaBase}
+                                        onChange={e => setFormTaxa(f => ({ ...f, taxaBase: parseFloat(e.target.value) || 0 }))}
+                                        className="flex-1 px-3 py-2.5 text-center font-bold text-primary bg-card outline-none focus:bg-primary/5"
+                                    />
+                                    <span className="bg-muted px-3 py-2.5 text-muted-foreground font-bold border-l border-border text-sm">%</span>
+                                </div>
+                            </div>
+                            <button
+                                onClick={handleSalvarTaxaBandeira}
+                                disabled={salvandoTaxa}
+                                className="bg-primary text-primary-foreground font-bold px-6 py-2.5 rounded-xl text-sm hover:bg-primary/90 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                            >
+                                {salvandoTaxa && <Loader2 className="w-4 h-4 animate-spin" />}
+                                {salvandoTaxa ? 'Salvando...' : 'Salvar Taxa'}
+                            </button>
+                        </div>
+
+                        {/* Tabela de taxas existentes */}
+                        {taxasBandeira.length > 0 && (
+                            <div className="overflow-x-auto">
+                                <table className="w-full min-w-[500px] text-sm border-collapse">
+                                    <thead>
+                                        <tr className="bg-muted/30">
+                                            <th className="px-4 py-2.5 text-left text-xs font-bold text-muted-foreground uppercase tracking-widest border-b border-border">Método</th>
+                                            <th className="px-4 py-2.5 text-left text-xs font-bold text-muted-foreground uppercase tracking-widest border-b border-border">Bandeira</th>
+                                            <th className="px-4 py-2.5 text-center text-xs font-bold text-muted-foreground uppercase tracking-widest border-b border-border">Taxa</th>
+                                            <th className="px-4 py-2.5 text-center text-xs font-bold text-muted-foreground uppercase tracking-widest border-b border-border">Status</th>
+                                            <th className="px-4 py-2.5 border-b border-border" />
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {taxasBandeira.map(taxa => (
+                                            <tr key={taxa.id} className="border-b border-border hover:bg-muted/20 transition-colors">
+                                                <td className="px-4 py-3 font-medium">{taxa.metodo.replace('_', ' ')}</td>
+                                                <td className="px-4 py-3 text-muted-foreground">{taxa.bandeira || 'Padrão'}</td>
+                                                <td className="px-4 py-3 text-center font-bold text-primary">{taxa.taxaBase.toFixed(2)}%</td>
+                                                <td className="px-4 py-3 text-center">
+                                                    <span className={`inline-flex px-2 py-0.5 rounded text-[10px] font-bold uppercase ${taxa.ativo ? 'bg-emerald-100 text-emerald-700' : 'bg-muted text-muted-foreground'}`}>
+                                                        {taxa.ativo ? 'Ativo' : 'Inativo'}
+                                                    </span>
+                                                </td>
+                                                <td className="px-4 py-3 text-right">
+                                                    <button
+                                                        onClick={() => handleExcluirTaxaBandeira(taxa.id)}
+                                                        disabled={excluindoTaxaId === taxa.id}
+                                                        className="text-xs text-destructive hover:underline disabled:opacity-50"
+                                                    >
+                                                        {excluindoTaxaId === taxa.id ? 'Removendo...' : 'Remover'}
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                        {taxasBandeira.length === 0 && (
+                            <p className="text-sm text-muted-foreground italic text-center py-4">
+                                Nenhuma taxa específica configurada. Use o formulário acima para adicionar.
+                            </p>
+                        )}
+                    </div>
+                </section>
+
                 {/* MÉTRICAS (CARDS REAPROVEITADOS DA UI) */}
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-10">
                     <MetricCard
@@ -381,25 +556,35 @@ export default function PainelFinanceiroPage() {
                         <p className="text-sm text-muted-foreground mt-1">Configuração de repasse financeiro por profissional na equipe.</p>
                     </div>
                     <div className="overflow-x-auto -mx-6 md:mx-0">
-                        <div className="min-w-[800px] inline-block align-middle w-full">
+                        <div className="min-w-[1100px] inline-block align-middle w-full">
                             <table className="w-full text-left border-collapse">
                                 <thead>
                                     <tr className="bg-muted/10">
                                         <th className="p-5 text-xs font-bold text-muted-foreground uppercase tracking-widest border-b border-border">Profissional</th>
                                         <th className="p-5 text-xs font-bold text-center text-muted-foreground uppercase tracking-widest border-b border-border">Taxa (%)</th>
                                         <th className="p-5 text-xs font-bold text-center text-muted-foreground uppercase tracking-widest border-b border-border">Recebido (R$)</th>
-                                        <th className="p-5 text-xs font-bold text-center text-muted-foreground uppercase tracking-widest border-b border-border">Acesso Visível?</th>
+                                        <th className="p-5 text-xs font-bold text-center text-muted-foreground uppercase tracking-widest border-b border-border">Ver Comissão</th>
+                                        <th className="p-5 text-xs font-bold text-center text-muted-foreground uppercase tracking-widest border-b border-border">Pode Agendar</th>
+                                        <th className="p-5 text-xs font-bold text-center text-muted-foreground uppercase tracking-widest border-b border-border">Ver Histórico</th>
+                                        <th className="p-5 text-xs font-bold text-center text-muted-foreground uppercase tracking-widest border-b border-border">Cancelar</th>
                                         <th className="p-5 text-xs font-bold text-right text-muted-foreground uppercase tracking-widest border-b border-border">Ações</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {!dados || dados.equipe.length === 0 ? (
-                                        <tr><td colSpan={5} className="p-8 text-center text-muted-foreground italic">Nenhum profissional registado com faturamento no período.</td></tr>
+                                        <tr><td colSpan={8} className="p-8 text-center text-muted-foreground italic">Nenhum profissional registado com faturamento no período.</td></tr>
                                     ) : (
                                         dados.equipe.map((p) => {
                                             const estado = editState[p.id]
                                             if (!estado) return null
                                             const isSaving = loadingIds[p.id]
+
+                                            const Toggle = ({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) => (
+                                                <label className="relative inline-flex items-center cursor-pointer">
+                                                    <input type="checkbox" className="sr-only peer" checked={checked} disabled={isSaving} onChange={e => onChange(e.target.checked)} />
+                                                    <div className="w-11 h-6 bg-muted rounded-full peer peer-focus:ring-2 peer-focus:ring-primary/20 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-border after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                                                </label>
+                                            )
 
                                             return (
                                                 <tr key={p.id} className="border-b border-border hover:bg-muted/30 transition-colors">
@@ -419,14 +604,16 @@ export default function PainelFinanceiroPage() {
                                                         <div className="font-bold text-primary">R$ {p.totalComissaoRecebida?.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0,00'}</div>
                                                     </td>
                                                     <td className="p-4 text-center">
-                                                        <label className="relative inline-flex items-center cursor-pointer">
-                                                            <input
-                                                                type="checkbox" className="sr-only peer"
-                                                                checked={estado.podeVerComissao} disabled={isSaving}
-                                                                onChange={(e) => setPodeVer(p.id, e.target.checked)}
-                                                            />
-                                                            <div className="w-11 h-6 bg-muted rounded-full peer peer-focus:ring-2 peer-focus:ring-primary/20 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-border after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
-                                                        </label>
+                                                        <Toggle checked={estado.podeVerComissao} onChange={v => setPodeVer(p.id, v)} />
+                                                    </td>
+                                                    <td className="p-4 text-center">
+                                                        <Toggle checked={estado.podeAgendar} onChange={v => setPodeAgendar(p.id, v)} />
+                                                    </td>
+                                                    <td className="p-4 text-center">
+                                                        <Toggle checked={estado.podeVerHistorico} onChange={v => setPodeVerHistorico(p.id, v)} />
+                                                    </td>
+                                                    <td className="p-4 text-center">
+                                                        <Toggle checked={estado.podeCancelar} onChange={v => setPodeCancelar(p.id, v)} />
                                                     </td>
                                                     <td className="p-4 text-right">
                                                         <button

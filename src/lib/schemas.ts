@@ -273,13 +273,16 @@ export const schemaAlterarSenha = z
 
 // ── SCHEMAS de PROFISSIONAL ──────────────────────────────────────────────────
 
-export const schemaAtualizarComissao = z.object({
+export const schemaAtualizarRegrasFuncionario = z.object({
     id: z.string().min(1, 'ID do profissional é necessário.'),
     comissao: z.coerce
         .number()
         .min(0, 'A comissão não pode ser negativa.')
         .max(100, 'A comissão não pode exceder 100%.'),
     podeVerComissao: z.boolean(),
+    podeAgendar: z.boolean(),
+    podeVerHistorico: z.boolean(),
+    podeCancelar: z.boolean(),
 })
 
 // ── TIPOS INFERIDOS ──────────────────────────────────────────────────────────
@@ -295,4 +298,4 @@ export type InsumoServicoInput = z.infer<typeof schemaInsumoServico>
 export type ProdutoInput = z.infer<typeof schemaProduto>
 export type ExpedienteInput = z.infer<typeof schemaExpediente>
 export type AlterarSenhaInput = z.infer<typeof schemaAlterarSenha>
-export type AtualizarComissaoInput = z.infer<typeof schemaAtualizarComissao>
+export type AtualizarRegrasInput = z.infer<typeof schemaAtualizarRegrasFuncionario>

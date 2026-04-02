@@ -16,6 +16,7 @@ export interface Funcionario {
     podeAgendar: boolean
     podeVerHistorico: boolean
     podeVerComissao: boolean
+    podeCancelar: boolean
     ativo: boolean
 }
 
@@ -68,7 +69,7 @@ export interface ItemPortfolio {
 
 // ── DTOs RESUMIDOS (Para UI e Relacionamentos) ───────────────────────────────
 
-export type FuncionarioResumo = Pick<Funcionario, 'id' | 'nome' | 'comissao' | 'podeVerComissao'> & {
+export type FuncionarioResumo = Pick<Funcionario, 'id' | 'nome' | 'comissao' | 'podeVerComissao' | 'podeAgendar' | 'podeVerHistorico' | 'podeCancelar'> & {
     totalComissaoRecebida: number
 }
 

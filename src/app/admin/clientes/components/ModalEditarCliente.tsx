@@ -1,10 +1,11 @@
 import React, { useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { editarCliente } from '@/app/actions/cliente'
-import { clienteFormSchema, formatarTelefone, formatarCPF, ErrorAlert, logError, type FormClienteType } from './helpers'
+import { clienteFormSchema, formatarTelefone, formatarCPF, ErrorAlert, logError, toDateInputValue, type FormClienteType } from './helpers'
+import { CalendarDays } from 'lucide-react'
 
 export type ClienteParaEdicao = {
-    id: string; nome: string; telefone: string; email?: string | null; cpf?: string | null;
+    id: string; nome: string; telefone: string; email?: string | null; cpf?: string | null; dataNascimento?: Date | string | null;
 }
 
 interface Props {
@@ -18,7 +19,8 @@ export function ModalEditarCliente({ cliente, onClose, onSuccess }: Props) {
         nome: cliente.nome,
         telefone: cliente.telefone,
         email: cliente.email || '',
-        cpf: cliente.cpf || ''
+        cpf: cliente.cpf || '',
+        dataNascimento: toDateInputValue(cliente.dataNascimento),
     })
     const [loadingEditar, setLoadingEditar] = useState(false)
     const [erroEditar, setErroEditar] = useState('')
@@ -36,6 +38,7 @@ export function ModalEditarCliente({ cliente, onClose, onSuccess }: Props) {
                 telefone: formEditar.telefone,
                 email: formEditar.email || null,
                 cpf: formEditar.cpf || null,
+                dataNascimento: formEditar.dataNascimento || null,
             })
             if (res.sucesso) onSuccess()
             else setErroEditar(res.erro)
@@ -71,6 +74,19 @@ export function ModalEditarCliente({ cliente, onClose, onSuccess }: Props) {
                     <div>
                         <label className="block text-sm font-semibold text-foreground mb-2">CPF <span className="text-muted-foreground font-normal">(opcional)</span></label>
                         <input type="text" value={formEditar.cpf || ''} onChange={(e) => setFormEditar({ ...formEditar, cpf: formatarCPF(e.target.value) })} maxLength={14} className="w-full border border-border rounded-lg px-4 py-2.5 outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 transition-colors bg-white" />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-semibold text-foreground mb-2 flex items-center gap-1.5">
+                            <CalendarDays className="w-4 h-4 text-muted-foreground" />
+                            Data de Nascimento <span className="text-muted-foreground font-normal">(opcional)</span>
+                        </label>
+                        <input
+                            type="date"
+                            max={new Date().toISOString().split('T')[0]}
+                            value={formEditar.dataNascimento || ''}
+                            onChange={(e) => setFormEditar({ ...formEditar, dataNascimento: e.target.value })}
+                            className="w-full border border-border rounded-lg px-4 py-2.5 outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 transition-colors bg-white"
+                        />
                     </div>
                     <div className="flex justify-end gap-3 mt-8 pt-4 border-t border-border">
                         <button type="button" onClick={onClose} className="px-5 py-2.5 text-muted-foreground font-bold hover:bg-muted rounded-lg transition-colors text-sm">Cancelar</button>

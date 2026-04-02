@@ -195,7 +195,7 @@ export default function GestaoClientesAdminPage() {
                                         }}
                                         onAgendar={!isAnonimizado ? () => setClienteAgendar({ id: cliente.id, nome: cliente.nome }) : undefined}
                                         onHistorico={() => setClienteHistorico(cliente.id)}
-                                        onEditar={!isAnonimizado ? () => setClienteEditar({ id: cliente.id, nome: cliente.nome, telefone: exibirTelefone(cliente.telefone), email: cliente.email, cpf: cliente.cpf }) : undefined}
+                                        onEditar={!isAnonimizado ? () => setClienteEditar({ id: cliente.id, nome: cliente.nome, telefone: exibirTelefone(cliente.telefone), email: cliente.email, cpf: cliente.cpf, dataNascimento: cliente.dataNascimento }) : undefined}
                                         onLgpd={!isAnonimizado ? () => handleAnonimizar(cliente.id, cliente.nome) : undefined}
                                         onExcluir={!isAnonimizado ? () => handleExcluir(cliente.id, cliente.nome) : undefined}
                                         onDividas={cliente.temDividaPendente ? () => setClienteDividas({ id: cliente.id, nome: cliente.nome }) : undefined}

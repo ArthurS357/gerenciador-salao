@@ -141,7 +141,7 @@ function autorizarAcessoAgendamento(
     sessaoCli: Awaited<ReturnType<typeof verificarSessaoCliente>>,
     sessaoFunc: Awaited<ReturnType<typeof verificarSessaoFuncionario>>
 ): boolean {
-    if (sessaoFunc.logado && (sessaoFunc.role === 'ADMIN' || sessaoFunc.id === funcionarioId)) return true
+    if (sessaoFunc.logado && (sessaoFunc.role === 'ADMIN' || sessaoFunc.role === 'RECEPCIONISTA' || sessaoFunc.id === funcionarioId)) return true
     if (sessaoCli.logado && sessaoCli.id === clienteId) return true
     return false
 }
@@ -415,8 +415,8 @@ export async function cancelarAgendamentoPendente(id: string): Promise<ActionRes
 export async function listarAgendamentosGlobais(): Promise<ActionResult<{ agendamentos: AgendamentoGlobalItem[] }>> {
     try {
         const sessao = await verificarSessaoFuncionario();
-        if (!sessao.logado || sessao.role !== 'ADMIN') {
-            return { sucesso: false, erro: 'Acesso negado. Apenas diretores podem visualizar a agenda global.' }
+        if (!sessao.logado || (sessao.role !== 'ADMIN' && sessao.role !== 'RECEPCIONISTA')) {
+            return { sucesso: false, erro: 'Acesso negado. Recurso restrito à gestão.' }
         }
 
         const agendamentos = await prisma.agendamento.findMany({
