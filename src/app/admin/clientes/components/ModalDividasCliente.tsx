@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { Loader2, X, Receipt, CheckCircle2, AlertTriangle } from 'lucide-react'
 import { listarDividasCliente, quitarDivida, type DividaClienteDetalhada } from '@/app/actions/divida'
 import { fmt, logError, ErrorAlert } from './helpers'
@@ -18,15 +18,15 @@ export function ModalDividasCliente({ cliente, onClose, onSuccess }: Props) {
     const [loadingQuitar, setLoadingQuitar] = useState(false)
     const [erroQuitar, setErroQuitar] = useState('')
 
-    const carregarDividas = async () => {
+    const carregarDividas = useCallback(async () => {
         try {
             const res = await listarDividasCliente(cliente.id)
             if (res.sucesso) setDadosDividas(res.data.dividas as DividaClienteDetalhada[])
         } catch (error) { logError('listarDividasCliente', error) }
         finally { setLoadingDividas(false) }
-    }
+    }, [cliente.id])
 
-    useEffect(() => { carregarDividas() }, [cliente.id])
+    useEffect(() => { carregarDividas() }, [carregarDividas])
 
     const handleQuitarDivida = async (e: React.FormEvent) => {
         e.preventDefault()

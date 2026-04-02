@@ -19,6 +19,15 @@ import type { PagamentoComandaInput, MetodoPagamento, MetodoPagamentoConfig } fr
 
 // ── Constantes e Helpers de UI ────────────────────────────────────────────────
 
+const BANDEIRA_LABELS: Record<string, string> = {
+    '': 'Padrão (Taxa do Método)',
+    VISA: 'Visa',
+    MASTERCARD: 'Mastercard',
+    ELO: 'Elo',
+    AMEX: 'American Express',
+    HIPERCARD: 'Hipercard',
+}
+
 const METODO_LABELS: Record<MetodoPagamento, string> = {
     DINHEIRO: 'Dinheiro',
     PIX: 'PIX',
@@ -58,6 +67,7 @@ type PagamentoRow = {
     metodo: MetodoPagamento;
     valor: number;
     parcelas: number;
+    bandeira: string;
 }
 
 /** Interface auxiliar segura para leitura do config vindo do DB */
@@ -93,7 +103,7 @@ export default function BotaoFinalizarComanda({
     const [metodosConfig, setMetodosConfig] = useState<ConfigMetodoSegura[]>([])
     const [metodosAtivos, setMetodosAtivos] = useState<MetodoPagamento[]>(METODOS_FALLBACK)
     const [pagamentos, setPagamentos] = useState<PagamentoRow[]>([
-        { _key: 0, metodo: 'DINHEIRO', valor: 0, parcelas: 1 }
+        { _key: 0, metodo: 'DINHEIRO', valor: 0, parcelas: 1, bandeira: '' }
     ])
     const [keyCounter, setKeyCounter] = useState(1)
 
@@ -105,10 +115,14 @@ export default function BotaoFinalizarComanda({
     const emDia = Math.abs(restante) < 0.01
 
     // ── Taxa estimada de maquininha (apenas informativo) ──────────────────────
+    // Prioriza taxa específica da bandeira; cai no genérico se não configurado
     const taxaEstimada = pagamentos.reduce((sum, p) => {
-        const cfg = metodosConfig.find(m => m.metodo === p.metodo)
+        const cfg = metodosConfig.find(m => m.metodo === p.metodo && m.bandeira === p.bandeira)
+            ?? metodosConfig.find(m => m.metodo === p.metodo && m.bandeira === '')
         return sum + (p.valor * ((cfg?.taxaBase ?? 0) / 100))
     }, 0)
+
+
 
     // ── Carrega Métodos de Pagamento ao Abrir o Modal ─────────────────────────
     useEffect(() => {
@@ -136,7 +150,7 @@ export default function BotaoFinalizarComanda({
         setMostrarModal(false)
         setCarregando(false)
         setCarregandoMetodos(true)
-        setPagamentos([{ _key: 0, metodo: 'DINHEIRO', valor: 0, parcelas: 1 }])
+        setPagamentos([{ _key: 0, metodo: 'DINHEIRO', valor: 0, parcelas: 1, bandeira: '' }])
         setKeyCounter(1)
         setCustoInsumos(custoInsumosEstimado)
     }, [custoInsumosEstimado])
@@ -149,7 +163,7 @@ export default function BotaoFinalizarComanda({
 
         setPagamentos(prev => [
             ...prev,
-            { _key: keyCounter, metodo: proximo, valor: 0, parcelas: 1 }
+            { _key: keyCounter, metodo: proximo, valor: 0, parcelas: 1, bandeira: '' }
         ])
         setKeyCounter(c => c + 1)
     }
@@ -164,8 +178,12 @@ export default function BotaoFinalizarComanda({
             prev.map(p => {
                 if (p._key !== key) return p
                 const atualizado = { ...p, ...delta }
-                if ('metodo' in delta && delta.metodo !== 'CARTAO_CREDITO') {
-                    atualizado.parcelas = 1
+                if ('metodo' in delta) {
+                    // Ao trocar método: reseta bandeira e parcelas
+                    atualizado.bandeira = ''
+                    if (delta.metodo !== 'CARTAO_CREDITO') {
+                        atualizado.parcelas = 1
+                    }
                 }
                 return atualizado
             })
@@ -187,12 +205,15 @@ export default function BotaoFinalizarComanda({
         try {
             // Mapeamos unindo os inputs do utilizador com os IDs e Taxas do config na base de dados
             const payload = pagamentos.map(p => {
-                const cfg = metodosConfig.find(m => m.metodo === p.metodo)
+                // Mesmo lookup composto que o motor financeiro: bandeira específica → genérico
+                const cfg = metodosConfig.find(m => m.metodo === p.metodo && m.bandeira === p.bandeira)
+                    ?? metodosConfig.find(m => m.metodo === p.metodo && m.bandeira === '')
 
                 return {
                     metodo: p.metodo,
                     valor: p.valor,
                     parcelas: p.metodo === 'CARTAO_CREDITO' ? p.parcelas : 1,
+                    bandeira: p.bandeira,
                     taxaBase: cfg?.taxaBase ?? 0,
                     taxaMetodoId: cfg?.id,
                 } as PagamentoComandaInput
@@ -369,6 +390,31 @@ export default function BotaoFinalizarComanda({
                                                     <Trash2 className="w-4 h-4" />
                                                 </button>
                                             </div>
+
+                                            {/* Dentro do loop de pagamentos, quando o método for cartão */}
+                                            {(pag.metodo === 'CARTAO_CREDITO' || pag.metodo === 'CARTAO_DEBITO') && (
+                                                <div className="flex items-center gap-2 pl-5">
+                                                    <label className="text-[10px] text-gray-400 font-bold uppercase">Bandeira:</label>
+                                                    <select
+                                                        value={pag.bandeira}
+                                                        onChange={e => atualizarPagamento(pag._key, { bandeira: e.target.value })}
+                                                        className="flex-1 px-2 py-1 border border-gray-100 rounded-lg text-xs bg-white focus:ring-1 focus:ring-green-500"
+                                                    >
+                                                        {/* Ajuste Pontual: Label Semântico */}
+                                                        <option value="">Padrão (Taxa do Método)</option>
+
+                                                        {/* Renderiza apenas bandeiras que possuem taxa específica no banco */}
+                                                        {metodosConfig
+                                                            .filter(m => m.metodo === pag.metodo && m.bandeira !== "")
+                                                            .map(m => (
+                                                                <option key={m.id} value={m.bandeira}>
+                                                                    {BANDEIRA_LABELS[m.bandeira] || m.bandeira} ({m.taxaBase}%)
+                                                                </option>
+                                                            ))
+                                                        }
+                                                    </select>
+                                                </div>
+                                            )}
 
                                             {/* Linha de Parcelas — apenas para Cartão de Crédito */}
                                             {pag.metodo === 'CARTAO_CREDITO' && (

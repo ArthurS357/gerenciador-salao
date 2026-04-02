@@ -188,10 +188,17 @@ export type MetodoPagamento =
     | 'VOUCHER'
     | 'PERMUTA'
 
+/** * Bandeiras suportadas. 
+ * A string vazia ('') representa a taxa "Padrão" ou "Genérica" do método.
+ */
+export type BandeiraCartao = '' | 'VISA' | 'MASTERCARD' | 'ELO' | 'AMEX' | 'HIPERCARD';
+
 /** Configuração de taxa lida do banco (TaxaMetodoPagamento). */
 export interface MetodoPagamentoConfig {
     id: string
     metodo: MetodoPagamento
+    /** "" = taxa genérica (todas as bandeiras); ex: "VISA" = taxa específica para Visa */
+    bandeira: string
     descricao: string | null
     taxaBase: number
     ativo: boolean
@@ -200,11 +207,13 @@ export interface MetodoPagamentoConfig {
 /**
  * Item de pagamento enviado pelo cliente ao fechar a comanda.
  * `parcelas` é relevante apenas para CARTAO_CREDITO (padrão: 1).
+ * `bandeira` é relevante apenas para métodos de cartão (padrão: "").
  */
 export interface PagamentoComandaInput {
-    metodo: MetodoPagamento
-    valor: number
-    parcelas: number
+    metodo: MetodoPagamento;
+    bandeira: string;
+    valor: number;
+    parcelas: number;
 }
 
 // ── DÍVIDAS DE CLIENTE ───────────────────────────────────────────────────────

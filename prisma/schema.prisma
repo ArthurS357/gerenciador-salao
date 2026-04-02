@@ -173,15 +173,19 @@ model ConfiguracaoSalao {
 
 model TaxaMetodoPagamento {
   id           String             @id @default(uuid())
-  metodo       String             @unique  
+  metodo       String
   // Valores válidos: "DINHEIRO" | "PIX" | "CARTAO_DEBITO" | "CARTAO_CREDITO" | "CORTESIA" | "VOUCHER" | "PERMUTA"
+  bandeira     String             @default("")
+  // "" = genérico (qualquer bandeira); "VISA" | "MASTERCARD" | "ELO" | "AMEX" | "HIPERCARD"
   descricao    String?
   taxaBase     Float              @default(0.0)   // % aplicada sobre o valor (ex: 2.20 para débito)
   ativo        Boolean            @default(true)
   criadoEm     DateTime           @default(now())
   atualizadoEm DateTime           @updatedAt
 
-  pagamentos   PagamentoComanda[] 
+  pagamentos   PagamentoComanda[]
+
+  @@unique([metodo, bandeira])   // substitui o @unique anterior — permite uma taxa genérica + taxas por bandeira
 }
 
 model Agendamento {
@@ -229,11 +233,12 @@ model Agendamento {
 model PagamentoComanda {
   id            String               @id @default(uuid())
   agendamentoId String
-  metodo        String   
+  metodo        String
+  bandeira      String               @default("")   // snapshot da bandeira usada no fechamento
   valor         Float
-  parcelas      Int                  @default(1)  
-  taxaAplicada  Float                @default(0)  
-  taxaMetodoId  String?              
+  parcelas      Int                  @default(1)
+  taxaAplicada  Float                @default(0)
+  taxaMetodoId  String?
   criadoEm      DateTime             @default(now())
 
   agendamento   Agendamento          @relation(fields: [agendamentoId], references: [id], onDelete: Cascade)

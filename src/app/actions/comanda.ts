@@ -24,6 +24,7 @@ const schemaPagamentoItem = z.object({
     metodo: z.enum(METODOS_VALIDOS, { message: 'Método de pagamento inválido.' }),
     valor: z.coerce.number().positive('Valor do pagamento deve ser maior que zero.'),
     parcelas: z.coerce.number().int().min(1).max(12).default(1),
+    bandeira: z.string().default(''),
 })
 
 const schemaFinalizarComanda = z.object({
@@ -58,8 +59,8 @@ export async function listarMetodosPagamento(): Promise<ActionResult<{ metodos: 
     try {
         const registros = await prisma.taxaMetodoPagamento.findMany({
             where: { ativo: true },
-            orderBy: { metodo: 'asc' },
-            select: { id: true, metodo: true, descricao: true, taxaBase: true, ativo: true },
+            orderBy: [{ metodo: 'asc' }, { bandeira: 'asc' }],
+            select: { id: true, metodo: true, bandeira: true, descricao: true, taxaBase: true, ativo: true },
         });
 
         // Garante que apenas métodos válidos no domínio são retornados
@@ -68,13 +69,13 @@ export async function listarMetodosPagamento(): Promise<ActionResult<{ metodos: 
                 (METODOS_VALIDOS as readonly string[]).includes(r.metodo)
         );
 
-        // Fallback: se a tabela estiver vazia, retorna os 4 métodos principais
+        // Fallback: se a tabela estiver vazia, retorna os 4 métodos principais (sem bandeira)
         if (metodos.length === 0) {
             const fallback: MetodoPagamentoConfig[] = [
-                { id: 'fallback-dinheiro', metodo: 'DINHEIRO', descricao: 'Dinheiro', taxaBase: 0, ativo: true },
-                { id: 'fallback-pix', metodo: 'PIX', descricao: 'PIX', taxaBase: 0, ativo: true },
-                { id: 'fallback-debito', metodo: 'CARTAO_DEBITO', descricao: 'Cartão de Débito', taxaBase: 1.5, ativo: true },
-                { id: 'fallback-credito', metodo: 'CARTAO_CREDITO', descricao: 'Cartão de Crédito', taxaBase: 3.0, ativo: true },
+                { id: 'fallback-dinheiro', metodo: 'DINHEIRO', bandeira: '', descricao: 'Dinheiro', taxaBase: 0, ativo: true },
+                { id: 'fallback-pix', metodo: 'PIX', bandeira: '', descricao: 'PIX', taxaBase: 0, ativo: true },
+                { id: 'fallback-debito', metodo: 'CARTAO_DEBITO', bandeira: '', descricao: 'Cartão de Débito', taxaBase: 1.5, ativo: true },
+                { id: 'fallback-credito', metodo: 'CARTAO_CREDITO', bandeira: '', descricao: 'Cartão de Crédito', taxaBase: 3.0, ativo: true },
             ];
             return { sucesso: true, data: { metodos: fallback } };
         }
@@ -230,7 +231,9 @@ export async function finalizarComanda(
                 tx.configuracaoSalao.findFirst(),
             ]);
 
-            const taxasMap = new Map(taxasConfigs.map(t => [t.metodo, t]));
+            // Chave composta "METODO:bandeira" — permite lookup exato por bandeira
+            // com fallback automático para a taxa genérica ("METODO:")
+            const taxasMap = new Map(taxasConfigs.map(t => [`${t.metodo}:${t.bandeira}`, t]));
 
             // 4. Processamento Físico: Baixa de Insumos da Ficha Técnica
             const consumoTotalInsumos = new Map<string, number>();
@@ -269,10 +272,13 @@ export async function finalizarComanda(
                 parcelas: number;
                 taxaAplicada: number;
                 taxaMetodoId: string | null;
+                bandeira: string;
             };
 
             const pagamentosComTaxa: PagamentoComTaxa[] = input.pagamentos.map(pag => {
-                const configMetodo = taxasMap.get(pag.metodo);
+                // Tenta taxa específica da bandeira; cai no genérico se não encontrar
+                const configMetodo = taxasMap.get(`${pag.metodo}:${pag.bandeira}`)
+                    ?? taxasMap.get(`${pag.metodo}:`);
                 let taxaBase = configMetodo?.taxaBase;
 
                 // Fallback para configuração legada
@@ -300,6 +306,7 @@ export async function finalizarComanda(
                     parcelas,
                     taxaAplicada: taxaAplicadaReal, // Registra o valor fiel cobrado
                     taxaMetodoId: configMetodo?.id ?? null,
+                    bandeira: pag.bandeira,
                 };
             });
 
@@ -335,6 +342,7 @@ export async function finalizarComanda(
                         data: {
                             agendamentoId,
                             metodo: pag.metodo,
+                            bandeira: pag.bandeira,
                             valor: pag.valor,
                             parcelas: pag.parcelas,
                             taxaAplicada: pag.taxaAplicada,

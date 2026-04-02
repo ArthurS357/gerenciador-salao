@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import AdminHeader from '@/components/admin/AdminHeader'
 import { MetricCard } from '@/components/admin/metric-card'
-import { Image as ImageIcon, Plus, Trash2, Loader2, X, ExternalLink, Share2 } from 'lucide-react'
+import { Image as ImageIcon, Plus, Trash2, Loader2, X, ExternalLink, Share2, Upload } from 'lucide-react'
 import {
     listarPortfolioAdmin,
     criarItemPortfolio,
@@ -38,6 +38,7 @@ export default function GaleriaAdminPage() {
     const [form, setForm] = useState<FormCriar>(FORM_INICIAL)
     const [salvando, setSalvando] = useState(false)
     const [mensagem, setMensagem] = useState<{ texto: string; tipo: 'sucesso' | 'erro' } | null>(null)
+    const [uploadingImage, setUploadingImage] = useState<Record<number, boolean>>({})
 
     const carregarItens = useCallback(async () => {
         try {
@@ -121,6 +122,38 @@ export default function GaleriaAdminPage() {
 
     const removerCampoImagem = (index: number) => {
         setForm(f => ({ ...f, imagens: f.imagens.filter((_, i) => i !== index) }))
+    }
+
+    const handleUploadArquivo = async (e: React.ChangeEvent<HTMLInputElement>, index: number) => {
+        const file = e.target.files?.[0]
+        if (!file) return
+
+        if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 5 * 1024 * 1024) {
+            setMensagem({ texto: 'A imagem deve ser JPG, PNG ou WebP e ter até 5MB.', tipo: 'erro' })
+            return
+        }
+
+        setUploadingImage(prev => ({ ...prev, [index]: true }))
+
+        const formData = new FormData()
+        formData.append('file', file)
+
+        try {
+            const response = await fetch('/api/upload', { method: 'POST', body: formData })
+            const data = await response.json() as { url?: string; error?: string }
+
+            if (response.ok && data.url) {
+                atualizarImagem(index, data.url)
+            } else {
+                throw new Error(data.error ?? 'Erro no upload')
+            }
+        } catch {
+            setMensagem({ texto: 'Falha ao processar o upload no Cloudinary.', tipo: 'erro' })
+        } finally {
+            setUploadingImage(prev => ({ ...prev, [index]: false }))
+            // Limpa o input para permitir reenvio do mesmo arquivo
+            e.target.value = ''
+        }
     }
 
     const itensAtivos = itens.filter(i => i.ativo).length
@@ -367,12 +400,26 @@ export default function GaleriaAdminPage() {
                                         <span className="text-xs font-black text-muted-foreground w-5 text-center">{idx + 1}</span>
                                         <input
                                             required={idx === 0}
-                                            disabled={salvando} type="url"
+                                            disabled={salvando || !!uploadingImage[idx]} type="url"
                                             placeholder={idx === 0 ? 'URL principal (obrigatório)' : 'URL adicional (opcional)'}
                                             value={url}
                                             onChange={e => atualizarImagem(idx, e.target.value)}
                                             className="flex-1 border border-border bg-card rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary/20 font-medium text-foreground"
                                         />
+                                        <input
+                                            type="file"
+                                            id={`file-upload-${idx}`}
+                                            className="hidden"
+                                            accept="image/jpeg,image/png,image/webp"
+                                            onChange={(e) => void handleUploadArquivo(e, idx)}
+                                        />
+                                        <label
+                                            htmlFor={`file-upload-${idx}`}
+                                            className="cursor-pointer p-2.5 bg-secondary text-secondary-foreground rounded-lg hover:bg-secondary/80 transition-colors flex items-center justify-center"
+                                            title="Fazer upload de arquivo"
+                                        >
+                                            {uploadingImage[idx] ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                                        </label>
                                         {idx > 0 && (
                                             <button
                                                 type="button"
