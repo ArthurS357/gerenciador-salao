@@ -1,22 +1,25 @@
 import { PrismaClient, Prisma } from '@prisma/client';
 
-// ── 1. Extensão de Tipo Global ───────────────────────────────────────────────
+// ── Extensão de Tipo Global ──────────────────────────────────────────────────
 declare global {
     var prisma: PrismaClient | undefined;
 }
 
-// ── 2. Configuração de Telemetria ───────────────────────────────────────────
-// Tipamos explicitamente como Prisma.PrismaClientOptions para satisfazer o construtor.
-// Removemos o 'as const' dos arrays internos, pois o tipo LogLevel já é restrito.
-const prismaOptions: Prisma.PrismaClientOptions =
-    process.env.NODE_ENV === 'development'
-        ? { log: ['query', 'error', 'warn'] }
-        : { log: ['error'] };
+// ── Factory ──────────────────────────────────────────────────────────────────
+function createPrismaClient(): PrismaClient {
+    const logOptions: Prisma.PrismaClientOptions =
+        process.env.NODE_ENV === 'production'
+            ? { log: ['error'] }
+            : { log: ['query', 'error', 'warn'] };
 
-// ── 3. Inicialização do Singleton ────────────────────────────────────────────
-// O cast 'as any' ou 'as Prisma.PrismaClientOptions' não é mais necessário aqui
-export const prisma = global.prisma || new PrismaClient(prismaOptions);
+    return new PrismaClient(logOptions);
+}
+
+// ── Singleton — evita re-instanciação no Hot Reload do Next.js ────────────────
+// Em produção cada Serverless Function tem seu próprio processo,
+// então o singleton é irrelevante lá — mas não prejudica.
+export const prisma: PrismaClient = globalThis.prisma ?? createPrismaClient();
 
 if (process.env.NODE_ENV !== 'production') {
-    global.prisma = prisma;
+    globalThis.prisma = prisma;
 }

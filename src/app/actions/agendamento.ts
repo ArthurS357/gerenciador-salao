@@ -1,9 +1,9 @@
 'use server'
 
 import { prisma } from '@/lib/prisma'
-import { Prisma } from '@prisma/client'
+import { Prisma, RoleFuncionario } from '@prisma/client'
 import { verificarNumeroExisteNoWhatsApp } from '@/lib/whatsapp'
-import { enviarMensagemWhatsAppAction } from '@/app/actions/whatsapp'
+import { getMessagingService } from '@/services/messaging/getMessagingService'
 import { formatInTimeZone } from 'date-fns-tz'
 import { ptBR } from 'date-fns/locale'
 import { verificarRateLimit } from '@/lib/rateLimit'
@@ -292,12 +292,17 @@ export async function criarAgendamentoMultiplo(
         const horaFormatada = formatInTimeZone(dataHoraInicio, FUSO_HORARIO, 'HH:mm', { locale: ptBR });
         const nomesServicos = servicos.map(s => s.nome).join(', ');
 
-        const mensagemConfirmacao =
-            `Olá, ${cliente.nome}! Seu agendamento foi confirmado com sucesso. 🎉\n\n📅 Data: ${dataFormatada}\n⏰ Horário: ${horaFormatada}\n✂️ Serviço: ${nomesServicos}\n👤 Profissional: ${novoAgendamento.funcionario.nome}\n\nPara cancelar ou reagendar, entre em contato conosco.`;
-
         after(async () => {
             try {
-                await enviarMensagemWhatsAppAction(cliente.telefone!, mensagemConfirmacao);
+                await getMessagingService().enviarConfirmacao({
+                    nomeCliente:      cliente.nome,
+                    telefone:         cliente.telefone!,
+                    dataFormatada,
+                    horaFormatada,
+                    nomesServicos,
+                    nomeProfissional: novoAgendamento.funcionario.nome,
+                    valorTotal:       valorBruto,
+                })
             } catch (err) {
                 console.error(`[Background Task] Falha silenciosa ao notificar confirmação do cliente ${clienteId}:`, err);
             }
@@ -397,16 +402,20 @@ export async function cancelarAgendamentoPendente(id: string): Promise<ActionRes
 
         // ── NOTIFICAÇÃO WHATSAPP: Cancelamento de agendamento ──
         if (agendamento.cliente.telefone) {
-            const dataFormatada = formatInTimeZone(agendamento.dataHoraInicio, FUSO_HORARIO, 'dd/MM/yyyy', { locale: ptBR });
+            const dataFormatada = formatInTimeZone(agendamento.dataHoraInicio, FUSO_HORARIO, "EEEE, dd 'de' MMMM", { locale: ptBR });
             const horaFormatada = formatInTimeZone(agendamento.dataHoraInicio, FUSO_HORARIO, 'HH:mm', { locale: ptBR });
-            const nomeServico = agendamento.servicos.map(s => s.servico.nome).join(', ');
-
-            const mensagemCancelamento =
-                `Olá, ${agendamento.cliente.nome}.\n\nInformamos que o seu agendamento de ${nomeServico} para o dia ${dataFormatada} às ${horaFormatada} foi CANCELADO.\n\nSe desejar reagendar, por favor, entre em contato conosco ou acesse nosso sistema. Ficaremos felizes em te atender!`;
+            const nomesServicos  = agendamento.servicos.map(s => s.servico.nome).join(', ');
 
             after(async () => {
                 try {
-                    await enviarMensagemWhatsAppAction(agendamento.cliente.telefone!, mensagemCancelamento);
+                    await getMessagingService().enviarCancelamento({
+                        nomeCliente:      agendamento.cliente.nome,
+                        telefone:         agendamento.cliente.telefone!,
+                        dataFormatada,
+                        horaFormatada,
+                        nomesServicos,
+                        nomeProfissional: agendamento.funcionario.nome,
+                    })
                 } catch (err) {
                     console.error(`[Background Task] Falha silenciosa ao notificar cancelamento do agendamento ${id}:`, err);
                 }
@@ -536,7 +545,7 @@ export async function editarAgendamentoPendente(
 export const listarEquipaComExpediente = cache(async (): Promise<ActionResult<{ equipa: FuncionarioComExpedienteItem[] }>> => {
     try {
         const equipa = await prisma.funcionario.findMany({
-            where: { ativo: true, role: 'PROFISSIONAL' },
+            where: { ativo: true, role: RoleFuncionario.PROFISSIONAL },
             select: {
                 id: true,
                 nome: true,

@@ -3,8 +3,30 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")   // pooler (PgBouncer/Neon/Supabase) — runtime
+  directUrl = env("DIRECT_URL")     // conexão direta — migrações e introspection
+}
+
+// ============================================================
+// ENUMS NATIVOS DO POSTGRESQL
+// ============================================================
+
+enum RoleFuncionario {
+  ADMIN
+  PROFISSIONAL
+  RECEPCIONISTA
+}
+
+enum StatusDivida {
+  PENDENTE
+  QUITADA
+  PARCIAL
+}
+
+enum StatusPacoteVenda {
+  PENDENTE
+  PAGO_ANTECIPADAMENTE
 }
 
 // ============================================================
@@ -29,12 +51,12 @@ model Cliente {
 }
 
 model Funcionario {
-  id               String       @id @default(uuid())
+  id               String              @id @default(uuid())
   nome             String
-  email            String       @unique
+  email            String              @unique
   senhaHash        String
-  role             String       @default("PROFISSIONAL")
-  comissao         Float        @default(40.0)
+  role             RoleFuncionario     @default(PROFISSIONAL)
+  comissao         Float               @default(40.0)
   // FLAGS DE CONTROLE DE ACESSO (RBAC)
   podeVerComissao         Boolean      @default(true)
   podeAgendar             Boolean      @default(false)
@@ -43,19 +65,19 @@ model Funcionario {
   podeGerenciarClientes   Boolean      @default(false) // Recepcionista: criar/editar/anonimizar clientes
   podeVerFinanceiroGlobal Boolean      @default(false) // Recepcionista: ver resumo bruto e taxas (sem alterar config)
   podeGerenciarEstoque    Boolean      @default(false)
-  cpf              String?      @unique
+  cpf              String?             @unique
   telefone         String?
   descricao        String?
   especialidade    String?
   fotoUrl          String?
-  ativo            Boolean      @default(true)
+  ativo            Boolean             @default(true)
 
   agendamentos     Agendamento[]
   servicos         Servico[]
   expedientes      Expediente[]
 
-  createdAt        DateTime     @default(now())
-  updatedAt        DateTime     @updatedAt
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
 }
 
 model Expediente {
@@ -88,7 +110,7 @@ model Servico {
   itensAgendamento ItemServico[]
   funcionarios     Funcionario[]
   insumos          InsumoServico[]
-  pacotes          PacoteServico[] // ← NOVO: relação inversa com pacotes
+  pacotes          PacoteServico[]
 }
 
 model InsumoServico {
@@ -109,15 +131,15 @@ model Produto {
   descricao        String?
   precoCusto       Float?
   precoVenda       Float
-  
+
   estoque          Int             @default(0)
   unidadeMedida    String          @default("un")
   tamanhoUnidade   Int             @default(1)
-  
+
   ativo            Boolean         @default(true)
-  
-  itensAgendamento ItemProduto[]   
-  insumos          InsumoServico[] 
+
+  itensAgendamento ItemProduto[]
+  insumos          InsumoServico[]
 
   createdAt        DateTime        @default(now())
   updatedAt        DateTime        @updatedAt
@@ -151,12 +173,12 @@ model PacoteServico {
 }
 
 model PacoteVenda {
-  id           String    @id @default(uuid())
+  id           String            @id @default(uuid())
   pacoteId     String
   clienteId    String
-  valorCobrado Float     // snapshot do valorFinal no momento da venda
-  status       String    @default("PENDENTE") // "PAGO_ANTECIPADAMENTE" | "PENDENTE"
-  criadoEm     DateTime  @default(now())
+  valorCobrado Float             // snapshot do valorFinal no momento da venda
+  status       StatusPacoteVenda @default(PENDENTE)
+  criadoEm     DateTime          @default(now())
   paidAt       DateTime?
 
   pacote       Pacote    @relation(fields: [pacoteId], references: [id])
@@ -191,7 +213,7 @@ model TaxaMetodoPagamento {
 
   pagamentos   PagamentoComanda[]
 
-  @@unique([metodo, bandeira])   // substitui o @unique anterior — permite uma taxa genérica + taxas por bandeira
+  @@unique([metodo, bandeira])
 }
 
 model Agendamento {
@@ -210,17 +232,20 @@ model Agendamento {
   custoRevenda     Float              @default(0)
   valorComissao    Float              @default(0)
   comissaoSnap     Float              @default(0)
-  comissaoLiberada Boolean            @default(false)  
+  comissaoLiberada Boolean            @default(false)
 
-  // ── Controle de Pagamento Parcial (NOVOS) ──
-  valorPago        Float              @default(0)    
-  valorPendente    Float              @default(0)    
+  // ── Controle de Pagamento Parcial ──
+  valorPago        Float              @default(0)
+  valorPendente    Float              @default(0)
+
+  // ── Mensageria ──
+  lembreteEnviado  Boolean            @default(false) // ← Cron job marca após enviar lembrete 48h antes
 
   // ── Campos Legado ──
-  valorDinheiro    Float              @default(0)   
-  valorCartao      Float              @default(0)   
-  valorPix         Float              @default(0)   
-  metodoPagamento  String?                
+  valorDinheiro    Float              @default(0)
+  valorCartao      Float              @default(0)
+  valorPix         Float              @default(0)
+  metodoPagamento  String?
 
   cliente          Cliente            @relation(fields: [clienteId], references: [id])
   funcionario      Funcionario        @relation(fields: [funcionarioId], references: [id])
@@ -228,12 +253,12 @@ model Agendamento {
   servicos         ItemServico[]
   produtos         ItemProduto[]
   avaliacao        Avaliacao?
-  pagamentos       PagamentoComanda[] 
-  divida           DividaCliente?     
+  pagamentos       PagamentoComanda[]
+  divida           DividaCliente?
 
   @@index([funcionarioId, dataHoraInicio, dataHoraFim])
   @@index([concluido, dataHoraInicio])
-  @@index([clienteId, valorPendente])  
+  @@index([clienteId, valorPendente])
 }
 
 model PagamentoComanda {
@@ -256,10 +281,10 @@ model PagamentoComanda {
 model DividaCliente {
   id            String       @id @default(uuid())
   clienteId     String
-  agendamentoId String?      @unique  
-  valorOriginal Float               
+  agendamentoId String?      @unique
+  valorOriginal Float
   valorQuitado  Float        @default(0)
-  status        String       @default("PENDENTE") // "PENDENTE" | "QUITADA" | "PARCIAL"
+  status        StatusDivida @default(PENDENTE)
   observacao    String?
   criadoEm      DateTime     @default(now())
   quitadoEm     DateTime?
@@ -267,7 +292,7 @@ model DividaCliente {
   cliente       Cliente      @relation(fields: [clienteId], references: [id])
   agendamento   Agendamento? @relation(fields: [agendamentoId], references: [id])
 
-  @@index([clienteId, status])  
+  @@index([clienteId, status])
 }
 
 model ItemServico {
@@ -275,7 +300,7 @@ model ItemServico {
   servicoId     String
   agendamentoId String
   precoCobrado  Float?
-  
+
   servico       Servico     @relation(fields: [servicoId], references: [id])
   agendamento   Agendamento @relation(fields: [agendamentoId], references: [id], onDelete: Cascade)
 }
@@ -298,10 +323,10 @@ model ItemProduto {
 model ItemPortfolio {
   id            String   @id @default(uuid())
   titulo        String
-  descricao     String?              
+  descricao     String?
   valor         Float?
-  imagensJson   String               
-  linkInstagram String?              
+  imagensJson   Json                 // ← tipo nativo JSON do PostgreSQL (era String no SQLite)
+  linkInstagram String?
   ativo         Boolean  @default(true)
   criadoEm      DateTime @default(now())
 }
@@ -341,16 +366,16 @@ model RateLimit {
   windowStart   DateTime  @default(now())
   blockedUntil  DateTime?
 
-  @@map("rate_limits") 
+  @@map("rate_limits")
 }
 
 model AuditLog {
   id         String   @id @default(cuid())
-  usuarioId  String   
-  acao       String   
-  entidade   String   
-  entidadeId String   
-  detalhes   String?  
+  usuarioId  String
+  acao       String
+  entidade   String
+  entidadeId String
+  detalhes   String?
   timestamp  DateTime @default(now())
 
   @@index([entidade, entidadeId])

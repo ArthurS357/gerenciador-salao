@@ -20,7 +20,7 @@ export interface ItemPortfolio {
     id: string
     titulo: string
     descricao: string | null
-    imagensJson: string           // JSON array: '["url1","url2","url3","url4"]'
+    imagensJson: string[]         // Array nativo (campo Json do PostgreSQL)
     valor: number | null
     linkInstagram: string | null
 }

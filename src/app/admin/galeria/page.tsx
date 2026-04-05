@@ -200,9 +200,7 @@ export default function GaleriaAdminPage() {
                     />
                     <MetricCard
                         label={<span className="flex items-center gap-2"><ImageIcon className="w-4 h-4 text-purple-500" /> Total de Fotos</span>}
-                        value={itens.reduce((acc, i) => {
-                            try { return acc + (JSON.parse(i.imagensJson) as string[]).length } catch { return acc + 1 }
-                        }, 0).toString()}
+                        value={itens.reduce((acc, i) => acc + i.imagensJson.length, 0).toString()}
                         subText="imagens no portfólio"
                         loading={carregando}
                     />
@@ -224,8 +222,7 @@ export default function GaleriaAdminPage() {
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                         {itens.map(item => {
-                            let imagens: string[] = []
-                            try { imagens = JSON.parse(item.imagensJson) as string[] } catch { imagens = [item.imagensJson] }
+                            const imagens: string[] = item.imagensJson
 
                             return (
                                 <div key={item.id} className="bg-card border border-border rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow group">

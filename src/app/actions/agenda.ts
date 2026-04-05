@@ -1,6 +1,7 @@
 'use server';
 
 import { prisma } from '@/lib/prisma';
+import { RoleFuncionario } from '@prisma/client';
 import { formatInTimeZone, toZonedTime, fromZonedTime } from 'date-fns-tz';
 
 const FUSO = 'America/Sao_Paulo';
@@ -61,7 +62,7 @@ export async function obterHorariosDisponiveis(
         }
     } else {
         const todosProfissionais = await prisma.funcionario.findMany({
-            where: { ativo: true, role: 'PROFISSIONAL' }, // Filtra apenas profissionais
+            where: { ativo: true, role: RoleFuncionario.PROFISSIONAL }, // Filtra apenas profissionais
             select: { id: true, servicos: { select: { id: true } } }
         });
 

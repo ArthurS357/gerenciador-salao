@@ -1,7 +1,7 @@
 'use server'
 
 import { prisma } from '@/lib/prisma'
-import { Prisma } from '@prisma/client'
+import { Prisma, RoleFuncionario } from '@prisma/client'
 import { formatInTimeZone } from 'date-fns-tz'
 import { subDays, startOfDay } from 'date-fns'
 import { FinanceiroResumo, FuncionarioResumo, ActionResult, ConfiguracaoSalao } from '@/types/domain'
@@ -74,7 +74,7 @@ export async function obterResumoFinanceiro(
             comissoesPorProfissional,
             historicoRecente,
             prisma.funcionario.findMany({
-                where: { role: 'PROFISSIONAL', ativo: true },
+                where: { role: RoleFuncionario.PROFISSIONAL, ativo: true },
                 select: { id: true, nome: true, comissao: true, podeVerComissao: true, podeAgendar: true, podeVerHistorico: true, podeCancelar: true, podeGerenciarClientes: true, podeVerFinanceiroGlobal: true },
             })
         ])

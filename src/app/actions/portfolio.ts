@@ -1,11 +1,22 @@
 'use server'
 
 import { prisma } from '@/lib/prisma'
+import { Prisma } from '@prisma/client'
 import { revalidatePath } from 'next/cache'
 import { verificarSessaoFuncionario } from '@/app/actions/auth'
 import { ActionResult } from '@/types/domain'
 import { z } from 'zod'
 import { cache } from 'react'
+
+// ── Type Guard ────────────────────────────────────────────────────────────────
+/** Converte o campo Json do PostgreSQL para string[]. Retorna [] se o dado
+ *  não for um array, protegendo contra corrupção silenciosa em runtime. */
+export function parseImagens(json: Prisma.JsonValue): string[] {
+    if (Array.isArray(json)) {
+        return json.map(String)
+    }
+    return []
+}
 
 // ── Tipos de Retorno ──────────────────────────────────────────────────────────
 
@@ -15,7 +26,7 @@ export type ItemPortfolioDb = {
     titulo: string
     descricao: string | null
     valor: number | null
-    imagensJson: string           // JSON array: '["url1","url2"]'
+    imagensJson: string[]         // Array nativo (campo Json do PostgreSQL)
     linkInstagram: string | null
     ativo: boolean
     criadoEm: Date
@@ -57,7 +68,7 @@ async function checarPermissaoAdmin(): Promise<string | null> {
 // Cache React: evita N+1 queries ao renderizar a Landing Page em alto tráfego
 export const listarPortfolioPublico = cache(async (): Promise<ActionResult<{ itens: ItemPortfolioDb[] }>> => {
     try {
-        const itens = await prisma.itemPortfolio.findMany({
+        const rows = await prisma.itemPortfolio.findMany({
             where: { ativo: true },
             orderBy: { criadoEm: 'desc' },
             take: 6,
@@ -72,6 +83,7 @@ export const listarPortfolioPublico = cache(async (): Promise<ActionResult<{ ite
                 criadoEm: true,
             },
         })
+        const itens: ItemPortfolioDb[] = rows.map(r => ({ ...r, imagensJson: parseImagens(r.imagensJson) }))
 
         return { sucesso: true, data: { itens } }
     } catch (error) {
@@ -88,7 +100,7 @@ export async function listarPortfolioAdmin(): Promise<ActionResult<{ itens: Item
     if (erroAuth) return { sucesso: false, erro: erroAuth }
 
     try {
-        const itens = await prisma.itemPortfolio.findMany({
+        const rows = await prisma.itemPortfolio.findMany({
             orderBy: { criadoEm: 'desc' },
             select: {
                 id: true,
@@ -101,6 +113,7 @@ export async function listarPortfolioAdmin(): Promise<ActionResult<{ itens: Item
                 criadoEm: true,
             },
         })
+        const itens: ItemPortfolioDb[] = rows.map(r => ({ ...r, imagensJson: parseImagens(r.imagensJson) }))
 
         return { sucesso: true, data: { itens } }
     } catch (error) {
@@ -125,12 +138,12 @@ export async function criarItemPortfolio(
     const dados = validacao.data
 
     try {
-        const item = await prisma.itemPortfolio.create({
+        const row = await prisma.itemPortfolio.create({
             data: {
                 titulo: dados.titulo,
                 descricao: dados.descricao ?? null,
                 valor: dados.valor ?? null,
-                imagensJson: dados.imagensJson,
+                imagensJson: JSON.parse(dados.imagensJson) as Prisma.InputJsonValue,
                 linkInstagram: dados.linkInstagram || null,
             },
             select: {
@@ -144,6 +157,7 @@ export async function criarItemPortfolio(
                 criadoEm: true,
             },
         })
+        const item: ItemPortfolioDb = { ...row, imagensJson: parseImagens(row.imagensJson) }
 
         revalidatePath('/admin/galeria')
         revalidatePath('/') // Atualiza a vitrine pública imediatamente

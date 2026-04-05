@@ -1,6 +1,7 @@
 'use server'
 
 import { prisma } from '@/lib/prisma'
+import { RoleFuncionario } from '@prisma/client'
 import { ActionResult } from '@/types/domain'
 import { cache } from 'react'
 
@@ -20,7 +21,7 @@ export const buscarProfissionais = cache(async (): Promise<ActionResult<{ profis
     try {
         const profissionais = await prisma.funcionario.findMany({
             where: {
-                role: 'PROFISSIONAL',
+                role: RoleFuncionario.PROFISSIONAL,
                 ativo: true
             },
             select: {

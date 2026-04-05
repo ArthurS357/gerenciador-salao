@@ -1,6 +1,7 @@
 'use server'
 
 import { prisma } from '@/lib/prisma'
+import { RoleFuncionario } from '@prisma/client'
 import { hash } from 'bcrypt'
 import { randomUUID } from 'crypto'
 import { revalidatePath } from 'next/cache'
@@ -99,7 +100,7 @@ export async function criarFuncionario(
         const senhaHash = await hash(SENHA_PADRAO_INICIAL, 12)
         const novoFuncionario = await prisma.funcionario.create({
             data: {
-                nome: dados.nome, email: dados.email, senhaHash, role: 'PROFISSIONAL',
+                nome: dados.nome, email: dados.email, senhaHash, role: RoleFuncionario.PROFISSIONAL,
                 cpf: dados.cpf ?? null, telefone: dados.telefone ?? null, especialidade: dados.especialidade ?? null,
                 descricao: dados.descricao ?? null, comissao: dados.comissao,
                 podeAgendar: dados.podeAgendar, podeVerHistorico: dados.podeVerHistorico,
@@ -256,7 +257,7 @@ export async function listarEquipaAdmin(): Promise<ActionResult<{ equipa: Profis
 
     try {
         const equipa = await prisma.funcionario.findMany({
-            where: { role: 'PROFISSIONAL' },
+            where: { role: RoleFuncionario.PROFISSIONAL },
             orderBy: { nome: 'asc' },
             select: {
                 id: true, nome: true, email: true, especialidade: true, ativo: true,

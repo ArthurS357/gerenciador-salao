@@ -1,13 +1,14 @@
-name: CI - Otimizações e Concorrência
+name: CI — Qualidade e Build
 
 on:
   push:
-    branches: [ "main", "master" ]
+    branches: ["main", "master"]
   pull_request:
-    branches: [ "main", "master" ]
+    branches: ["main", "master"]
 
 jobs:
-  test:
+  quality:
+    name: Qualidade de Código (Node ${{ matrix.node-version }})
     runs-on: ubuntu-latest
 
     strategy:
@@ -15,19 +16,72 @@ jobs:
         node-version: [20.x, 22.x]
 
     steps:
-    - uses: actions/checkout@v3
+      - name: Checkout do repositório
+        uses: actions/checkout@v4
 
-    - name: Usar o Node.js ${{ matrix.node-version }}
-      uses: actions/setup-node@v3
-      with:
-        node-version: ${{ matrix.node-version }}
-        cache: 'npm'
+      - name: Configurar Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: "npm"
 
-    - name: Instalar Dependências
-      run: npm ci
+      - name: Instalar dependências
+        run: npm ci
 
-    - name: Gerar Prisma Client
-      run: npx prisma generate
+      # postinstall já roda `prisma generate` via npm ci,
+      # mas explicitamos para deixar o log do CI mais legível.
+      - name: Gerar Prisma Client
+        run: npx prisma generate
 
-    - name: Run Vitest
-      run: npx vitest run
+      # Valida tipagem TypeScript sem emitir arquivos.
+      # Bloqueia merges com erros de tipo que o ESLint não captura.
+      - name: Verificação de Tipos (TypeScript)
+        run: npm run typecheck
+
+      # Valida estilo e regras de qualidade de código.
+      - name: Lint (ESLint)
+        run: npm run lint
+
+      # Roda a suite de testes unitários/integração com Vitest.
+      - name: Testes (Vitest)
+        run: npx vitest run
+        env:
+          DATABASE_URL: "file:./test.db"
+
+  build:
+    name: Build de Produção
+    runs-on: ubuntu-latest
+    needs: quality
+
+    steps:
+      - name: Checkout do repositório
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js 20.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20.x"
+          cache: "npm"
+
+      - name: Instalar dependências
+        run: npm ci
+
+      # Valida que o build de produção do Next.js compila sem erros.
+      # O job `build` só roda se `quality` passar — fail-fast na pipeline.
+      - name: Build de Produção (Next.js)
+        run: npm run build
+        env:
+          # Em CI, sem TURSO_*, o prisma.ts usa o SQLite local (branch de dev).
+          # O build valida a árvore de componentes, não a conexão com o banco.
+          DATABASE_URL: "file:./ci.db"
+          # Variáveis obrigatórias para o build não lançar erros de undefined
+          JWT_SECRET: "ci-build-secret-not-for-production-use-only"
+          CLOUDINARY_CLOUD_NAME: "ci-placeholder"
+          CLOUDINARY_API_KEY: "ci-placeholder"
+          CLOUDINARY_API_SECRET: "ci-placeholder"
+          WHATSAPP_API_URL: "https://ci-placeholder.example.com"
+          WHATSAPP_API_TOKEN: "ci-placeholder"
+          ADMIN_NOME: "CI Admin"
+          ADMIN_EMAIL: "ci@example.com"
+          ADMIN_PASSWORD: "CiPassword123"
+          SETUP_SECURE_TOKEN: "ci-setup-token"

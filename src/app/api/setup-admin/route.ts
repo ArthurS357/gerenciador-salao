@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { RoleFuncionario } from '@prisma/client';
 import bcrypt from 'bcrypt';
 
 // POST garante semântica HTTP correta e impede CSRF via bots/indexadores.
@@ -22,7 +23,7 @@ export async function POST(request: Request) {
         // Impede a criação de um segundo Admin Master caso as variáveis de ambiente
         // sejam alteradas ou vazadas em produção.
         const totalAdmins = await prisma.funcionario.count({
-            where: { role: 'ADMIN' },
+            where: { role: RoleFuncionario.ADMIN },
         });
 
         if (totalAdmins > 0) {
@@ -50,7 +51,7 @@ export async function POST(request: Request) {
                 nome,
                 email,
                 senhaHash,
-                role: 'ADMIN',
+                role: RoleFuncionario.ADMIN,
                 comissao: 0,
                 podeVerComissao: true,
                 podeAgendar: true,

@@ -3,17 +3,9 @@
 import { memo, useState } from 'react'
 import type { PortfolioGaleriaProps } from './types'
 
-/** Extrai a primeira imagem do campo JSON */
-function primeiraImagem(imagensJson: string): string {
-    try {
-        const arr = JSON.parse(imagensJson) as unknown
-        if (Array.isArray(arr) && arr.length > 0 && typeof arr[0] === 'string') {
-            return arr[0]
-        }
-    } catch {
-        // Se não for JSON válido, trata como URL directa
-    }
-    return imagensJson
+/** Extrai a primeira imagem do array de imagens */
+function primeiraImagem(imagens: string[]): string {
+    return imagens[0] ?? ''
 }
 
 const PortfolioGaleria = memo(function PortfolioGaleria({ itensPortfolio }: PortfolioGaleriaProps) {
