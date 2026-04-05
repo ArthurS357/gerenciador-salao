@@ -4,7 +4,12 @@
       "Bash(npx prisma:*)",
       "Bash(npx tsc:*)",
       "Bash(npx next:*)",
-      "Bash(npm run:*)"
+      "Bash(npm run:*)",
+      "Read(//g/Meu Drive/Meu_Workspace/Cerebro_IA/Projetos/GerenciadorSalao/**)",
+      "Bash(for f:*)",
+      "Bash(do)",
+      "Bash(echo \"=== FILE: $f ===\")",
+      "Bash(done)"
     ]
   }
 }
