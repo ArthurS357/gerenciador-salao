@@ -6,6 +6,8 @@ import { verificarSessaoCliente, verificarSessaoFuncionario } from '@/app/action
 import { ActionResult } from '@/types/domain'
 import { schemaCliente } from '@/lib/schemas'
 import { revalidatePath } from 'next/cache'
+import { StatusAgendamento } from '@prisma/client'
+import { decimalParaNumero } from '@/lib/decimal-utils'
 
 // ── TIPAGENS ─────────────────────────────────────────────────────────────────
 
@@ -13,7 +15,7 @@ export type HistoricoAgendamentoItem = {
     id: string
     dataHoraInicio: Date
     valorBruto: number
-    concluido: boolean
+    status: string
     funcionario: { nome: string }
     servicos: { servico: { nome: string } }[]
     produtos: { produto: { nome: string } }[]
@@ -380,7 +382,7 @@ export async function obterHistoricoCliente(clienteId: string): Promise<ActionRe
             where: { clienteId },
             orderBy: { dataHoraInicio: 'desc' },
             select: {
-                id: true, dataHoraInicio: true, valorBruto: true, concluido: true,
+                id: true, dataHoraInicio: true, valorBruto: true, status: true,
                 funcionario: { select: { nome: true } },
                 servicos: { select: { servico: { select: { nome: true } } } },
                 produtos: { select: { produto: { select: { nome: true } } } },
@@ -389,8 +391,8 @@ export async function obterHistoricoCliente(clienteId: string): Promise<ActionRe
         })
 
         const totalGasto = agendamentos
-            .filter(ag => ag.concluido)
-            .reduce((acc, ag) => acc + ag.valorBruto, 0)
+            .filter(ag => ag.status === StatusAgendamento.FINALIZADO)
+            .reduce((acc, ag) => acc + decimalParaNumero(ag.valorBruto), 0)
 
         return {
             sucesso: true,
@@ -398,7 +400,10 @@ export async function obterHistoricoCliente(clienteId: string): Promise<ActionRe
                 dados: {
                     cliente,
                     totalGasto,
-                    agendamentos
+                    agendamentos: agendamentos.map(ag => ({
+                        ...ag,
+                        valorBruto: decimalParaNumero(ag.valorBruto),
+                    }))
                 }
             }
         }

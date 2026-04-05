@@ -6,6 +6,13 @@ import { verificarSessaoFuncionario } from '@/app/actions/auth'
 import { z } from 'zod'
 import { ActionResult } from '@/types/domain'
 import { schemaProduto } from '@/lib/schemas'
+import { decimalParaNumero } from '@/lib/decimal-utils'
+import type { Prisma } from '@prisma/client'
+
+// Helper de conversão Decimal → number na fronteira
+function mapProduto(row: { precoCusto: Prisma.Decimal | null; precoVenda: Prisma.Decimal; [k: string]: unknown }): ProdutoItem {
+    return { ...row, precoCusto: row.precoCusto != null ? decimalParaNumero(row.precoCusto) : null, precoVenda: decimalParaNumero(row.precoVenda) } as ProdutoItem
+}
 
 // ── Tipagens ──────────────────────────────────────────────────────────────────
 export type ProdutoItem = {
@@ -80,7 +87,7 @@ export async function listarProdutosAdmin(): Promise<ActionResult<{ produtos: Pr
         })
 
         // Correção Crítica: Encapsulamento correto do payload
-        return { sucesso: true, data: { produtos } }
+        return { sucesso: true, data: { produtos: produtos.map(mapProduto) } }
     } catch (error) {
         console.error('[Produto] Erro ao listar produtos:', error)
         return { sucesso: false, erro: 'Falha ao carregar o estoque.' }
@@ -134,7 +141,7 @@ export async function criarProdutoAdmin(
         revalidatePath('/admin/estoque')
 
         // Correção Crítica: Encapsulamento correto do payload
-        return { sucesso: true, data: { produto } }
+        return { sucesso: true, data: { produto: mapProduto(produto) } }
     } catch (error) {
         console.error('[Produto] Erro ao criar produto:', error)
         return { sucesso: false, erro: 'Falha ao cadastrar o produto.' }
@@ -170,7 +177,7 @@ export async function editarProduto(
         revalidatePath('/admin/estoque')
 
         // Correção Crítica: Encapsulamento correto do payload
-        return { sucesso: true, data: { produto } }
+        return { sucesso: true, data: { produto: mapProduto(produto) } }
     } catch (error) {
         console.error('[Produto] Erro ao editar produto:', error)
         return { sucesso: false, erro: 'Falha ao editar o produto.' }
@@ -261,7 +268,7 @@ export async function baixarEstoqueAbsoluto(
         revalidatePath('/admin/estoque')
 
         // Correção Crítica: Encapsulamento correto do payload
-        return { sucesso: true, data: { produto } }
+        return { sucesso: true, data: { produto: mapProduto(produto) } }
     } catch (error) {
         console.error('[Produto] Erro ao atualizar o estoque:', error)
         return { sucesso: false, erro: 'Erro ao atualizar o estoque.' }

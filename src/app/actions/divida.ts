@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { verificarSessaoFuncionario } from '@/app/actions/auth'
 import type { ActionResult, DividaCliente, StatusDivida } from '@/types/domain'
+import { decimalParaNumero } from '@/lib/decimal-utils'
 
 // ── Tipos exportados para uso na UI ──────────────────────────────────────────
 
@@ -70,9 +71,15 @@ export async function listarDividasCliente(
         })
 
         // Garante que `status` bate com o union type do domínio
-        const dividasTypadas = dividas.map(d => ({
+        const dividasTypadas: DividaClienteDetalhada[] = dividas.map(d => ({
             ...d,
             status: d.status as StatusDivida,
+            valorOriginal: decimalParaNumero(d.valorOriginal),
+            valorQuitado: decimalParaNumero(d.valorQuitado),
+            agendamento: d.agendamento ? {
+                ...d.agendamento,
+                valorBruto: decimalParaNumero(d.agendamento.valorBruto),
+            } : null,
         }))
 
         return { sucesso: true, data: { dividas: dividasTypadas } }
@@ -128,16 +135,16 @@ export async function quitarDivida(
             if (!divida) throw new Error('Dívida não encontrada.')
             if (divida.status === 'QUITADA') throw new Error('Esta dívida já foi integralmente quitada.')
 
-            const saldoPendente = divida.valorOriginal - divida.valorQuitado
+            const saldoPendente = decimalParaNumero(divida.valorOriginal) - decimalParaNumero(divida.valorQuitado)
             if (input.valorQuitado > saldoPendente + 0.01) {
                 throw new Error(`Valor excede o saldo pendente de R$ ${saldoPendente.toFixed(2)}.`)
             }
 
             const novoValorQuitado = Math.min(
-                divida.valorQuitado + input.valorQuitado,
-                divida.valorOriginal
+                decimalParaNumero(divida.valorQuitado) + input.valorQuitado,
+                decimalParaNumero(divida.valorOriginal)
             )
-            const saldoRestante = Math.max(0, divida.valorOriginal - novoValorQuitado)
+            const saldoRestante = Math.max(0, decimalParaNumero(divida.valorOriginal) - novoValorQuitado)
 
             const novoStatus: StatusDivida =
                 saldoRestante < 0.01 ? 'QUITADA'

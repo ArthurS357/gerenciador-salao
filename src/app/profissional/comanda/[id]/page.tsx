@@ -5,6 +5,7 @@ import { jwtVerify } from 'jose';
 import PainelComanda from '@/components/PainelComanda';
 import { getJwtSecret } from '@/lib/jwt';
 import HistoricoAuditoria from '@/components/admin/HistoricoAuditoria';
+import { decimalParaNumero } from '@/lib/decimal-utils';
 
 interface PageProps {
     params: Promise<{ id: string }>;
@@ -78,11 +79,11 @@ export default async function ComandaPage({ params }: PageProps) {
         ...agendamento,
         servicos: agendamento.servicos.map(s => ({
             ...s,
-            precoCobrado: podeVerFinancas ? s.precoCobrado : null,
+            precoCobrado: podeVerFinancas && s.precoCobrado != null ? decimalParaNumero(s.precoCobrado) : null,
         })),
         produtos: agendamento.produtos.map(p => ({
             ...p,
-            precoCobrado: podeVerFinancas ? p.precoCobrado : 0,
+            precoCobrado: podeVerFinancas && p.precoCobrado != null ? decimalParaNumero(p.precoCobrado) : 0,
         }))
     };
 
@@ -93,7 +94,7 @@ export default async function ComandaPage({ params }: PageProps) {
             <div className="w-full max-w-4xl space-y-8">
                 <PainelComanda
                     agendamento={agendamentoSanitizado}
-                    produtosDisponiveis={produtosDisponiveis}
+                    produtosDisponiveis={produtosDisponiveis.map(p => ({ ...p, precoVenda: decimalParaNumero(p.precoVenda) }))}
                     podeVerFinancas={podeVerFinancas}
                 />
 

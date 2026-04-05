@@ -7,6 +7,13 @@ import { verificarSessaoFuncionario } from '@/app/actions/auth'
 
 import { ActionResult } from '@/types/domain'
 import { schemaServico, schemaInsumoServico } from '@/lib/schemas'
+import { decimalParaNumero } from '@/lib/decimal-utils'
+
+// Helper de conversão Decimal → number na fronteira
+function mapServico(row: Record<string, unknown>): ServicoPublicoItem {
+    const r = row as { preco?: Prisma.Decimal | null; [k: string]: unknown }
+    return { ...r, preco: r.preco != null ? decimalParaNumero(r.preco) : null } as ServicoPublicoItem
+}
 
 export type ServicoPublicoItem = {
     id: string
@@ -67,7 +74,7 @@ export async function listarServicosPublicos(): Promise<ActionResult<{ servicos:
             }
         })
         // Correção Crítica: Encapsulamento correto do payload 'data'
-        return { sucesso: true, data: { servicos } }
+        return { sucesso: true, data: { servicos: servicos.map(mapServico) } }
     } catch (error) {
         console.error('[Serviço] Erro ao listar serviços públicos:', error)
         return { sucesso: false, erro: 'Falha ao listar serviços.' }
@@ -132,7 +139,7 @@ export async function criarServicoAdmin(
         revalidatePath('/admin/servicos')
 
         // Correção Crítica: Encapsulamento correto do payload 'data'
-        return { sucesso: true, data: { servico } }
+        return { sucesso: true, data: { servico: mapServico(servico as Record<string, unknown>) } }
     } catch (error) {
         console.error('[Serviço] Erro ao cadastrar serviço:', error)
         return { sucesso: false, erro: 'Falha ao cadastrar o serviço.' }

@@ -4,10 +4,11 @@ import { prisma } from '@/lib/prisma'
 import { hash } from 'bcrypt'
 import { formatInTimeZone } from 'date-fns-tz'
 import { verificarSessaoFuncionario } from '@/app/actions/auth'
-import { Prisma } from '@prisma/client'
+import { Prisma, StatusAgendamento } from '@prisma/client'
 import { ActionResult } from '@/types/domain'
 import { schemaExpediente, schemaAlterarSenha } from '@/lib/schemas'
 import { z } from 'zod'
+import { decimalParaNumero } from '@/lib/decimal-utils'
 
 // ── Tipagem do Extrato ────────────────────────────────────────────────────────
 type ItemExtrato = {
@@ -77,7 +78,7 @@ export async function obterDadosPainelProfissional(): Promise<ActionResult<{
             where: {
                 funcionarioId: sessao.id,
                 dataHoraInicio: { gte: inicioDia, lte: fimDia },
-                canceladoEm: null,
+                status: { not: StatusAgendamento.CANCELADO },
             },
             orderBy: { dataHoraInicio: 'asc' },
             include: {
@@ -96,12 +97,12 @@ export async function obterDadosPainelProfissional(): Promise<ActionResult<{
             const agregacao = await prisma.agendamento.aggregate({
                 where: {
                     funcionarioId: sessao.id,
-                    concluido: true,
+                    status: StatusAgendamento.FINALIZADO,
                     dataHoraInicio: { gte: inicioMes },
                 },
                 _sum: { valorComissao: true }
             })
-            comissaoMensal = agregacao._sum.valorComissao ?? 0
+            comissaoMensal = decimalParaNumero(agregacao._sum.valorComissao)
         }
 
         // Correção Crítica: Encapsulamento correto do payload 'data'
@@ -111,7 +112,7 @@ export async function obterDadosPainelProfissional(): Promise<ActionResult<{
                 profissional: {
                     nome: funcionario.nome,
                     podeVerComissao: funcionario.podeVerComissao,
-                    taxaComissao: Number(funcionario.comissao), // Garantindo conversão estrita
+                    taxaComissao: decimalParaNumero(funcionario.comissao),
                     comissaoMensal,
                 },
                 agendamentosHoje
@@ -239,7 +240,7 @@ export async function getExtratoProfissional(): Promise<ActionResult<{
         const agendamentos = await prisma.agendamento.findMany({
             where: {
                 funcionarioId: sessao.id,
-                concluido: true,
+                status: StatusAgendamento.FINALIZADO,
                 dataHoraInicio: { gte: inicioMes, lt: inicioProximoMes },
             },
             include: {
@@ -250,9 +251,9 @@ export async function getExtratoProfissional(): Promise<ActionResult<{
 
         let totalReceber = 0
         const extrato: ItemExtrato[] = agendamentos.map(ag => {
-            const bruto = ag.valorBruto
-            const insumos = ag.custoInsumos
-            const taxa = ag.comissaoSnap // % congelada no momento do fechamento
+            const bruto = decimalParaNumero(ag.valorBruto)
+            const insumos = decimalParaNumero(ag.custoInsumos)
+            const taxa = decimalParaNumero(ag.comissaoSnap) // % congelada no momento do fechamento
             const base = bruto - insumos
             const comissaoLiquida = base > 0 ? base * (taxa / 100) : 0
 

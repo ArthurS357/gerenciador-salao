@@ -1,7 +1,7 @@
 'use server'
 
 import { prisma } from '@/lib/prisma'
-import { Prisma, RoleFuncionario } from '@prisma/client'
+import { Prisma, RoleFuncionario, StatusAgendamento } from '@prisma/client'
 import { verificarNumeroExisteNoWhatsApp } from '@/lib/whatsapp'
 import { getMessagingService } from '@/services/messaging/getMessagingService'
 import { formatInTimeZone } from 'date-fns-tz'
@@ -12,11 +12,19 @@ import { verificarSessaoCliente, verificarSessaoFuncionario } from '@/app/action
 import { ActionResult } from '@/types/domain'
 import { schemaCriarAgendamento, schemaEditarAgendamento } from '@/lib/schemas'
 import { cache } from 'react'
+import { decimalParaNumero } from '@/lib/decimal-utils'
 
 // ── Constantes de Domínio ────────────────────────────────────────────────────
 const FUSO_HORARIO = 'America/Sao_Paulo'
 const TOLERANCIA_ATRASO_MS = 5 * 60_000
 const TEMPO_SERVICO_FALLBACK_MINUTOS = 30
+
+/** Status ativos — agendamentos que não foram finalizados nem cancelados. */
+const STATUS_ATIVOS: StatusAgendamento[] = [
+    StatusAgendamento.AGENDADO,
+    StatusAgendamento.CONFIRMADO,
+    StatusAgendamento.EM_ATENDIMENTO,
+]
 
 // ── Tipagens Estritas ─────────────────────────────────────────────────────────
 
@@ -28,7 +36,7 @@ export type AgendaProfissionalItem = {
     dataHoraFim: Date
     valorBruto: number
     taxas: number
-    concluido: boolean
+    status: string
     cliente: {
         nome: string
         telefone: string
@@ -56,7 +64,7 @@ export type AgendamentoGlobalItem = {
     dataHoraFim: Date
     valorBruto: number
     taxas: number
-    concluido: boolean
+    status: string
     cliente: {
         nome: string
         telefone: string
@@ -232,9 +240,10 @@ export async function criarAgendamentoMultiplo(
         const itensParaCriar: { servicoId: string; precoCobrado: number | null }[] = []
 
         for (const s of servicos) {
-            valorBruto += s.preco ?? 0
+            const preco = decimalParaNumero(s.preco)
+            valorBruto += preco
             tempoTotalMinutos += s.tempoMinutos ?? TEMPO_SERVICO_FALLBACK_MINUTOS
-            itensParaCriar.push({ servicoId: s.id, precoCobrado: s.preco })
+            itensParaCriar.push({ servicoId: s.id, precoCobrado: preco || null })
         }
 
         const tempoTotalBloqueio = tempoTotalMinutos + getTempoBuffer()
@@ -249,8 +258,7 @@ export async function criarAgendamentoMultiplo(
             const conflito = await tx.agendamento.findFirst({
                 where: {
                     funcionarioId,
-                    concluido: false,
-                    canceladoEm: null,
+                    status: { in: STATUS_ATIVOS },
                     AND: [
                         { dataHoraInicio: { lt: dataHoraFim } },
                         { dataHoraFim: { gt: dataHoraInicio } },
@@ -270,7 +278,7 @@ export async function criarAgendamentoMultiplo(
                     taxas: 0,
                     dataHoraInicio,
                     dataHoraFim,
-                    concluido: false,
+                    status: StatusAgendamento.AGENDADO,
                     servicos: { create: itensParaCriar },
                 },
                 include: { funcionario: { select: { nome: true } } }
@@ -326,7 +334,7 @@ export async function listarAgendaProfissional(
             return { sucesso: false, erro: 'Você não tem permissão para ver a agenda de outro profissional.' };
         }
 
-        const agendamentos = await prisma.agendamento.findMany({
+        const rows = await prisma.agendamento.findMany({
             where: {
                 funcionarioId,
             },
@@ -338,7 +346,32 @@ export async function listarAgendaProfissional(
             },
         })
 
-        // Correção Crítica: Encapsula no objeto `data`
+        // Converte Decimal → number na fronteira
+        const agendamentos: AgendaProfissionalItem[] = rows.map(r => ({
+            id: r.id,
+            clienteId: r.clienteId,
+            funcionarioId: r.funcionarioId,
+            dataHoraInicio: r.dataHoraInicio,
+            dataHoraFim: r.dataHoraFim,
+            valorBruto: decimalParaNumero(r.valorBruto),
+            taxas: decimalParaNumero(r.taxas),
+            status: r.status,
+            cliente: r.cliente,
+            servicos: r.servicos.map(s => ({
+                servico: {
+                    nome: s.servico.nome,
+                    preco: decimalParaNumero(s.servico.preco),
+                    tempoMinutos: s.servico.tempoMinutos,
+                }
+            })),
+            produtos: r.produtos.map(p => ({
+                produto: {
+                    nome: p.produto.nome,
+                    precoVenda: decimalParaNumero(p.produto.precoVenda),
+                }
+            })),
+        }))
+
         return { sucesso: true, data: { agendamentos } }
     } catch (error) {
         console.error('Erro ao listar agenda do profissional:', error)
@@ -374,8 +407,12 @@ export async function cancelarAgendamentoPendente(id: string): Promise<ActionRes
             return { sucesso: false, erro: 'Acesso negado. Você não tem permissão para cancelar agendamentos.' }
         }
 
-        if (agendamento.concluido) {
+        if (agendamento.status === StatusAgendamento.FINALIZADO) {
             return { sucesso: false, erro: 'Não é possível cancelar uma comanda que já foi faturada e enviada ao caixa.' }
+        }
+
+        if (agendamento.status === StatusAgendamento.CANCELADO) {
+            return { sucesso: false, erro: 'Este agendamento já foi cancelado.' }
         }
 
         const produtosParaRestaurar = agendamento.produtos.reduce((acc, item) => {
@@ -391,7 +428,7 @@ export async function cancelarAgendamentoPendente(id: string): Promise<ActionRes
                 });
             }
 
-            await tx.agendamento.update({ where: { id }, data: { canceladoEm: new Date() } })
+            await tx.agendamento.update({ where: { id }, data: { status: StatusAgendamento.CANCELADO } })
 
             await tx.notificacao.create({
                 data: {
@@ -436,7 +473,7 @@ export async function listarAgendamentosGlobais(): Promise<ActionResult<{ agenda
             return { sucesso: false, erro: 'Acesso negado. Recurso restrito à gestão.' }
         }
 
-        const agendamentos = await prisma.agendamento.findMany({
+        const rows = await prisma.agendamento.findMany({
             orderBy: { dataHoraInicio: 'desc' },
             include: {
                 cliente: { select: { nome: true, telefone: true } },
@@ -444,7 +481,19 @@ export async function listarAgendamentosGlobais(): Promise<ActionResult<{ agenda
             }
         })
 
-        // Correção Crítica: Encapsula no objeto `data`
+        const agendamentos: AgendamentoGlobalItem[] = rows.map(r => ({
+            id: r.id,
+            clienteId: r.clienteId,
+            funcionarioId: r.funcionarioId,
+            dataHoraInicio: r.dataHoraInicio,
+            dataHoraFim: r.dataHoraFim,
+            valorBruto: decimalParaNumero(r.valorBruto),
+            taxas: decimalParaNumero(r.taxas),
+            status: r.status,
+            cliente: r.cliente,
+            funcionario: r.funcionario,
+        }))
+
         return { sucesso: true, data: { agendamentos } }
     } catch (error) {
         console.error('Erro ao listar agendamentos globais:', error)
@@ -473,7 +522,8 @@ export async function editarAgendamentoPendente(
             return { sucesso: false, erro: 'Acesso negado para editar este agendamento.' }
         }
 
-        if (agendamento.concluido) return { sucesso: false, erro: 'Não é possível editar uma comanda que já foi faturada.' }
+        if (agendamento.status === StatusAgendamento.FINALIZADO) return { sucesso: false, erro: 'Não é possível editar uma comanda que já foi faturada.' }
+        if (agendamento.status === StatusAgendamento.CANCELADO) return { sucesso: false, erro: 'Não é possível editar um agendamento cancelado.' }
 
         const validacao = schemaEditarAgendamento.safeParse({
             id,
@@ -508,8 +558,7 @@ export async function editarAgendamentoPendente(
                 where: {
                     funcionarioId,
                     id: { not: id },
-                    concluido: false,
-                    canceladoEm: null,
+                    status: { in: STATUS_ATIVOS },
                     AND: [
                         { dataHoraInicio: { lt: dataHoraFim } },
                         { dataHoraFim: { gt: dataHoraInicio } },
@@ -562,7 +611,6 @@ export const listarEquipaComExpediente = cache(async (): Promise<ActionResult<{ 
             orderBy: { nome: 'asc' }
         })
 
-        // Correção Crítica: Encapsula no objeto `data`
         return { sucesso: true, data: { equipa } }
     } catch (error) {
         console.error('Erro ao listar equipa com expediente:', error)

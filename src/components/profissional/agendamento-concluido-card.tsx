@@ -1,5 +1,6 @@
 import { formatInTimeZone } from 'date-fns-tz';
 import { CheckCircle2 } from 'lucide-react';
+import { formatarMoeda } from '@/lib/formatters';
 
 interface AgendamentoConcluidoCardProps {
     clienteNome: string;
@@ -40,7 +41,7 @@ export function AgendamentoConcluidoCard({
             </div>
             <div className="sm:text-right pl-14 sm:pl-0">
                 <p className="font-black text-foreground text-lg">
-                    R$ {valorBruto.toFixed(2).replace('.', ',')}
+                    {formatarMoeda(valorBruto)}
                 </p>
             </div>
         </div>

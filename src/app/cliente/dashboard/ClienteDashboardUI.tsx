@@ -8,6 +8,7 @@ import { logoutCliente } from '@/app/actions/auth'
 import { excluirContaCliente } from '@/app/actions/cliente'
 import { criarAvaliacao } from '@/app/actions/avaliacao'
 import type { HistoricoAgendamentoItem } from '@/app/actions/cliente'
+import { formatarMoeda } from '@/lib/formatters'
 
 interface ClienteDashboardUIProps {
     clienteId: string
@@ -22,7 +23,7 @@ type HistoricoItemComAvaliacao = HistoricoAgendamentoItem & {
 }
 
 const STATUS_BADGE = {
-    concluido: 'bg-[rgba(197,168,124,0.1)] text-caramelo border border-[rgba(197,168,124,0.3)]',
+    finalizado: 'bg-[rgba(197,168,124,0.1)] text-caramelo border border-[rgba(197,168,124,0.3)]',
     pendente: 'bg-white text-[#2a1810] border border-[#2a1810]/20 shadow-sm',
 } as const
 
@@ -99,8 +100,8 @@ export default function ClienteDashboardUI({
         setLoadingAvaliacao(false)
     }
 
-    const pendentes = agendamentos.filter(a => !a.concluido)
-    const concluidos = agendamentos.filter(a => a.concluido)
+    const pendentes = agendamentos.filter(a => a.status !== 'FINALIZADO' && a.status !== 'CANCELADO')
+    const concluidos = agendamentos.filter(a => a.status === 'FINALIZADO')
 
     return (
         <div className="min-h-screen bg-[#fdfaf6] p-4 md:p-8 pt-24 relative selection:bg-caramelo selection:text-white">
@@ -155,8 +156,7 @@ export default function ClienteDashboardUI({
                                 Total investido em você
                             </p>
                             <p className="text-4xl md:text-5xl font-serif font-light text-white tracking-tight">
-                                <span className="text-caramelo/60 text-3xl mr-1">R$</span>
-                                {totalGasto.toFixed(2)}
+                                {formatarMoeda(totalGasto)}
                             </p>
                         </div>
 
@@ -259,9 +259,9 @@ export default function ClienteDashboardUI({
                                                 </div>
                                                 <div className="text-right flex flex-col items-end gap-2">
                                                     <span className="font-serif text-lg text-caramelo font-medium">
-                                                        R$ {ag.valorBruto.toFixed(2)}
+                                                        {formatarMoeda(ag.valorBruto)}
                                                     </span>
-                                                    <span className={`px-2 py-1 text-[0.55rem] font-bold uppercase tracking-[0.15em] ${STATUS_BADGE.concluido}`}>
+                                                    <span className={`px-2 py-1 text-[0.55rem] font-bold uppercase tracking-[0.15em] ${STATUS_BADGE.finalizado}`}>
                                                         Finalizado
                                                     </span>
                                                 </div>

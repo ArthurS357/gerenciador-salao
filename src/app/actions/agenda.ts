@@ -1,7 +1,7 @@
 'use server';
 
 import { prisma } from '@/lib/prisma';
-import { RoleFuncionario } from '@prisma/client';
+import { RoleFuncionario, StatusAgendamento } from '@prisma/client';
 import { formatInTimeZone, toZonedTime, fromZonedTime } from 'date-fns-tz';
 
 const FUSO = 'America/Sao_Paulo';
@@ -85,8 +85,7 @@ export async function obterHorariosDisponiveis(
     const agendamentosGlobais = await prisma.agendamento.findMany({
         where: {
             funcionarioId: { in: profissionaisRelevantes },
-            concluido: false,
-            canceladoEm: null,
+            status: { in: [StatusAgendamento.AGENDADO, StatusAgendamento.CONFIRMADO, StatusAgendamento.EM_ATENDIMENTO] },
             dataHoraInicio: { lte: fimDoDiaUTC }, // Usado 'lte/gte' para cobrir exatamente as margens
             dataHoraFim: { gte: inicioDoDiaUTC }
         },

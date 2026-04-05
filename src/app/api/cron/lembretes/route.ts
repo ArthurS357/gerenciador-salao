@@ -12,6 +12,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { StatusAgendamento } from '@prisma/client'
 import { getMessagingService } from '@/services/messaging/getMessagingService'
 import { formatInTimeZone } from 'date-fns-tz'
 import { ptBR } from 'date-fns/locale'
@@ -45,8 +46,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     const agendamentos = await prisma.agendamento.findMany({
       where: {
         dataHoraInicio:  { gte: janelaInicio, lte: janelaFim },
-        concluido:       false,
-        canceladoEm:     null,
+        status:          { in: [StatusAgendamento.AGENDADO, StatusAgendamento.CONFIRMADO] },
         lembreteEnviado: false,  // garante idempotência em retries
       },
       include: {

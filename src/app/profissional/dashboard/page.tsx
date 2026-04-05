@@ -23,7 +23,7 @@ export default async function ProfissionalDashboardPage() {
             // Filtra agendamentos não concluídos e que iniciam a partir de agora
             const pendentes = res.data.agendamentos.filter(ag => {
                 const dataAg = new Date(ag.dataHoraInicio);
-                return !ag.concluido && dataAg >= agora;
+                return ag.status !== 'FINALIZADO' && ag.status !== 'CANCELADO' && dataAg >= agora;
             }).sort((a, b) => new Date(a.dataHoraInicio).getTime() - new Date(b.dataHoraInicio).getTime());
 
             if (pendentes.length > 0) {

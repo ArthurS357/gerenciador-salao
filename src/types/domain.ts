@@ -1,5 +1,8 @@
 export type Role = 'ADMIN' | 'PROFISSIONAL' | 'CLIENTE' | 'RECEPCIONISTA'
 
+/** Status do agendamento — espelha o enum StatusAgendamento do Prisma. */
+export type StatusAgendamento = 'AGENDADO' | 'CONFIRMADO' | 'EM_ATENDIMENTO' | 'FINALIZADO' | 'CANCELADO'
+
 // ── ENTIDADES BASE ───────────────────────────────────────────────────────────
 
 export interface Funcionario {
@@ -108,7 +111,7 @@ export interface AgendamentoGlobal {
     taxas: number
     dataHoraInicio: Date // Padronizado para Date
     dataHoraFim: Date    // Padronizado para Date
-    concluido: boolean
+    status: StatusAgendamento
     cliente: ClienteResumo
     funcionario: FuncionarioSimples
     servicos: AgendamentoServico[]
@@ -120,7 +123,7 @@ export interface AgendamentoProfissional {
     valorBruto: number
     dataHoraInicio: Date // Padronizado para Date
     dataHoraFim: Date    // Padronizado para Date
-    concluido: boolean
+    status: StatusAgendamento
     cliente: Omit<ClienteResumo, 'anonimizado'> // Usa o Resumo e remove os campos desnecessários
     servicos: AgendamentoServico[]
 }
@@ -129,7 +132,7 @@ export interface AgendamentoCliente {
     id: string
     valorBruto: number
     dataHoraInicio: Date
-    concluido: boolean
+    status: StatusAgendamento
     funcionario: FuncionarioSimples
 }
 
@@ -146,16 +149,10 @@ export interface AgendamentoHistoricoFinanceiro {
     detalheProdutos: string
 }
 
-export interface ResumoMetodosPagamento {
-    totalDinheiro: number
-    totalCartao: number
-    totalPix: number
-}
-
-export interface ConfiguracaoSalao {
-    taxaCredito: number
-    taxaDebito: number
-    taxaPix: number
+/** Resumo de pagamentos agrupado por método — substituiu o legado totalDinheiro/totalCartao/totalPix. */
+export interface ResumoMetodoPagamento {
+    metodo: string
+    total: number
 }
 
 export interface FinanceiroResumo {
@@ -165,7 +162,7 @@ export interface FinanceiroResumo {
     lucroLiquido: number
     equipe: FuncionarioResumo[]
     historico: AgendamentoHistoricoFinanceiro[]
-    metodosPagamento: ResumoMetodosPagamento
+    metodosPagamento: ResumoMetodoPagamento[]
 }
 
 export interface FechamentoComanda {

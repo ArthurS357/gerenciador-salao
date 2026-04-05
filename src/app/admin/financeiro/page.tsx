@@ -2,12 +2,13 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import dynamic from 'next/dynamic'
-import { obterResumoFinanceiro, atualizarRegrasFuncionario, obterDadosGraficosFinanceiros, obterConfiguracaoSalao, salvarConfiguracaoSalao } from '@/app/actions/financeiro'
+import { obterResumoFinanceiro, atualizarRegrasFuncionario, obterDadosGraficosFinanceiros } from '@/app/actions/financeiro'
 import { listarTaxasMetodoPagamento, salvarTaxaMetodoPagamento, excluirTaxaMetodoPagamento, type TaxaMetodoView } from '@/app/actions/taxas'
 import { METODOS_PAGAMENTO, BANDEIRAS_CARTAO } from '@/lib/pagamento-constantes'
+import { formatarMoeda } from '@/lib/formatters'
 import { toast } from 'sonner'
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
-import type { FinanceiroResumo, FuncionarioResumo, ConfiguracaoSalao, MetodoPagamento } from '@/types/domain'
+import type { FinanceiroResumo, FuncionarioResumo, MetodoPagamento } from '@/types/domain'
 import * as XLSX from 'xlsx'
 import { Loader2 } from 'lucide-react'
 import { MetricCard } from '@/components/admin/metric-card'
@@ -50,9 +51,7 @@ export default function PainelFinanceiroPage() {
     const [editState, setEditState] = useState<EditState>({})
     const [loadingIds, setLoadingIds] = useState<Record<string, boolean>>({})
 
-    // Estado para configuração de taxas legado
-    const [configuracao, setConfiguracao] = useState<ConfiguracaoSalao>({ taxaCredito: 3.0, taxaDebito: 1.5, taxaPix: 0.0 })
-    const [salvandoConfig, setSalvandoConfig] = useState(false)
+    // Estado para configuração de taxas por bandeira (substitui ConfiguracaoSalao legado)
 
     // Estado para taxas por método/bandeira
     const [taxasBandeira, setTaxasBandeira] = useState<TaxaMetodoView[]>([])
@@ -96,10 +95,9 @@ export default function PainelFinanceiroPage() {
         setIsLoadingMetrics(true)
         const filtro = obterDatasDoFiltro(periodo)
 
-        const [res, resGraficos, resConfig, resTaxas] = await Promise.all([
+        const [res, resGraficos, resTaxas] = await Promise.all([
             obterResumoFinanceiro(filtro),
             obterDadosGraficosFinanceiros(7),
-            obterConfiguracaoSalao(),
             listarTaxasMetodoPagamento(),
         ])
 
@@ -125,9 +123,7 @@ export default function PainelFinanceiroPage() {
             toast.error('Erro ao carregar dados financeiros')
         }
 
-        if (isSuccessResponse<{ configuracao: ConfiguracaoSalao }>(resConfig)) {
-            setConfiguracao(resConfig.data.configuracao)
-        }
+
 
         if (isSuccessResponse<{ taxas: TaxaMetodoView[] }>(resTaxas)) {
             setTaxasBandeira(resTaxas.data.taxas)
@@ -197,16 +193,7 @@ export default function PainelFinanceiroPage() {
     const setPodeVerFinanceiroGlobal = (id: string, podeVerFinanceiroGlobal: boolean) =>
         setEditState((prev) => ({ ...prev, [id]: { ...prev[id]!, podeVerFinanceiroGlobal } }))
 
-    const handleSalvarTaxas = async () => {
-        setSalvandoConfig(true)
-        const res = await salvarConfiguracaoSalao(configuracao.taxaCredito, configuracao.taxaDebito, configuracao.taxaPix)
-        if (isSuccessResponse(res)) {
-            toast.success('Taxas da maquininha salvas com sucesso!')
-        } else if (isErrorResponse(res)) {
-            toast.error(res.erro)
-        }
-        setSalvandoConfig(false)
-    }
+
 
     const handleSalvarTaxaBandeira = async () => {
         setSalvandoTaxa(true)
@@ -327,43 +314,7 @@ export default function PainelFinanceiroPage() {
                     </div>
                 </div>
 
-                {/* CONFIGURAÇÃO DE TAXAS DA MAQUININHA */}
-                <section className="bg-card rounded-2xl shadow-sm border border-border mb-8">
-                    <div className="p-6 md:p-8 border-b border-border bg-muted/30">
-                        <h2 className="text-xl font-bold text-foreground tracking-tight">Taxas da Maquininha</h2>
-                        <p className="text-sm text-muted-foreground mt-1">Percentuais cobrados pelo adquirente. A taxa incide <strong>apenas</strong> sobre o valor pago em cartão.</p>
-                    </div>
-                    <div className="p-6 md:p-8">
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-6">
-                            {[
-                                { label: 'Crédito (%)', value: configuracao.taxaCredito, key: 'taxaCredito' as const },
-                                { label: 'Débito (%)', value: configuracao.taxaDebito, key: 'taxaDebito' as const },
-                                { label: 'PIX (%)', value: configuracao.taxaPix, key: 'taxaPix' as const },
-                            ].map(campo => (
-                                <div key={campo.key}>
-                                    <label className="block text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2">{campo.label}</label>
-                                    <div className="inline-flex items-center border border-border rounded-lg overflow-hidden w-full">
-                                        <input
-                                            type="number" min={0} max={20} step={0.1} disabled={salvandoConfig}
-                                            value={campo.value}
-                                            onChange={e => setConfiguracao(prev => ({ ...prev, [campo.key]: Math.max(0, Math.min(20, parseFloat(e.target.value) || 0)) }))}
-                                            className="flex-1 px-3 py-2 text-center font-bold text-primary bg-card outline-none focus:bg-primary/5 disabled:bg-muted"
-                                        />
-                                        <span className="bg-muted px-3 py-2 text-muted-foreground font-bold border-l border-border text-sm">%</span>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                        <button
-                            onClick={handleSalvarTaxas}
-                            disabled={salvandoConfig}
-                            className="bg-primary text-primary-foreground font-bold px-6 py-2.5 rounded-xl text-sm hover:bg-primary/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm flex items-center gap-2"
-                        >
-                            {salvandoConfig && <Loader2 className="w-4 h-4 animate-spin" />}
-                            {salvandoConfig ? 'Salvando...' : 'Salvar Taxas'}
-                        </button>
-                    </div>
-                </section>
+
 
                 {/* TAXAS POR MÉTODO E BANDEIRA */}
                 <section className="bg-card rounded-2xl shadow-sm border border-border mb-8">
@@ -493,21 +444,29 @@ export default function PainelFinanceiroPage() {
                     />
                 </div>
 
-                {/* BREAKDOWN POR MÉTODO DE PAGAMENTO */}
-                {dados && (
+                {dados && dados.metodosPagamento.length > 0 && (
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mb-10">
-                        {[
-                            { label: 'Recebido em Dinheiro', value: dados.metodosPagamento.totalDinheiro, cor: 'text-emerald-700', bg: 'bg-emerald-50 border-emerald-200' },
-                            { label: 'Recebido em Cartão', value: dados.metodosPagamento.totalCartao, cor: 'text-blue-700', bg: 'bg-blue-50 border-blue-200' },
-                            { label: 'Recebido via PIX', value: dados.metodosPagamento.totalPix, cor: 'text-violet-700', bg: 'bg-violet-50 border-violet-200' },
-                        ].map(item => (
-                            <div key={item.label} className={`rounded-2xl border p-5 ${item.bg} ${isLoadingMetrics ? 'opacity-40' : ''}`}>
-                                <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2">{item.label}</p>
-                                <p className={`text-2xl font-black ${item.cor}`}>
-                                    R$ {item.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                                </p>
-                            </div>
-                        ))}
+                        {dados.metodosPagamento.map(item => {
+                            const CORES: Record<string, { cor: string; bg: string }> = {
+                                'DINHEIRO': { cor: 'text-emerald-700', bg: 'bg-emerald-50 border-emerald-200' },
+                                'PIX': { cor: 'text-violet-700', bg: 'bg-violet-50 border-violet-200' },
+                                'CARTAO_CREDITO': { cor: 'text-blue-700', bg: 'bg-blue-50 border-blue-200' },
+                                'CARTAO_DEBITO': { cor: 'text-sky-700', bg: 'bg-sky-50 border-sky-200' },
+                                'CORTESIA': { cor: 'text-amber-700', bg: 'bg-amber-50 border-amber-200' },
+                                'VOUCHER': { cor: 'text-orange-700', bg: 'bg-orange-50 border-orange-200' },
+                                'PERMUTA': { cor: 'text-rose-700', bg: 'bg-rose-50 border-rose-200' },
+                            }
+                            const estilo = CORES[item.metodo] ?? { cor: 'text-gray-700', bg: 'bg-gray-50 border-gray-200' }
+                            const label = item.metodo.replace(/_/g, ' ')
+                            return (
+                                <div key={item.metodo} className={`rounded-2xl border p-5 ${estilo.bg} ${isLoadingMetrics ? 'opacity-40' : ''}`}>
+                                    <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2">{label}</p>
+                                    <p className={`text-2xl font-black ${estilo.cor}`}>
+                                        R$ {item.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                    </p>
+                                </div>
+                            )
+                        })}
                     </div>
                 )}
 
@@ -529,7 +488,7 @@ export default function PainelFinanceiroPage() {
                                             contentStyle={{ borderRadius: '12px', border: '1px solid #e5e7eb', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
                                             formatter={(value: unknown) => {
                                                 const numericValue = typeof value === 'number' ? value : 0
-                                                return [`R$ ${numericValue.toFixed(2)}`, 'Faturamento'] as [string, string]
+                                                return [formatarMoeda(numericValue), 'Faturamento'] as [string, string]
                                             }}
                                         />
                                         <Line type="monotone" dataKey="Faturamento (R$)" stroke="#8B5A2B" strokeWidth={3} dot={{ r: 4, fill: '#8B5A2B', strokeWidth: 2, stroke: '#fff' }} activeDot={{ r: 6 }} />

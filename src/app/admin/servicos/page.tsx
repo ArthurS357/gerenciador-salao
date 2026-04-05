@@ -85,7 +85,7 @@ export default function PainelServicosPage() {
             setServicos(res.data.servicos as Servico[]);
             setModalFichaTecnica(prevModal => {
                 if (prevModal) {
-                    const atualizado = res.data.servicos?.find((s: Servico) => s.id === prevModal.id);
+                    const atualizado = (res.data.servicos as Servico[])?.find(s => s.id === prevModal.id);
                     return (atualizado as Servico) || null;
                 }
                 return null;

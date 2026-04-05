@@ -1,23 +1,19 @@
 'use server'
 
 import { prisma } from '@/lib/prisma'
-import { Prisma, RoleFuncionario } from '@prisma/client'
+import { Prisma, RoleFuncionario, StatusAgendamento } from '@prisma/client'
 import { formatInTimeZone } from 'date-fns-tz'
 import { subDays, startOfDay } from 'date-fns'
-import { FinanceiroResumo, FuncionarioResumo, ActionResult, ConfiguracaoSalao } from '@/types/domain'
+import { FinanceiroResumo, FuncionarioResumo, ActionResult, ResumoMetodoPagamento } from '@/types/domain'
 import { verificarSessaoFuncionario } from '@/app/actions/auth'
 import { schemaAtualizarRegrasFuncionario } from '@/lib/schemas'
 import { z } from 'zod'
+import { decimalParaNumero } from '@/lib/decimal-utils'
 
 // ── Fuso horário canônico ─────────────────────────────────────────────────────
 const TZ = 'America/Sao_Paulo'
 
 // ── Schemas de Validação Estrita (Runtime Safety) ─────────────────────────────
-const SchemaConfiguracaoSalao = z.object({
-    taxaCredito: z.coerce.number().min(0, 'Taxa não pode ser negativa.').max(20, 'Taxa não pode exceder 20%.'),
-    taxaDebito: z.coerce.number().min(0, 'Taxa não pode ser negativa.').max(20, 'Taxa não pode exceder 20%.'),
-    taxaPix: z.coerce.number().min(0, 'Taxa não pode ser negativa.').max(20, 'Taxa não pode exceder 20%.'),
-})
 
 const SchemaEstorno = z.object({
     agendamentoId: z.string().min(1, 'ID inválido.'),
@@ -34,7 +30,7 @@ export async function obterResumoFinanceiro(
             return { sucesso: false, erro: 'Acesso negado. Relatórios restritos à gestão.' }
         }
 
-        const whereClause: Prisma.AgendamentoWhereInput = { concluido: true }
+        const whereClause: Prisma.AgendamentoWhereInput = { status: StatusAgendamento.FINALIZADO }
         if (filtro) {
             whereClause.dataHoraInicio = { gte: filtro.dataInicio, lte: filtro.dataFim }
         }
@@ -43,8 +39,7 @@ export async function obterResumoFinanceiro(
             where: whereClause,
             _sum: {
                 valorBruto: true, taxas: true, custoInsumos: true, custoRevenda: true,
-                valorComissao: true, valorDinheiro: true, valorCartao: true, valorPix: true,
-                valorPago: true, valorPendente: true
+                valorComissao: true, valorPago: true, valorPendente: true,
             }
         })
 
@@ -69,30 +64,40 @@ export async function obterResumoFinanceiro(
             take: 100
         })
 
-        const [agregacao, distribuicaoComissoes, agendamentos, equipe] = await Promise.all([
+        // ── Agregação de métodos via PagamentoComanda (Single Source of Truth) ──
+        const metodosPagamentoAgg = prisma.pagamentoComanda.groupBy({
+            by: ['metodo'],
+            where: {
+                agendamento: whereClause,
+            },
+            _sum: { valor: true },
+        })
+
+        const [agregacao, distribuicaoComissoes, agendamentos, equipe, metodosPagRaw] = await Promise.all([
             agregacaoAgendamentos,
             comissoesPorProfissional,
             historicoRecente,
             prisma.funcionario.findMany({
                 where: { role: RoleFuncionario.PROFISSIONAL, ativo: true },
                 select: { id: true, nome: true, comissao: true, podeVerComissao: true, podeAgendar: true, podeVerHistorico: true, podeCancelar: true, podeGerenciarClientes: true, podeVerFinanceiroGlobal: true },
-            })
+            }),
+            metodosPagamentoAgg,
         ])
 
-        const faturamentoBruto = agregacao._sum.valorBruto || 0
-        const totalTaxas = agregacao._sum.taxas || 0
-        const custoProdutos = (agregacao._sum.custoInsumos || 0) + (agregacao._sum.custoRevenda || 0)
+        const faturamentoBruto = decimalParaNumero(agregacao._sum.valorBruto)
+        const totalTaxas = decimalParaNumero(agregacao._sum.taxas)
+        const custoProdutos = decimalParaNumero(agregacao._sum.custoInsumos) + decimalParaNumero(agregacao._sum.custoRevenda)
         // Usa a soma das comissões liberadas (alinhado com o groupBy filtrado acima)
-        const totalComissoes = distribuicaoComissoes.reduce((acc, d) => acc + (d._sum.valorComissao || 0), 0)
+        const totalComissoes = distribuicaoComissoes.reduce((acc, d) => acc + decimalParaNumero(d._sum.valorComissao), 0)
         const lucroLiquido = faturamentoBruto - custoProdutos - totalComissoes - totalTaxas
 
-        const mapaComissoes = new Map(distribuicaoComissoes.map(d => [d.funcionarioId, d._sum.valorComissao || 0]))
+        const mapaComissoes = new Map(distribuicaoComissoes.map(d => [d.funcionarioId, decimalParaNumero(d._sum.valorComissao)]))
 
-        // Mapeamento explícito — remove o type-cast forçado `as FuncionarioResumo[]`
+        // Mapeamento explícito
         const equipeComValores: FuncionarioResumo[] = equipe.map(p => ({
             id: p.id,
             nome: p.nome,
-            comissao: p.comissao,
+            comissao: decimalParaNumero(p.comissao),
             podeVerComissao: p.podeVerComissao,
             podeAgendar: p.podeAgendar,
             podeVerHistorico: p.podeVerHistorico,
@@ -107,11 +112,17 @@ export async function obterResumoFinanceiro(
             data: ag.dataHoraInicio,
             clienteNome: ag.cliente?.nome || 'Não identificado',
             profissionalNome: ag.funcionario?.nome || 'Não identificado',
-            valorBruto: ag.valorBruto,
+            valorBruto: decimalParaNumero(ag.valorBruto),
             // Zera a comissão no display quando há dívida pendente
-            valorComissao: ag.comissaoLiberada ? ag.valorComissao : 0,
+            valorComissao: ag.comissaoLiberada ? decimalParaNumero(ag.valorComissao) : 0,
             detalheServicos: ag.servicos.map(s => s.servico.nome).join(', '),
             detalheProdutos: ag.produtos.map(p => `${p.quantidade}x ${p.produto.nome}`).join(', '),
+        }))
+
+        // Métodos de pagamento agrupados do PagamentoComanda (substitui legado)
+        const metodosPagamento: ResumoMetodoPagamento[] = metodosPagRaw.map(m => ({
+            metodo: m.metodo,
+            total: decimalParaNumero(m._sum.valor),
         }))
 
         return {
@@ -123,11 +134,7 @@ export async function obterResumoFinanceiro(
                 lucroLiquido,
                 equipe: equipeComValores,
                 historico,
-                metodosPagamento: {
-                    totalDinheiro: agregacao._sum.valorDinheiro || 0,
-                    totalCartao: agregacao._sum.valorCartao || 0,
-                    totalPix: agregacao._sum.valorPix || 0,
-                },
+                metodosPagamento,
             }
         }
     } catch (error) {
@@ -190,7 +197,7 @@ export async function obterDadosGraficosFinanceiros(dias: number = 7) {
         const dataLimite = startOfDay(subDays(agora, qtdDias - 1))
 
         const agendamentos = await prisma.agendamento.findMany({
-            where: { dataHoraInicio: { gte: dataLimite }, concluido: true },
+            where: { dataHoraInicio: { gte: dataLimite }, status: StatusAgendamento.FINALIZADO },
             select: { dataHoraInicio: true, valorBruto: true },
         })
 
@@ -207,7 +214,7 @@ export async function obterDadosGraficosFinanceiros(dias: number = 7) {
             const atual = mapaDias.get(chave)
             if (atual) {
                 mapaDias.set(chave, {
-                    faturamento: atual.faturamento + ag.valorBruto,
+                    faturamento: atual.faturamento + decimalParaNumero(ag.valorBruto),
                     atendimentos: atual.atendimentos + 1,
                 })
             }
@@ -245,7 +252,7 @@ export async function reabrirComanda(
         const agendamento = await prisma.agendamento.findUnique({
             where: { id: input.agendamentoId },
             select: {
-                concluido: true, canceladoEm: true, valorBruto: true,
+                status: true, valorBruto: true,
                 cliente: { select: { nome: true } },
                 servicos: {
                     include: {
@@ -265,8 +272,8 @@ export async function reabrirComanda(
         })
 
         if (!agendamento) return { sucesso: false, erro: 'Agendamento não encontrado.' }
-        if (agendamento.canceladoEm) return { sucesso: false, erro: 'Não é possível reabrir uma comanda cancelada.' }
-        if (!agendamento.concluido) return { sucesso: false, erro: 'A comanda já está aberta.' }
+        if (agendamento.status === StatusAgendamento.CANCELADO) return { sucesso: false, erro: 'Não é possível reabrir uma comanda cancelada.' }
+        if (agendamento.status !== StatusAgendamento.FINALIZADO) return { sucesso: false, erro: 'A comanda já está aberta.' }
 
         // Monta o mapa de devoluções de estoque (insumos de serviço + produtos revendidos)
         const estoquesParaRestaurar = new Map<string, number>()
@@ -286,6 +293,8 @@ export async function reabrirComanda(
             }
         }
 
+        const valorBrutoDisplay = decimalParaNumero(agendamento.valorBruto).toFixed(2)
+
         // Transação de estorno: devolve estoque + apaga registros financeiros + reabre comanda
         await prisma.$transaction(async (tx) => {
             await Promise.all(
@@ -303,7 +312,7 @@ export async function reabrirComanda(
             await tx.agendamento.update({
                 where: { id: input.agendamentoId },
                 data: {
-                    concluido: false,
+                    status: StatusAgendamento.EM_ATENDIMENTO,
                     taxas: 0,
                     custoInsumos: 0,
                     custoRevenda: 0,
@@ -312,15 +321,12 @@ export async function reabrirComanda(
                     valorPago: 0,
                     valorPendente: 0,
                     comissaoLiberada: false,
-                    valorDinheiro: 0,
-                    valorCartao: 0,
-                    valorPix: 0,
                 },
             })
 
             await tx.notificacao.create({
                 data: {
-                    mensagem: `⚠️ Estorno Financeiro: A comanda de ${agendamento.cliente.nome} (R$ ${agendamento.valorBruto.toFixed(2)}) foi reaberta por ${sessao.nome}. Motivo: "${input.motivo}"`,
+                    mensagem: `⚠️ Estorno Financeiro: A comanda de ${agendamento.cliente.nome} (R$ ${valorBrutoDisplay}) foi reaberta por ${sessao.nome}. Motivo: "${input.motivo}"`,
                 },
             })
         })
@@ -329,58 +335,5 @@ export async function reabrirComanda(
     } catch (error) {
         console.error('[Financeiro] Erro ao reabrir comanda:', error)
         return { sucesso: false, erro: 'Falha técnica ao reabrir a comanda.' }
-    }
-}
-
-// ── 6. Configuração das Taxas da Maquininha (Retrocompatibilidade) ────────────
-export async function obterConfiguracaoSalao(): Promise<ActionResult<{ configuracao: ConfiguracaoSalao }>> {
-    try {
-        const sessao = await verificarSessaoFuncionario()
-        if (!sessao.logado || sessao.role !== 'ADMIN') {
-            return { sucesso: false, erro: 'Acesso negado.' }
-        }
-
-        const config = await prisma.configuracaoSalao.upsert({
-            where: { id: 'config_global' },
-            create: { taxaCredito: 3.0, taxaDebito: 1.5, taxaPix: 0.0 },
-            update: {},
-        })
-
-        return {
-            sucesso: true,
-            data: { configuracao: { taxaCredito: config.taxaCredito, taxaDebito: config.taxaDebito, taxaPix: config.taxaPix } }
-        }
-    } catch (error) {
-        console.error('[Financeiro] Erro ao obter configuração de taxas:', error)
-        return { sucesso: false, erro: 'Falha ao carregar configuração de taxas.' }
-    }
-}
-
-export async function salvarConfiguracaoSalao(
-    taxaCredito: number,
-    taxaDebito: number,
-    taxaPix: number
-): Promise<ActionResult> {
-    try {
-        const sessao = await verificarSessaoFuncionario()
-        if (!sessao.logado || sessao.role !== 'ADMIN') {
-            return { sucesso: false, erro: 'Acesso negado.' }
-        }
-
-        const validacao = SchemaConfiguracaoSalao.safeParse({ taxaCredito, taxaDebito, taxaPix })
-        if (!validacao.success) {
-            return { sucesso: false, erro: validacao.error.issues[0]?.message ?? 'Dados de configuração inválidos.' }
-        }
-
-        await prisma.configuracaoSalao.upsert({
-            where: { id: 'config_global' },
-            create: { taxaCredito: validacao.data.taxaCredito, taxaDebito: validacao.data.taxaDebito, taxaPix: validacao.data.taxaPix },
-            update: { taxaCredito: validacao.data.taxaCredito, taxaDebito: validacao.data.taxaDebito, taxaPix: validacao.data.taxaPix },
-        })
-
-        return { sucesso: true }
-    } catch (error) {
-        console.error('[Financeiro] Erro ao salvar configuração de taxas:', error)
-        return { sucesso: false, erro: 'Falha ao salvar configuração de taxas.' }
     }
 }

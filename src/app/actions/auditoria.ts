@@ -5,6 +5,7 @@ import { Prisma } from '@prisma/client';
 import { startOfDay, endOfDay } from 'date-fns';
 import { verificarSessaoFuncionario } from "@/app/actions/auth";
 import type { ActionResult } from '@/types/domain';
+import { decimalParaNumero } from '@/lib/decimal-utils';
 
 // ── TIPOS EXPORTADOS ──────────────────────────────────────────────────────────
 
@@ -94,8 +95,7 @@ export async function buscarEventosDoDia(
                 select: {
                     id: true,
                     dataHoraInicio: true,
-                    concluido: true,
-                    canceladoEm: true,
+                    status: true,
                     valorBruto: true,
                     funcionarioId: true,
                     cliente: { select: { nome: true } },
@@ -129,12 +129,12 @@ export async function buscarEventosDoDia(
             let tipo: TipoEvento
             let acao: string
 
-            if (ag.canceladoEm) {
+            if (ag.status === 'CANCELADO') {
                 tipo = 'ESTORNO'
                 acao = `Agendamento cancelado — ${ag.cliente?.nome ?? 'Cliente'}`
-            } else if (ag.concluido) {
+            } else if (ag.status === 'FINALIZADO') {
                 tipo = 'COMANDA_FINALIZADA'
-                acao = `Comanda finalizada — ${ag.cliente?.nome ?? 'Cliente'} (R$ ${ag.valorBruto.toFixed(2)})`
+                acao = `Comanda finalizada — ${ag.cliente?.nome ?? 'Cliente'} (R$ ${decimalParaNumero(ag.valorBruto).toFixed(2)})`
             } else {
                 tipo = 'AGENDAMENTO_CRIADO'
                 acao = `Agendamento criado — ${ag.cliente?.nome ?? 'Cliente'}`

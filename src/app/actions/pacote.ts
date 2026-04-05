@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { verificarSessaoFuncionario } from '@/app/actions/auth'
 import type { ActionResult, PacoteComServicos } from '@/types/domain'
+import { decimalParaNumero } from '@/lib/decimal-utils'
 
 // ── Schemas de Validação ──────────────────────────────────────────────────────
 
@@ -96,7 +97,18 @@ export async function listarPacotes(): Promise<ActionResult<{ pacotes: PacoteCom
             }
         })
 
-        return { sucesso: true, data: { pacotes } }
+        const pacotesMapeados: PacoteComServicos[] = pacotes.map(p => ({
+            ...p,
+            valorBase: decimalParaNumero(p.valorBase),
+            valorFinal: decimalParaNumero(p.valorFinal),
+            desconto: decimalParaNumero(p.desconto),
+            servicos: p.servicos.map(s => ({
+                ...s,
+                servico: { ...s.servico, preco: s.servico.preco != null ? decimalParaNumero(s.servico.preco) : null },
+            })),
+        }))
+
+        return { sucesso: true, data: { pacotes: pacotesMapeados } }
     } catch (error) {
         console.error('[Pacote] Erro ao listar pacotes:', error)
         return { sucesso: false, erro: 'Falha ao carregar os pacotes.' }

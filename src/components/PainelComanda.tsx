@@ -3,6 +3,7 @@
 import { useState, useTransition, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { adicionarProdutoNaComanda, finalizarComanda } from '@/app/actions/comanda'
+import { formatarMoeda } from '@/lib/formatters'
 
 // 1. Definição das Interfaces de Tipagem (Substituem o 'any')
 
@@ -25,7 +26,7 @@ type ProdutoDaComanda = {
 
 type AgendamentoComanda = {
     id: string;
-    concluido: boolean;
+    status: string;
     cliente: {
         nome: string;
         telefone: string;
@@ -119,7 +120,7 @@ export default function PainelComanda({ agendamento, produtosDisponiveis, podeVe
                         <h4 className="text-2xl font-serif text-marrom-medio mb-3">Enviar ao Caixa?</h4>
                         <p className="text-sm text-gray-600 mb-8 leading-relaxed">
                             {podeVerFinancas
-                                ? `Confirmar envio da comanda de R$ ${valorTotalRevisado.toFixed(2)} ao caixa? Esta ação não pode ser desfeita.`
+                                ? `Confirmar envio da comanda de ${formatarMoeda(valorTotalRevisado)} ao caixa? Esta ação não pode ser desfeita.`
                                 : `Confirmar encerramento e envio ao caixa? Após isso, não será possível alterar os itens.`}
                         </p>
                         <div className="flex gap-4 justify-center">
@@ -153,8 +154,10 @@ export default function PainelComanda({ agendamento, produtosDisponiveis, podeVe
                 </div>
                 <div className="text-right">
                     <p className="text-xs uppercase tracking-wider opacity-70 mb-1">Status</p>
-                    {agendamento.concluido ? (
+                    {(agendamento.status === 'FINALIZADO') ? (
                         <span className="px-3 py-1 bg-green-500/20 border border-green-400 text-green-300 font-bold rounded">ENVIADO AO CAIXA</span>
+                    ) : agendamento.status === 'CANCELADO' ? (
+                        <span className="px-3 py-1 bg-red-500/20 border border-red-400 text-red-300 font-bold rounded">CANCELADO</span>
                     ) : (
                         <span className="px-3 py-1 bg-orange-500/20 border border-orange-400 text-orange-300 font-bold rounded">EM ATENDIMENTO</span>
                     )}
@@ -179,7 +182,7 @@ export default function PainelComanda({ agendamento, produtosDisponiveis, podeVe
                             <div key={item.id} className="flex justify-between items-center p-4 bg-gray-50 rounded-lg border border-gray-100">
                                 <span className="font-medium text-gray-700">{item.servico.nome}</span>
                                 <span className="font-bold text-marrom-medio">
-                                    {podeVerFinancas ? `R$ ${(item.precoCobrado || 0).toFixed(2)}` : 'R$ ***'}
+                                    {podeVerFinancas ? formatarMoeda(item.precoCobrado || 0) : 'R$ ***'}
                                 </span>
                             </div>
                         ))}
@@ -203,7 +206,7 @@ export default function PainelComanda({ agendamento, produtosDisponiveis, podeVe
                                         <span className="text-xs text-gray-500 ml-2">x{item.quantidade}</span>
                                     </div>
                                     <span className="font-bold text-marrom-medio">
-                                        {podeVerFinancas ? `R$ ${(item.precoCobrado * item.quantidade).toFixed(2)}` : 'R$ ***'}
+                                        {podeVerFinancas ? formatarMoeda(item.precoCobrado * item.quantidade) : 'R$ ***'}
                                     </span>
                                 </div>
                             ))}
@@ -211,7 +214,7 @@ export default function PainelComanda({ agendamento, produtosDisponiveis, podeVe
                     )}
 
                     {/* Formulário para adicionar novos produtos */}
-                    {!agendamento.concluido && (
+                    {agendamento.status !== 'FINALIZADO' && agendamento.status !== 'CANCELADO' && (
                         <div className="mt-4 p-4 border border-[#e5d9c5] rounded-xl bg-white flex flex-col md:flex-row gap-3">
                             <select
                                 value={produtoIdSelecionado}
@@ -221,7 +224,7 @@ export default function PainelComanda({ agendamento, produtosDisponiveis, podeVe
                                 <option value="">Adicionar produto da vitrine...</option>
                                 {produtosDisponiveis.map(p => (
                                     <option key={p.id} value={p.id}>
-                                        {p.nome} {podeVerFinancas ? `- R$ ${p.precoVenda.toFixed(2)} ` : ''}({p.estoque} em estoque)
+                                        {p.nome} {podeVerFinancas ? `- ${formatarMoeda(p.precoVenda)} ` : ''}({p.estoque} em estoque)
                                     </option>
                                 ))}
                             </select>
@@ -247,10 +250,10 @@ export default function PainelComanda({ agendamento, produtosDisponiveis, podeVe
                 <div className="mt-12 pt-8 border-t-2 border-dashed border-[#e5d9c5]">
                     {podeVerFinancas ? (
                         <div className="flex flex-col items-end gap-1 mb-8">
-                            <p className="text-sm text-gray-500">Subtotal Serviços: R$ {totalServicos.toFixed(2)}</p>
-                            <p className="text-sm text-gray-500">Subtotal Produtos: R$ {totalProdutos.toFixed(2)}</p>
+                            <p className="text-sm text-gray-500">Subtotal Serviços: {formatarMoeda(totalServicos)}</p>
+                            <p className="text-sm text-gray-500">Subtotal Produtos: {formatarMoeda(totalProdutos)}</p>
                             <h2 className="text-3xl font-serif text-marrom-medio mt-2">
-                                Total: R$ {valorTotalRevisado.toFixed(2)}
+                                Total: {formatarMoeda(valorTotalRevisado)}
                             </h2>
                         </div>
                     ) : (
@@ -259,7 +262,7 @@ export default function PainelComanda({ agendamento, produtosDisponiveis, podeVe
                         </div>
                     )}
 
-                    {!agendamento.concluido && (
+                    {agendamento.status !== 'FINALIZADO' && agendamento.status !== 'CANCELADO' && (
                         <button
                             onClick={() => setConfirmModalOpen(true)}
                             disabled={isFinalizando}

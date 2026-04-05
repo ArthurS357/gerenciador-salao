@@ -2,10 +2,28 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { reabrirComanda, obterResumoFinanceiro } from '../financeiro'
 import { prisma } from '@/lib/prisma'
 import { verificarSessaoFuncionario } from '@/app/actions/auth'
-import type { Agendamento, Funcionario } from '@prisma/client'
+import { Prisma, StatusAgendamento } from '@prisma/client'
+import type { Funcionario } from '@prisma/client'
 
 // ── Tipagem Estrita para os Mocks ─────────────────────────────────────────────
-type AgendamentoEstornoMock = Agendamento & {
+// AgendamentoEstornoMock usa StatusAgendamento em vez dos campos legados concluido/canceladoEm
+type AgendamentoEstornoMock = {
+    id: string
+    status: StatusAgendamento
+    valorBruto: Prisma.Decimal
+    taxas: Prisma.Decimal
+    custoInsumos: Prisma.Decimal
+    custoRevenda: Prisma.Decimal
+    valorComissao: Prisma.Decimal
+    comissaoSnap: Prisma.Decimal
+    comissaoLiberada: boolean
+    valorPago: Prisma.Decimal
+    valorPendente: Prisma.Decimal
+    lembreteEnviado: boolean
+    clienteId: string
+    funcionarioId: string
+    dataHoraInicio: Date
+    dataHoraFim: Date
     cliente: { nome: string }
     servicos: Array<{
         servico: { insumos: Array<{ produtoId: string; quantidadeUsada: number }> }
@@ -65,6 +83,7 @@ vi.mock('@/lib/prisma', () => ({
         },
         pagamentoComanda: {
             deleteMany: vi.fn(),
+            groupBy: vi.fn(),
         },
         dividaCliente: {
             deleteMany: vi.fn(),
@@ -108,9 +127,21 @@ describe('Módulo Financeiro — Regras de Negócio', () => {
 
             vi.mocked(prisma.agendamento.findUnique).mockResolvedValue({
                 id: 'ag-1',
-                concluido: true,
-                canceladoEm: null,
-                valorBruto: 100,
+                status: StatusAgendamento.FINALIZADO,
+                valorBruto: new Prisma.Decimal('100.00'),
+                taxas: new Prisma.Decimal('0.00'),
+                custoInsumos: new Prisma.Decimal('0.00'),
+                custoRevenda: new Prisma.Decimal('0.00'),
+                valorComissao: new Prisma.Decimal('0.00'),
+                comissaoSnap: new Prisma.Decimal('40.00'),
+                comissaoLiberada: true,
+                valorPago: new Prisma.Decimal('100.00'),
+                valorPendente: new Prisma.Decimal('0.00'),
+                lembreteEnviado: false,
+                clienteId: 'cliente-1',
+                funcionarioId: 'func-1',
+                dataHoraInicio: new Date(),
+                dataHoraFim: new Date(),
                 cliente: { nome: 'Maria' },
                 servicos: [],
                 produtos: [],
@@ -124,7 +155,7 @@ describe('Módulo Financeiro — Regras de Negócio', () => {
                 expect.objectContaining({
                     where: { id: 'ag-1' },
                     data: expect.objectContaining({
-                        concluido: false,
+                        status: StatusAgendamento.EM_ATENDIMENTO,
                         taxas: 0,
                         custoInsumos: 0,
                         custoRevenda: 0,
@@ -148,9 +179,21 @@ describe('Módulo Financeiro — Regras de Negócio', () => {
 
             vi.mocked(prisma.agendamento.findUnique).mockResolvedValue({
                 id: 'ag-2',
-                concluido: true,
-                canceladoEm: null,
-                valorBruto: 200,
+                status: StatusAgendamento.FINALIZADO,
+                valorBruto: new Prisma.Decimal('200.00'),
+                taxas: new Prisma.Decimal('0.00'),
+                custoInsumos: new Prisma.Decimal('0.00'),
+                custoRevenda: new Prisma.Decimal('0.00'),
+                valorComissao: new Prisma.Decimal('0.00'),
+                comissaoSnap: new Prisma.Decimal('40.00'),
+                comissaoLiberada: true,
+                valorPago: new Prisma.Decimal('200.00'),
+                valorPendente: new Prisma.Decimal('0.00'),
+                lembreteEnviado: false,
+                clienteId: 'cliente-2',
+                funcionarioId: 'func-1',
+                dataHoraInicio: new Date(),
+                dataHoraFim: new Date(),
                 cliente: { nome: 'João' },
                 servicos: [
                     { servico: { insumos: [{ produtoId: 'prod-1', quantidadeUsada: 5 }] } },
@@ -232,12 +275,33 @@ describe('Módulo Financeiro — Regras de Negócio', () => {
                 podeGerenciarEstoque: true,
             } as SessaoAdminMock)
 
+            // Aggregate: apenas campos do schema atual (sem valorDinheiro/Cartao/Pix)
             vi.mocked(prisma.agendamento.aggregate).mockResolvedValue({
-                _sum: { valorBruto: 0, taxas: 0, custoInsumos: 0, custoRevenda: 0, valorComissao: 0, valorDinheiro: 0, valorCartao: 0, valorPix: 0, valorPago: 0, valorPendente: 0 }
+                _sum: {
+                    valorBruto: new Prisma.Decimal('0'),
+                    taxas: new Prisma.Decimal('0'),
+                    custoInsumos: new Prisma.Decimal('0'),
+                    custoRevenda: new Prisma.Decimal('0'),
+                    valorComissao: new Prisma.Decimal('0'),
+                    valorPago: new Prisma.Decimal('0'),
+                    valorPendente: new Prisma.Decimal('0'),
+                }
             } as never)
+
+            // GroupBy de comissões por profissional
             vi.mocked(prisma.agendamento.groupBy).mockResolvedValue([] as never[])
-            vi.mocked(prisma.agendamento.findMany).mockResolvedValue([] as Agendamento[])
+
+            // Histórico de agendamentos
+            vi.mocked(prisma.agendamento.findMany).mockResolvedValue([])
+
+            // Equipe de profissionais
             vi.mocked(prisma.funcionario.findMany).mockResolvedValue([] as Funcionario[])
+
+            // Agregação de métodos de pagamento via PagamentoComanda (Single Source of Truth)
+            vi.mocked(prisma.pagamentoComanda.groupBy).mockResolvedValue([
+                { metodo: 'PIX', _sum: { valor: new Prisma.Decimal('100.00') } },
+                { metodo: 'CARTAO_CREDITO', _sum: { valor: new Prisma.Decimal('50.00') } },
+            ] as never[])
 
             const resultado = await obterResumoFinanceiro()
             expect(resultado.sucesso).toBe(true)

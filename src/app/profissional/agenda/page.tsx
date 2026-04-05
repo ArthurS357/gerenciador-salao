@@ -37,8 +37,8 @@ export default async function AgendaProfissionalPage() {
         ? res.data.agendamentos
         : [];
 
-    const pendentes = agendamentos.filter((a) => !a.concluido);
-    const concluidos = agendamentos.filter((a) => a.concluido);
+    const pendentes = agendamentos.filter((a) => a.status !== 'FINALIZADO' && a.status !== 'CANCELADO');
+    const concluidos = agendamentos.filter((a) => a.status === 'FINALIZADO');
 
     return (
         <div className="min-h-screen bg-background p-4 sm:p-6 md:p-12 font-sans pt-24 md:pt-32">

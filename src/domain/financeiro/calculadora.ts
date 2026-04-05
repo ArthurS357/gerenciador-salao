@@ -20,13 +20,6 @@ export type TaxaConfigInput = {
     taxaBase: number
 }
 
-/** ConfiguracaoSalao do banco (pode ser null se a tabela estiver vazia). */
-export type ConfiguracaoFallback = {
-    taxaCredito: number | null
-    taxaDebito: number | null
-    taxaPix: number | null
-} | null
-
 /** Item de produto da comanda com apenas os campos usados no custo. */
 export type ItemProdutoParaCusto = {
     precoCobrado: number
@@ -50,14 +43,6 @@ export type PagamentoCalculado = {
 export type ResultadoTaxas = {
     pagamentosCalculados: PagamentoCalculado[]
     totalTaxas: number
-}
-
-/** Campos de compatibilidade legada calculados a partir dos pagamentos. */
-export type CamposLegado = {
-    valorDinheiro: number
-    valorCartao: number
-    valorPix: number
-    metodoPagamento: string
 }
 
 // ── Função 1: Custo de Revenda ────────────────────────────────────────────────
@@ -85,8 +70,7 @@ export function calcularCustoRevenda(produtos: ItemProdutoParaCusto[]): number {
  * Resolução de taxa (prioridade decrescente):
  *   1. Taxa específica por bandeira: `METODO:BANDEIRA` (ex: "CARTAO_CREDITO:VISA")
  *   2. Taxa genérica do método:      `METODO:`         (ex: "CARTAO_CREDITO:")
- *   3. Fallback legado de ConfiguracaoSalao
- *   4. Zero (DINHEIRO, CORTESIA, VOUCHER, PERMUTA)
+ *   3. Defaults hardcoded (3% crédito, 1.5% débito, 0% demais)
  *
  * Escalonamento de parcelas:
  *   taxaEfetiva = taxaBase * parcelas  (somente CARTAO_CREDITO em 2+ parcelas)
@@ -96,7 +80,6 @@ export function calcularCustoRevenda(produtos: ItemProdutoParaCusto[]): number {
 export function calcularTaxasEPagamentos(
     pagamentos: PagamentoComandaInput[],
     taxasMap: Map<string, TaxaConfigInput>,
-    fallback: ConfiguracaoFallback
 ): ResultadoTaxas {
     let totalTaxas = 0
 
@@ -108,11 +91,11 @@ export function calcularTaxasEPagamentos(
 
         let taxaBase = configMetodo?.taxaBase
 
-        // Fallback para configuração legada de ConfiguracaoSalao
+        // Defaults hardcoded (migrou de ConfiguracaoSalao legado)
         if (taxaBase === undefined) {
-            if (pag.metodo === 'CARTAO_CREDITO')     taxaBase = fallback?.taxaCredito ?? 3.0
-            else if (pag.metodo === 'CARTAO_DEBITO') taxaBase = fallback?.taxaDebito  ?? 1.5
-            else if (pag.metodo === 'PIX')           taxaBase = fallback?.taxaPix     ?? 0.0
+            if (pag.metodo === 'CARTAO_CREDITO')     taxaBase = 3.0
+            else if (pag.metodo === 'CARTAO_DEBITO') taxaBase = 1.5
+            else if (pag.metodo === 'PIX')           taxaBase = 0.0
             else                                     taxaBase = 0  // DINHEIRO, CORTESIA, VOUCHER, PERMUTA
         }
 
@@ -182,29 +165,4 @@ export function calcularSnapshotFinanceiro(
         valorPendente,
         comissaoLiberada,
     }
-}
-
-// ── Função 4: Campos Legados ──────────────────────────────────────────────────
-
-/**
- * Calcula os campos de compatibilidade legada para relatórios históricos.
- * Esses campos existem no snapshot do Agendamento por retrocompatibilidade.
- */
-export function calcularCamposLegado(pagamentos: PagamentoComandaInput[]): CamposLegado {
-    const valorDinheiro = pagamentos
-        .filter(p => p.metodo === 'DINHEIRO')
-        .reduce((s, p) => s + p.valor, 0)
-
-    const valorCartao = pagamentos
-        .filter(p => p.metodo === 'CARTAO_CREDITO' || p.metodo === 'CARTAO_DEBITO')
-        .reduce((s, p) => s + p.valor, 0)
-
-    const valorPix = pagamentos
-        .filter(p => p.metodo === 'PIX')
-        .reduce((s, p) => s + p.valor, 0)
-
-    const metodosUsados   = pagamentos.map(p => p.metodo)
-    const metodoPagamento = metodosUsados.length === 1 ? metodosUsados[0] : 'MISTO'
-
-    return { valorDinheiro, valorCartao, valorPix, metodoPagamento }
 }

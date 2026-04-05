@@ -7,16 +7,10 @@ import { verificarSessaoFuncionario } from '@/app/actions/auth'
 import { ActionResult } from '@/types/domain'
 import { z } from 'zod'
 import { cache } from 'react'
+import { parseImagens } from '@/lib/parse-imagens'
+import { decimalParaNumero } from '@/lib/decimal-utils'
 
-// ── Type Guard ────────────────────────────────────────────────────────────────
-/** Converte o campo Json do PostgreSQL para string[]. Retorna [] se o dado
- *  não for um array, protegendo contra corrupção silenciosa em runtime. */
-export function parseImagens(json: Prisma.JsonValue): string[] {
-    if (Array.isArray(json)) {
-        return json.map(String)
-    }
-    return []
-}
+// parseImagens lives in @/lib/parse-imagens (plain utility, not a Server Action)
 
 // ── Tipos de Retorno ──────────────────────────────────────────────────────────
 
@@ -83,7 +77,7 @@ export const listarPortfolioPublico = cache(async (): Promise<ActionResult<{ ite
                 criadoEm: true,
             },
         })
-        const itens: ItemPortfolioDb[] = rows.map(r => ({ ...r, imagensJson: parseImagens(r.imagensJson) }))
+        const itens: ItemPortfolioDb[] = rows.map(r => ({ ...r, imagensJson: parseImagens(r.imagensJson), valor: r.valor != null ? decimalParaNumero(r.valor) : null }))
 
         return { sucesso: true, data: { itens } }
     } catch (error) {
@@ -113,7 +107,7 @@ export async function listarPortfolioAdmin(): Promise<ActionResult<{ itens: Item
                 criadoEm: true,
             },
         })
-        const itens: ItemPortfolioDb[] = rows.map(r => ({ ...r, imagensJson: parseImagens(r.imagensJson) }))
+        const itens: ItemPortfolioDb[] = rows.map(r => ({ ...r, imagensJson: parseImagens(r.imagensJson), valor: r.valor != null ? decimalParaNumero(r.valor) : null }))
 
         return { sucesso: true, data: { itens } }
     } catch (error) {
@@ -157,7 +151,7 @@ export async function criarItemPortfolio(
                 criadoEm: true,
             },
         })
-        const item: ItemPortfolioDb = { ...row, imagensJson: parseImagens(row.imagensJson) }
+        const item: ItemPortfolioDb = { ...row, imagensJson: parseImagens(row.imagensJson), valor: row.valor != null ? decimalParaNumero(row.valor) : null }
 
         revalidatePath('/admin/galeria')
         revalidatePath('/') // Atualiza a vitrine pública imediatamente

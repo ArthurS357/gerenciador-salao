@@ -29,6 +29,14 @@ enum StatusPacoteVenda {
   PAGO_ANTECIPADAMENTE
 }
 
+enum StatusAgendamento {
+  AGENDADO
+  CONFIRMADO
+  EM_ATENDIMENTO
+  FINALIZADO
+  CANCELADO
+}
+
 // ============================================================
 // 1. USUÁRIOS E EQUIPE
 // ============================================================
@@ -56,7 +64,7 @@ model Funcionario {
   email            String              @unique
   senhaHash        String
   role             RoleFuncionario     @default(PROFISSIONAL)
-  comissao         Float               @default(40.0)
+  comissao         Decimal             @default(40.0) @db.Decimal(5, 2)
   // FLAGS DE CONTROLE DE ACESSO (RBAC)
   podeVerComissao         Boolean      @default(true)
   podeAgendar             Boolean      @default(false)
@@ -101,7 +109,7 @@ model Servico {
   id               String          @id @default(uuid())
   nome             String
   descricao        String?
-  preco            Float?
+  preco            Decimal?        @db.Decimal(10, 2)
   tempoMinutos     Int?
   imagemUrl        String?
   ativo            Boolean         @default(true)
@@ -129,8 +137,8 @@ model Produto {
   id               String          @id @default(uuid())
   nome             String
   descricao        String?
-  precoCusto       Float?
-  precoVenda       Float
+  precoCusto       Decimal?        @db.Decimal(10, 2)
+  precoVenda       Decimal         @db.Decimal(10, 2)
 
   estoque          Int             @default(0)
   unidadeMedida    String          @default("un")
@@ -149,9 +157,9 @@ model Pacote {
   id           String          @id @default(uuid())
   nome         String
   descricao    String?
-  valorBase    Float           // preço sem desconto
-  valorFinal   Float           // preço final cobrado
-  desconto     Float           @default(0)    // % de desconto (calculado ou manual)
+  valorBase    Decimal         @db.Decimal(10, 2) // preço sem desconto
+  valorFinal   Decimal         @db.Decimal(10, 2) // preço final cobrado
+  desconto     Decimal         @default(0) @db.Decimal(10, 2) // % de desconto (calculado ou manual)
   ativo        Boolean         @default(true)
   criadoEm     DateTime        @default(now())
   atualizadoEm DateTime        @updatedAt
@@ -176,7 +184,7 @@ model PacoteVenda {
   id           String            @id @default(uuid())
   pacoteId     String
   clienteId    String
-  valorCobrado Float             // snapshot do valorFinal no momento da venda
+  valorCobrado Decimal           @db.Decimal(10, 2) // snapshot do valorFinal no momento da venda
   status       StatusPacoteVenda @default(PENDENTE)
   criadoEm     DateTime          @default(now())
   paidAt       DateTime?
@@ -191,14 +199,6 @@ model PacoteVenda {
 // 3. MOTOR FINANCEIRO E COMANDAS
 // ============================================================
 
-model ConfiguracaoSalao {
-  id            String   @id @default("config_global")
-  taxaCredito   Float    @default(3.0)   // Legado — substituído por TaxaMetodoPagamento
-  taxaDebito    Float    @default(1.5)   // Legado — substituído por TaxaMetodoPagamento
-  taxaPix       Float    @default(0.0)   // Legado — substituído por TaxaMetodoPagamento
-  atualizadoEm  DateTime @updatedAt
-}
-
 model TaxaMetodoPagamento {
   id           String             @id @default(uuid())
   metodo       String
@@ -206,7 +206,7 @@ model TaxaMetodoPagamento {
   bandeira     String             @default("")
   // "" = genérico (qualquer bandeira); "VISA" | "MASTERCARD" | "ELO" | "AMEX" | "HIPERCARD"
   descricao    String?
-  taxaBase     Float              @default(0.0)   // % aplicada sobre o valor (ex: 2.20 para débito)
+  taxaBase     Decimal            @default(0.0) @db.Decimal(5, 2)
   ativo        Boolean            @default(true)
   criadoEm     DateTime           @default(now())
   atualizadoEm DateTime           @updatedAt
@@ -222,30 +222,25 @@ model Agendamento {
   funcionarioId    String
   dataHoraInicio   DateTime
   dataHoraFim      DateTime
-  valorBruto       Float
-  concluido        Boolean            @default(false)
-  canceladoEm      DateTime?
+
+  status           StatusAgendamento  @default(AGENDADO)
+
+  valorBruto       Decimal            @db.Decimal(10, 2)
 
   // ── Snapshot Financeiro Imutável ──
-  taxas            Float              @default(0)
-  custoInsumos     Float              @default(0)
-  custoRevenda     Float              @default(0)
-  valorComissao    Float              @default(0)
-  comissaoSnap     Float              @default(0)
+  taxas            Decimal            @default(0) @db.Decimal(10, 2)
+  custoInsumos     Decimal            @default(0) @db.Decimal(10, 2)
+  custoRevenda     Decimal            @default(0) @db.Decimal(10, 2)
+  valorComissao    Decimal            @default(0) @db.Decimal(10, 2)
+  comissaoSnap     Decimal            @default(0) @db.Decimal(5, 2)
   comissaoLiberada Boolean            @default(false)
 
   // ── Controle de Pagamento Parcial ──
-  valorPago        Float              @default(0)
-  valorPendente    Float              @default(0)
+  valorPago        Decimal            @default(0) @db.Decimal(10, 2)
+  valorPendente    Decimal            @default(0) @db.Decimal(10, 2)
 
   // ── Mensageria ──
   lembreteEnviado  Boolean            @default(false) // ← Cron job marca após enviar lembrete 48h antes
-
-  // ── Campos Legado ──
-  valorDinheiro    Float              @default(0)
-  valorCartao      Float              @default(0)
-  valorPix         Float              @default(0)
-  metodoPagamento  String?
 
   cliente          Cliente            @relation(fields: [clienteId], references: [id])
   funcionario      Funcionario        @relation(fields: [funcionarioId], references: [id])
@@ -257,7 +252,7 @@ model Agendamento {
   divida           DividaCliente?
 
   @@index([funcionarioId, dataHoraInicio, dataHoraFim])
-  @@index([concluido, dataHoraInicio])
+  @@index([status, dataHoraInicio])
   @@index([clienteId, valorPendente])
 }
 
@@ -266,9 +261,9 @@ model PagamentoComanda {
   agendamentoId String
   metodo        String
   bandeira      String               @default("")   // snapshot da bandeira usada no fechamento
-  valor         Float
+  valor         Decimal              @db.Decimal(10, 2)
   parcelas      Int                  @default(1)
-  taxaAplicada  Float                @default(0)
+  taxaAplicada  Decimal              @default(0) @db.Decimal(5, 2)
   taxaMetodoId  String?
   criadoEm      DateTime             @default(now())
 
@@ -282,8 +277,8 @@ model DividaCliente {
   id            String       @id @default(uuid())
   clienteId     String
   agendamentoId String?      @unique
-  valorOriginal Float
-  valorQuitado  Float        @default(0)
+  valorOriginal Decimal      @db.Decimal(10, 2)
+  valorQuitado  Decimal      @default(0) @db.Decimal(10, 2)
   status        StatusDivida @default(PENDENTE)
   observacao    String?
   criadoEm      DateTime     @default(now())
@@ -299,7 +294,7 @@ model ItemServico {
   id            String      @id @default(uuid())
   servicoId     String
   agendamentoId String
-  precoCobrado  Float?
+  precoCobrado  Decimal?    @db.Decimal(10, 2)
 
   servico       Servico     @relation(fields: [servicoId], references: [id])
   agendamento   Agendamento @relation(fields: [agendamentoId], references: [id], onDelete: Cascade)
@@ -310,7 +305,7 @@ model ItemProduto {
   produtoId     String
   agendamentoId String
   quantidade    Int
-  precoCobrado  Float
+  precoCobrado  Decimal     @db.Decimal(10, 2)
 
   produto       Produto     @relation(fields: [produtoId], references: [id])
   agendamento   Agendamento @relation(fields: [agendamentoId], references: [id], onDelete: Cascade)
@@ -324,7 +319,7 @@ model ItemPortfolio {
   id            String   @id @default(uuid())
   titulo        String
   descricao     String?
-  valor         Float?
+  valor         Decimal? @db.Decimal(10, 2)
   imagensJson   Json                 // ← tipo nativo JSON do PostgreSQL (era String no SQLite)
   linkInstagram String?
   ativo         Boolean  @default(true)

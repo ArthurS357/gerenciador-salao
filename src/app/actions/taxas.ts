@@ -6,6 +6,7 @@ import { z } from 'zod'
 import type { ActionResult, MetodoPagamento } from '@/types/domain'
 import { METODOS_COM_BANDEIRA } from '@/lib/pagamento-constantes'
 import { revalidatePath } from 'next/cache'
+import { decimalParaNumero } from '@/lib/decimal-utils'
 
 // ── Schema de Validação ───────────────────────────────────────────────────────
 
@@ -58,7 +59,7 @@ export async function listarTaxasMetodoPagamento(): Promise<ActionResult<{ taxas
             orderBy: [{ metodo: 'asc' }, { bandeira: 'asc' }],
             select: { id: true, metodo: true, bandeira: true, descricao: true, taxaBase: true, ativo: true, criadoEm: true },
         })
-        return { sucesso: true, data: { taxas } }
+        return { sucesso: true, data: { taxas: taxas.map(t => ({ ...t, taxaBase: decimalParaNumero(t.taxaBase) })) } }
     } catch (error) {
         console.error('[Taxas] Erro ao listar:', error)
         return { sucesso: false, erro: 'Falha ao carregar taxas.' }
@@ -89,7 +90,7 @@ export async function salvarTaxaMetodoPagamento(dados: SalvarTaxaInput): Promise
             select: { id: true, metodo: true, bandeira: true, descricao: true, taxaBase: true, ativo: true, criadoEm: true },
         })
         revalidatePath('/admin/financeiro')
-        return { sucesso: true, data: { taxa } }
+        return { sucesso: true, data: { taxa: { ...taxa, taxaBase: decimalParaNumero(taxa.taxaBase) } } }
     } catch (error) {
         console.error('[Taxas] Erro ao salvar:', error)
         return { sucesso: false, erro: 'Falha ao salvar taxa.' }

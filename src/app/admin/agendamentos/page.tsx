@@ -22,6 +22,8 @@ import {
     type ExpedienteInfo
 } from '@/app/actions/admin'
 import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Clock, Plus, X, Loader2, AlertCircle, CalendarClock, Scissors, UserCheck } from 'lucide-react'
+import { STATUS_BADGE_THEME, STATUS_LABEL } from '@/lib/status-mapper'
+import type { StatusAgendamento } from '@prisma/client'
 
 // ── Schemas Zod ──────────────────────────────────────────────────────────────
 
@@ -467,11 +469,11 @@ export default function AgendamentosGlobaisPage() {
                                                                 <p className="text-[11px] text-muted-foreground font-mono mt-1">{ag.cliente.telefone}</p>
                                                             </div>
                                                         </div>
-                                                        <span className={`text-[9px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider flex-shrink-0 border ${ag.concluido ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : 'bg-secondary text-secondary-foreground border-border'}`}>{ag.concluido ? 'Faturado' : 'Pendente'}</span>
+                                                        <span className={`text-[9px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider flex-shrink-0 border ${STATUS_BADGE_THEME[ag.status as StatusAgendamento]}`}>{STATUS_LABEL[ag.status as StatusAgendamento]}</span>
                                                     </div>
                                                     <div className="pt-3 border-t border-border mt-1">
                                                         <p className="text-xs text-muted-foreground flex items-center gap-1.5 mb-3"><Scissors className="w-3.5 h-3.5" />Com: <strong className="text-foreground">{ag.funcionario.nome}</strong></p>
-                                                        {!ag.concluido && (
+                                                        {ag.status !== 'FINALIZADO' && ag.status !== 'CANCELADO' && (
                                                             <div className="flex gap-2">
                                                                 <button onClick={() => abrirModalEdicao(ag)} className="flex-1 text-xs font-bold text-foreground border border-border bg-muted/50 hover:bg-muted hover:text-primary px-2 py-2 rounded-lg transition-colors">Reagendar</button>
                                                                 <button onClick={() => handleCancelar(ag.id)} disabled={loadingCancelarId === ag.id} className="flex-1 text-xs font-bold text-destructive border border-destructive/20 bg-destructive/5 hover:bg-destructive/10 px-2 py-2 rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-1">{loadingCancelarId === ag.id ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Cancelar'}</button>

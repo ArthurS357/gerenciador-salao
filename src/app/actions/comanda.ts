@@ -1,6 +1,7 @@
 'use server'
 
 import { prisma } from '@/lib/prisma';
+import { StatusAgendamento } from '@prisma/client';
 import { revalidatePath } from 'next/cache';
 import { verificarSessaoFuncionario } from '@/app/actions/auth';
 import { z } from 'zod';
@@ -12,11 +13,11 @@ import type {
     PagamentoComandaInput,
 } from '@/types/domain';
 import { schemaAdicionarProdutoComanda } from '@/lib/schemas';
+import { decimalParaNumero } from '@/lib/decimal-utils';
 import {
     calcularCustoRevenda,
     calcularTaxasEPagamentos,
     calcularSnapshotFinanceiro,
-    calcularCamposLegado,
     type TaxaConfigInput,
 } from '@/domain/financeiro/calculadora';
 
@@ -48,10 +49,17 @@ export async function listarProdutosDisponiveis() {
     const sessao = await verificarSessaoFuncionario();
     if (!sessao.logado) throw new Error('Acesso negado.');
 
-    return await prisma.produto.findMany({
+    const rows = await prisma.produto.findMany({
         where: { ativo: true, estoque: { gt: 0 } },
         orderBy: { nome: 'asc' }
     });
+
+    // Converte Decimal na fronteira
+    return rows.map(r => ({
+        ...r,
+        precoCusto: decimalParaNumero(r.precoCusto),
+        precoVenda: decimalParaNumero(r.precoVenda),
+    }));
 }
 
 // ── 2. Listagem de Métodos de Pagamento Ativos ────────────────────────────────
@@ -71,10 +79,13 @@ export async function listarMetodosPagamento(): Promise<ActionResult<{ metodos: 
         });
 
         // Garante que apenas métodos válidos no domínio são retornados
-        const metodos = registros.filter(
-            (r): r is MetodoPagamentoConfig =>
-                (METODOS_VALIDOS as readonly string[]).includes(r.metodo)
-        );
+        const metodos = registros
+            .filter(r => (METODOS_VALIDOS as readonly string[]).includes(r.metodo))
+            .map(r => ({
+                ...r,
+                metodo: r.metodo as MetodoPagamento,
+                taxaBase: decimalParaNumero(r.taxaBase),
+            }));
 
         // Fallback: se a tabela estiver vazia, retorna os 4 métodos principais (sem bandeira)
         if (metodos.length === 0) {
@@ -125,6 +136,7 @@ export async function adicionarProdutoNaComanda(
 
             if (!produtoInfo) throw new Error('Produto não encontrado no catálogo.');
 
+            const precoVenda = decimalParaNumero(produtoInfo.precoVenda);
             const baixaAbsoluta = quantidadeFrascos * produtoInfo.tamanhoUnidade;
 
             const atualizacaoEstoque = await tx.produto.updateMany({
@@ -144,13 +156,13 @@ export async function adicionarProdutoNaComanda(
                     agendamentoId,
                     produtoId,
                     quantidade: quantidadeFrascos,
-                    precoCobrado: produtoInfo.precoVenda
+                    precoCobrado: precoVenda
                 }
             });
 
             await tx.agendamento.update({
                 where: { id: agendamentoId },
-                data: { valorBruto: { increment: produtoInfo.precoVenda * quantidadeFrascos } }
+                data: { valorBruto: { increment: precoVenda * quantidadeFrascos } }
             });
         });
 
@@ -170,7 +182,7 @@ export async function adicionarProdutoNaComanda(
  * Fecha a comanda com suporte a:
  * - Múltiplos métodos de pagamento simultâneos
  * - Pagamento parcial: gera DividaCliente e retém a comissão do profissional
- * - Taxas dinâmicas lidas de TaxaMetodoPagamento (fallback para ConfiguracaoSalao)
+ * - Taxas dinâmicas lidas de TaxaMetodoPagamento
  * - Snapshot imutável congelado no momento do fechamento (ACID)
  */
 export async function finalizarComanda(
@@ -217,7 +229,8 @@ export async function finalizarComanda(
             });
 
             if (!agendamento) throw new Error('Comanda não encontrada.');
-            if (agendamento.concluido) throw new Error('Esta comanda já foi faturada.');
+            if (agendamento.status === StatusAgendamento.FINALIZADO) throw new Error('Esta comanda já foi faturada.');
+            if (agendamento.status === StatusAgendamento.CANCELADO) throw new Error('Não é possível faturar uma comanda cancelada.');
 
             // 2. RBAC: ADMIN e RECEPCIONISTA podem fechar qualquer comanda;
             //    PROFISSIONAL só pode fechar a própria.
@@ -229,14 +242,11 @@ export async function finalizarComanda(
                 throw new Error('Acesso negado. Você só pode fechar suas próprias comandas.');
             }
 
-            const valorBruto = agendamento.valorBruto;
-            const comissaoSnap = agendamento.funcionario.comissao;
+            const valorBruto = decimalParaNumero(agendamento.valorBruto);
+            const comissaoSnap = decimalParaNumero(agendamento.funcionario.comissao);
 
             // 3. Lê as taxas dinâmicas configuradas pelo Admin
-            const [taxasConfigs, config] = await Promise.all([
-                tx.taxaMetodoPagamento.findMany({ where: { ativo: true } }),
-                tx.configuracaoSalao.findFirst(),
-            ]);
+            const taxasConfigs = await tx.taxaMetodoPagamento.findMany({ where: { ativo: true } });
 
             // 4. Processamento Físico: Baixa de Insumos da Ficha Técnica
             const consumoTotalInsumos = new Map<string, number>();
@@ -260,15 +270,19 @@ export async function finalizarComanda(
             );
 
             // 5. Custo de Revenda — função pura de domínio
-            const custoRevenda = calcularCustoRevenda(agendamento.produtos);
+            const produtosParaCusto = agendamento.produtos.map(p => ({
+                precoCobrado: decimalParaNumero(p.precoCobrado),
+                quantidade: p.quantidade,
+                produto: p.produto ? { precoCusto: decimalParaNumero(p.produto.precoCusto) } : null,
+            }));
+            const custoRevenda = calcularCustoRevenda(produtosParaCusto);
 
             // 6. Taxas e pagamentos enriquecidos — função pura de domínio
-            // O taxasMap é reindexado para TaxaConfigInput (subconjunto seguro de tipo)
             const taxasConfigMap = new Map<string, TaxaConfigInput>(
-                taxasConfigs.map(t => [`${t.metodo}:${t.bandeira}`, { id: t.id, metodo: t.metodo, bandeira: t.bandeira, taxaBase: t.taxaBase }])
+                taxasConfigs.map(t => [`${t.metodo}:${t.bandeira}`, { id: t.id, metodo: t.metodo, bandeira: t.bandeira, taxaBase: decimalParaNumero(t.taxaBase) }])
             );
             const { pagamentosCalculados: pagamentosComTaxa, totalTaxas } =
-                calcularTaxasEPagamentos(input.pagamentos, taxasConfigMap, config);
+                calcularTaxasEPagamentos(input.pagamentos, taxasConfigMap);
 
             // 7+8. Snapshot financeiro imutável — função pura de domínio
             const totalRecebido = input.pagamentos.reduce((sum, p) => sum + p.valor, 0);
@@ -277,11 +291,7 @@ export async function finalizarComanda(
             );
             const { comissao: valorComissao, valorPago, valorPendente, comissaoLiberada } = snapshot;
 
-            // 9. Campos legado — função pura de domínio
-            const { valorDinheiro, valorCartao, valorPix, metodoPagamento } =
-                calcularCamposLegado(input.pagamentos);
-
-            // 10. Cria os registros de PagamentoComanda
+            // 9. Cria os registros de PagamentoComanda
             await Promise.all(
                 pagamentosComTaxa.map(pag =>
                     tx.pagamentoComanda.create({
@@ -298,7 +308,7 @@ export async function finalizarComanda(
                 )
             );
 
-            // 11. Se houver saldo pendente, registra DividaCliente e retém comissão
+            // 10. Se houver saldo pendente, registra DividaCliente e retém comissão
             if (valorPendente > 0.01) {
                 await tx.dividaCliente.create({
                     data: {
@@ -312,11 +322,11 @@ export async function finalizarComanda(
                 });
             }
 
-            // 12. Selo de Imutabilidade: atualiza o agendamento com o snapshot
+            // 11. Selo de Imutabilidade: atualiza o agendamento com o snapshot
             await tx.agendamento.update({
                 where: { id: agendamentoId },
                 data: {
-                    concluido: true,
+                    status: StatusAgendamento.FINALIZADO,
                     taxas: totalTaxas,
                     custoInsumos: input.custoInsumos,
                     custoRevenda,
@@ -325,11 +335,6 @@ export async function finalizarComanda(
                     comissaoLiberada,
                     valorPago,
                     valorPendente,
-                    // Campos legado
-                    valorDinheiro,
-                    valorCartao,
-                    valorPix,
-                    metodoPagamento,
                 }
             });
 

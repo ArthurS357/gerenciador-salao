@@ -49,7 +49,7 @@ export async function listarAniversariantesMes(
                 telefone: true,
                 email: true,
                 dataNascimento: true,
-                _count: { select: { agendamentos: { where: { concluido: true } } } },
+                _count: { select: { agendamentos: { where: { status: 'FINALIZADO' } } } },
             },
             orderBy: { nome: 'asc' },
         })

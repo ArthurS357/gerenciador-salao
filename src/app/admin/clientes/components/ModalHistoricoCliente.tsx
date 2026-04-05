@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react'
 import { Loader2, X } from 'lucide-react'
 import { obterHistoricoCliente, type HistoricoClienteData } from '@/app/actions/cliente'
 import { fmt, logError } from './helpers'
+import { STATUS_BADGE_THEME, STATUS_LABEL } from '@/lib/status-mapper'
+import type { StatusAgendamento } from '@prisma/client'
 
 interface Props {
     clienteId: string;
@@ -55,7 +57,7 @@ export function ModalHistoricoCliente({ clienteId, onClose }: Props) {
                     ) : (
                         <div className="space-y-3">
                             {dadosHistorico.agendamentos.map(ag => (
-                                <div key={ag.id} className={`p-4 rounded-xl border ${ag.concluido ? 'bg-green-50/50 border-green-200' : 'bg-muted/30 border-border'}`}>
+                                <div key={ag.id} className={`p-4 rounded-xl border ${ag.status === 'FINALIZADO' ? 'bg-green-50/50 border-green-200' : ag.status === 'CANCELADO' ? 'bg-red-50/50 border-red-200' : 'bg-muted/30 border-border'}`}>
                                     <div className="flex justify-between items-start gap-3">
                                         <div className="min-w-0">
                                             <p className="text-sm font-semibold text-foreground">
@@ -66,8 +68,8 @@ export function ModalHistoricoCliente({ clienteId, onClose }: Props) {
                                         </div>
                                         <div className="text-right shrink-0">
                                             <p className="text-sm font-bold text-primary">R$ {fmt(ag.valorBruto)}</p>
-                                            <span className={`text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full ${ag.concluido ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
-                                                {ag.concluido ? 'Concluído' : 'Pendente'}
+                                            <span className={`text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full border ${STATUS_BADGE_THEME[ag.status as StatusAgendamento]}`}>
+                                                {STATUS_LABEL[ag.status as StatusAgendamento]}
                                             </span>
                                         </div>
                                     </div>

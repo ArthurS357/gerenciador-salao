@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { verificarSessaoCliente, verificarSessaoFuncionario } from '@/app/actions/auth'
 import { ActionResult } from '@/types/domain'
 import { schemaAvaliacao } from '@/lib/schemas'
-import { Prisma } from '@prisma/client'
+import { Prisma, StatusAgendamento } from '@prisma/client'
 
 // ── 1. Criar Avaliação (NPS do Cliente) ──────────────────────────────────────
 export async function criarAvaliacao(
@@ -30,7 +30,7 @@ export async function criarAvaliacao(
             where: { id: agendamentoId },
             select: {
                 clienteId: true,
-                concluido: true,
+                status: true,
                 avaliacao: { select: { id: true } } // Traz a relação se existir
             }
         })
@@ -41,7 +41,7 @@ export async function criarAvaliacao(
         if (agendamento.clienteId !== sessao.id) {
             return { sucesso: false, erro: 'Acesso negado. Este agendamento não pertence à sua conta.' }
         }
-        if (!agendamento.concluido) {
+        if (agendamento.status !== StatusAgendamento.FINALIZADO) {
             return { sucesso: false, erro: 'Só é possível avaliar atendimentos concluídos.' }
         }
         if (agendamento.avaliacao) {
